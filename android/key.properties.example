@@ -1,0 +1,6 @@
+# Copy to key.properties (gitignored). Keep the keystore and passwords private.
+# storeFile is absolute, or relative to android/app.
+storeFile=/absolute/path/to/upload-keystore.jks
+storePassword=YOUR_STORE_PASSWORD
+keyAlias=upload
+keyPassword=YOUR_KEY_PASSWORD

@@ -1,0 +1,142 @@
+import 'package:expense_tracker/core/models/ledger_types.dart';
+import 'package:expense_tracker/features/reports/domain/financial_report.dart';
+import 'package:expense_tracker/features/reports/domain/report_period.dart';
+import 'package:expense_tracker/features/reports/presentation/report_view_model.dart';
+import 'package:expense_tracker/features/reports/presentation/reports_screen.dart';
+import 'package:expense_tracker/features/transactions/domain/transaction_filter.dart';
+import 'package:expense_tracker/features/transactions/presentation/transaction_view_model.dart';
+import 'package:expense_tracker/features/transactions/presentation/transactions_screen.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
+
+void main() {
+  testWidgets(
+    'report mode changes between monthly and yearly while preserving the month',
+    (tester) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            reportPeriodProvider.overrideWith(_FixedPeriod.new),
+            financialReportProvider.overrideWith(
+              (ref, period) =>
+                  Stream.value(FinancialReport.calculate(period, const [])),
+            ),
+          ],
+          child: const MaterialApp(home: Scaffold(body: ReportsScreen())),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('November 2026'), findsOneWidget);
+      await tester.tap(find.text('Yearly'));
+      await tester.pumpAndSettle();
+      expect(find.text('2026'), findsOneWidget);
+      await tester.tap(find.text('Monthly'));
+      await tester.pumpAndSettle();
+      expect(find.text('November 2026'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'category drill-down opens history with expense/category/date constraints',
+    (tester) async {
+      final router = GoRouter(
+        initialLocation: '/reports',
+        routes: [
+          GoRoute(
+            path: '/reports',
+            builder: (context, state) => const Scaffold(body: ReportsScreen()),
+          ),
+          GoRoute(
+            path: '/history',
+            builder: (context, state) =>
+                const Scaffold(body: TransactionsScreen()),
+          ),
+        ],
+      );
+      addTearDown(router.dispose);
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            reportPeriodProvider.overrideWith(_FixedPeriod.new),
+            transactionsProvider.overrideWith((ref) => Stream.value(const [])),
+            financialReportProvider.overrideWith(
+              (ref, period) => Stream.value(
+                FinancialReport.calculate(period, [
+                  ReportEntry(
+                    type: TransactionType.expense,
+                    amountMyrMinor: 5625,
+                    date: period.start,
+                    categoryId: 'food',
+                    categoryName: 'Food',
+                    categoryColorHex: '#123456',
+                    categoryIconKey: 'restaurant',
+                  ),
+                ]),
+              ),
+            ),
+          ],
+          child: MaterialApp.router(routerConfig: router),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final category = find.text('Food').last;
+      await tester.ensureVisible(category);
+      await tester.pumpAndSettle();
+      await tester.tap(category);
+      await tester.pumpAndSettle();
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(TransactionsScreen)),
+      );
+      final filter = container.read(historyFilterProvider);
+      expect(filter.categoryId, 'food');
+      expect(filter.type, TransactionType.expense);
+      expect(filter.from.toString(), '2026-11-01');
+      expect(filter.to.toString(), '2026-11-30');
+      expect(find.text('No transactions match these filters.'), findsOneWidget);
+    },
+  );
+
+  testWidgets('clearing filters cancels a pending debounced search', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          historyFilterProvider.overrideWith(_FilteredHistory.new),
+          transactionsProvider.overrideWith((ref) => Stream.value(const [])),
+        ],
+        child: const MaterialApp(home: Scaffold(body: TransactionsScreen())),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'pending search');
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.tap(find.text('Clear all'));
+    await tester.pump(const Duration(milliseconds: 500));
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(TransactionsScreen)),
+    );
+    expect(
+      container.read(historyFilterProvider),
+      const TransactionFilter.empty(),
+    );
+    expect(
+      find.text('No transactions yet. Add your first income or expense.'),
+      findsOneWidget,
+    );
+  });
+}
+
+class _FixedPeriod extends PeriodSelection {
+  @override
+  ReportPeriod build() => ReportPeriod.month(2026, 11);
+}
+
+class _FilteredHistory extends HistoryFilter {
+  @override
+  TransactionFilter build() =>
+      TransactionFilter(query: 'Lunch', currencyCode: 'USD');
+}

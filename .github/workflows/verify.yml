@@ -1,0 +1,34 @@
+name: Verify Flutter app
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          channel: stable
+          cache: true
+      - name: Verify stable SDK and app
+        run: |
+          python3 - <<'PY'
+          import json, subprocess
+          sdk = json.loads(subprocess.check_output(['flutter', '--version', '--machine'], text=True))
+          assert sdk['channel'] == 'stable' and '-' not in sdk['frameworkVersion'], 'A stable release SDK is required.'
+          PY
+          bash tool/check.sh
+      - name: Check generated files are current
+        run: git diff --exit-code -- pubspec.lock lib/core/database/app_database.g.dart test/generated_migrations/

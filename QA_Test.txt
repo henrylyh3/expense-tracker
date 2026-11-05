@@ -1,0 +1,1182 @@
+# Senior QA Engineer — Comprehensive Flutter Expense Tracker Audit
+
+## 1. Your Role
+
+Act as a **Senior QA Automation Engineer, Flutter Architect, Financial Software Tester, and Security Reviewer**.
+
+Your task is to perform an exhaustive, evidence-based quality assurance audit of my Flutter expense tracker application.
+
+This is a real application QA task, **not a request for a generic testing checklist**.
+
+You must inspect the actual source code, understand the current implementation, run available tests, identify defects, and determine whether the application satisfies its functional and technical requirements.
+
+**Primary objectives:**
+
+1. Validate that every implemented feature works correctly.
+2. Detect functional bugs, financial calculation errors, data integrity problems, security risks, and architectural defects.
+3. Validate all transaction, category, and currency CRUD operations.
+4. Verify that the application operates completely offline.
+5. Validate SQLite persistence, migrations, and database integrity.
+6. Verify financial calculation accuracy across multiple currencies.
+7. Validate backup and restore, including failure recovery.
+8. Test edge cases, invalid inputs, and unexpected user behavior.
+9. Verify UI/UX correctness on Android and iOS.
+10. Produce a comprehensive QA report with reproducible findings.
+
+**Do not assume a feature works simply because its source code exists. Verify its behavior.**
+
+Do not claim a test passed unless it was actually executed and passed. Clearly distinguish code-review findings, automated test results, manual verification, and untested scenarios.
+
+Do not modify production code unless I explicitly request fixes. You may create non-destructive test scripts or test files, but clearly identify any files changed.
+
+---
+
+# 2. Application Specification
+
+## Technology
+
+| Component | Requirement |
+|---|---|
+| Platform | Android and iOS |
+| Framework | Flutter / Dart |
+| Architecture | Feature-first MVVM + Repository |
+| Database | SQLite using Drift |
+| State Management | Riverpod |
+| UI | Material 3 |
+| Backend | None |
+| Authentication | None |
+| Network | Not required |
+| Storage | Completely local |
+| Base Currency | MYR, fixed |
+| Multi-Currency | Supported |
+| Exchange Rates | Manually configured |
+| Accounts | One unified income/expense ledger |
+| Backup | Manual JSON export and restore |
+
+The application must remain functional with Wi-Fi and mobile data disabled.
+
+## Required Modules
+
+1. Dashboard
+2. Transaction management
+3. Category management
+4. Currency management
+5. Financial reports
+6. Settings
+7. Backup and restore
+
+If any functionality is missing, classify it as **Not Implemented** rather than automatically reporting a functional test failure. Identify whether it is required for the current implementation phase or the completed application.
+
+---
+
+# 3. Initial Project Inspection
+
+Before testing, inspect the complete project.
+
+Review:
+
+- `pubspec.yaml` and dependency compatibility
+- Flutter/Dart SDK constraints
+- `main.dart` and application initialization
+- Navigation and routing configuration
+- Riverpod providers and view models
+- Domain models and validation
+- Repositories and services
+- Drift database tables and DAOs
+- Database migration configuration
+- Currency conversion implementation
+- Category and currency management
+- Financial reporting queries
+- Backup and restore implementation
+- Error handling and logging
+- Unit, widget, and integration tests
+- Android and iOS platform configuration
+
+Identify the real implemented architecture and compare it with the specification.
+
+Check for:
+
+- Dead code and unfinished implementations
+- Hardcoded values
+- Placeholder or mock data accidentally used in production
+- Duplicate business logic
+- Incorrect dependency injection
+- Unsafe null handling
+- Unhandled asynchronous exceptions
+- Missing `await` operations
+- Improper provider lifecycle management
+- Resource leaks
+- Database connections not closed
+- Missing error states
+- Improper separation of UI, business logic, and persistence
+
+## Environment Verification
+
+Execute available commands:
+
+```bash
+flutter --version
+dart --version
+flutter doctor -v
+flutter pub get
+dart format --output=none --set-exit-if-changed .
+flutter analyze
+flutter test
+flutter test --coverage
+```
+
+Run relevant integration tests and platform builds when the environment supports them.
+
+Do not silently upgrade dependencies or modify the project to make checks pass.
+
+Record actual results, failures, warnings, and environmental limitations.
+
+---
+
+# 4. Functional QA — Transaction Management
+
+Every transaction must store:
+
+- Unique transaction ID
+- Transaction type: income or expense
+- Original amount in integer minor units
+- Original currency code
+- Exchange rate snapshot to MYR
+- Converted MYR amount in integer minor units
+- Category ID
+- Transaction date
+- Optional note
+- Creation timestamp
+- Update timestamp
+
+## Transaction Test Cases
+
+| ID | Test scenario | Expected result |
+|---|---|---|
+| TX-001 | Create MYR expense | Correct transaction saved |
+| TX-002 | Create MYR income | Correct transaction saved |
+| TX-003 | Create USD expense | Original USD and MYR equivalent stored |
+| TX-004 | Create JPY expense | Zero-decimal currency handled |
+| TX-005 | Create KRW income | Original KRW amount preserved |
+| TX-006 | Edit amount | Original and converted amounts updated correctly |
+| TX-007 | Edit currency | Currency, rate, and MYR amount updated consistently |
+| TX-008 | Edit category | Correct category reference saved |
+| TX-009 | Edit transaction date | Correct month and reports updated |
+| TX-010 | Edit note only | Monetary fields remain unchanged |
+| TX-011 | Delete transaction | Removed from history and summaries |
+| TX-012 | Cancel deletion | No data changes |
+| TX-013 | Submit form with missing amount | Validation error |
+| TX-014 | Submit amount of zero | Rejected |
+| TX-015 | Submit negative amount | Rejected |
+| TX-016 | Submit invalid characters | Rejected without application crash |
+| TX-017 | Submit excessive decimal places | Rejected or handled according to documented input rules |
+| TX-018 | Submit extremely large amount | Safe validation; no integer overflow |
+| TX-019 | Rapidly tap Save multiple times | No accidental duplicate transactions |
+| TX-020 | Close app immediately after saving | Committed record survives restart |
+| TX-021 | Save transaction without note | Successful |
+| TX-022 | Save special characters/emoji in note | Data preserved |
+| TX-023 | Select archived category for a new transaction | Not permitted |
+| TX-024 | Select archived currency for a new transaction | Not permitted |
+| TX-025 | Filter by category, date, currency, type | Correct results |
+| TX-026 | Search transactions | Correct matches; no unrelated records |
+| TX-027 | Open transaction after restart | All saved fields preserved |
+| TX-028 | Cancel transaction editing | Original record unchanged |
+
+## Additional Checks
+
+Verify:
+
+- The saved currency is never inferred from the current app setting.
+- The original amount is never silently converted or overwritten.
+- Editing an unrelated field does not replace the saved historical exchange rate.
+- No transaction can reference a nonexistent category or currency.
+- Income and expense category types cannot be mixed.
+- UI updates immediately after committed database changes.
+- Database and UI never disagree about the stored transaction values.
+
+---
+
+# 5. Financial Accuracy QA — Highest Priority
+
+This module is **CRITICAL**.
+
+All currency calculations must use precise decimal arithmetic.
+
+Never use floating-point arithmetic for financial values where it could introduce rounding errors.
+
+## Required Monetary Storage Rules
+
+Examples:
+
+| User input | Currency | Minor units |
+|---|---|---:|
+| 12.50 | MYR | 1250 |
+| 12.50 | USD | 1250 |
+| 500 | JPY | 500 |
+| 15000 | KRW | 15000 |
+| 1.250 | KWD | 1250 |
+| 0.01 | MYR | 1 |
+
+Currency decimal precision must be respected.
+
+## Mandatory Currency Conversion Tests
+
+Use these exact test values. They are **test fixtures**, not claims about live market exchange rates.
+
+| ID | Original | Rate to MYR | Expected MYR |
+|---|---|---|---|
+| FX-001 | MYR 12.50 | 1 | RM 12.50 |
+| FX-002 | USD 12.50 | 4.50 | RM 56.25 |
+| FX-003 | USD 10.00 | 4.70 | RM 47.00 |
+| FX-004 | JPY 500 | 0.0300 | RM 15.00 |
+| FX-005 | KRW 15000 | 0.0035 | RM 52.50 |
+| FX-006 | SGD 25.50 | 3.40 | RM 86.70 |
+| FX-007 | KWD 1.250 | 14.25 | RM 17.81 |
+| FX-008 | USD 0.01 | 4.50 | RM 0.05 |
+| FX-009 | JPY 1 | 0.015 | RM 0.02 |
+| FX-010 | MYR 0.01 | 1 | RM 0.01 |
+
+For these tests, use **decimal ROUND_HALF_UP** when converting a calculated MYR amount to its two-decimal minor-unit representation. If the implementation uses a different explicit rounding policy, identify the difference and evaluate consistency before deciding whether it is a defect.
+
+## Mathematical Validation
+
+For a transaction:
+
+```text
+original_amount =
+    amount_minor / 10^currency_decimal_places
+
+MYR_amount =
+    original_amount × exchange_rate_to_MYR
+
+amount_myr_minor =
+    ROUND_HALF_UP(MYR_amount × 100)
+```
+
+Ensure the implementation does not prematurely round the exchange rate or original amount.
+
+## Exchange Rate Snapshot Test
+
+1. Configure USD at 4.50 MYR.
+2. Create a USD 10.00 expense.
+3. Verify the saved MYR amount is RM 45.00.
+4. Change the default USD rate to 4.70.
+5. Reopen the original transaction.
+6. Verify its snapshot remains 4.50.
+7. Verify its stored MYR amount remains RM 45.00.
+8. Create another USD 10.00 expense.
+9. Verify the new transaction uses 4.70 and stores RM 47.00.
+10. Verify total expenses equal RM 92.00.
+
+Changing the default currency rate must **never recalculate existing transactions automatically**.
+
+## Additional Financial Tests
+
+Validate:
+
+- Positive and negative net cash flow
+- Income versus expense aggregation
+- Decimal precision for zero-, two-, and three-decimal currencies
+- Rounding at exact half-cent boundaries
+- Repeated rounding and cumulative totals
+- Very small exchange rates
+- Large exchange rates
+- Invalid zero or negative rates
+- Extremely long decimal rates
+- Integer overflow boundaries
+- Currency changes during transaction editing
+- Date changes affecting monthly reporting
+- Sum of converted transaction values versus report totals
+- No double conversion
+- No currency symbol/decimal precision mismatch
+
+Reports must aggregate the already-saved `amount_myr_minor` values, rather than reconverting the original foreign amounts using current exchange rates.
+
+**Important:** For reporting, summing stored rounded transaction equivalents is the expected behavior. Recomputing a conversion on the total original amount can produce a different result and must not replace the saved transaction accounting values.
+
+---
+
+# 6. Category Management QA
+
+Categories support:
+
+- Create
+- Read
+- Update
+- Delete when unused
+- Archive when referenced by existing transactions
+
+Each category contains:
+
+- ID
+- Name
+- Type
+- Icon
+- Color
+- Display order
+- Archived status
+
+## Test Cases
+
+| ID | Scenario | Expected |
+|---|---|---|
+| CAT-001 | Create expense category | Saved and selectable |
+| CAT-002 | Create income category | Saved and selectable for income |
+| CAT-003 | Update category name | Changes persist |
+| CAT-004 | Update icon and color | UI reflects changes |
+| CAT-005 | Delete unused category | Successfully deleted |
+| CAT-006 | Delete referenced category | Safe deletion blocked |
+| CAT-007 | Archive referenced category | Historical transactions retained |
+| CAT-008 | Create transaction with archived category | Not allowed |
+| CAT-009 | View historical transaction with archived category | Category still displayed |
+| CAT-010 | Create category with empty name | Rejected |
+| CAT-011 | Create duplicate category name | Follow documented uniqueness rules |
+| CAT-012 | Switch category type when referenced | Block or safely migrate with explicit user action |
+| CAT-013 | Restart app | Categories preserved |
+| CAT-014 | Restore backup | Categories correctly restored |
+| CAT-015 | Create category with Unicode/emoji name | Handled correctly |
+| CAT-016 | Delete category referenced by a report | Historical report data remains valid |
+
+Check that income categories never appear in the expense category selector and vice versa.
+
+Verify archived categories remain queryable for historical reports.
+
+---
+
+# 7. Currency Management QA
+
+Currency management is accessible through:
+
+**Settings → Manage Currencies**
+
+Required fields:
+
+- Currency code
+- Currency name
+- Currency symbol
+- Decimal precision
+- Exchange rate to MYR
+- Active/archived status
+
+## Test Cases
+
+| ID | Scenario | Expected |
+|---|---|---|
+| CUR-001 | Add USD at 4.50 | Saved correctly |
+| CUR-002 | Add JPY with zero decimals | Correct precision |
+| CUR-003 | Add KRW with zero decimals | Correct precision |
+| CUR-004 | Edit USD rate to 4.70 | Default rate updated |
+| CUR-005 | Edit currency name | Saved correctly |
+| CUR-006 | Edit currency symbol | Saved correctly |
+| CUR-007 | Delete unused currency | Allowed |
+| CUR-008 | Delete referenced currency | Blocked |
+| CUR-009 | Archive referenced currency | Historical values preserved |
+| CUR-010 | Create transaction with archived currency | Not allowed |
+| CUR-011 | Edit currency code referenced by transactions | Blocked |
+| CUR-012 | Edit decimal precision referenced by transactions | Blocked |
+| CUR-013 | Configure zero exchange rate | Rejected |
+| CUR-014 | Configure negative exchange rate | Rejected |
+| CUR-015 | Configure malformed exchange rate | Rejected |
+| CUR-016 | Add duplicate currency code | Rejected |
+| CUR-017 | Delete MYR | Prohibited |
+| CUR-018 | Change MYR rate | Prohibited |
+| CUR-019 | Change MYR decimal precision | Prohibited |
+| CUR-020 | Restart app | Configured currencies and rates preserved |
+| CUR-021 | Restore backup | Currency configuration restored |
+| CUR-022 | Edit default rate | Historical transaction snapshots unchanged |
+
+Verify all conversions use this definition:
+
+`1 source currency unit = N MYR`
+
+Never accidentally interpret the rate in reverse.
+
+Also verify archived currency records remain available to render historical transaction data.
+
+---
+
+# 8. Database Integrity and Persistence QA
+
+Review the SQLite/Drift database implementation.
+
+## Structural Validation
+
+Verify:
+
+- Correct primary keys
+- Correct foreign keys
+- Foreign key enforcement enabled
+- Unique constraints
+- NOT NULL constraints
+- Valid CHECK constraints
+- Correct index definitions
+- No unintended cascade deletion
+- Correct schema versioning
+- Correct migration handling
+- Correct data types
+- Safe integer handling
+- Transactional writes
+
+## Persistence Test Cases
+
+| ID | Scenario | Expected |
+|---|---|---|
+| DB-001 | Save transaction and restart app | Data retained |
+| DB-002 | Edit category and restart | Changes retained |
+| DB-003 | Edit exchange rate and restart | Rate retained |
+| DB-004 | Save 1000 transactions | No lost records |
+| DB-005 | Attempt invalid foreign key | Database rejects invalid reference |
+| DB-006 | Transaction write fails | No partially saved record |
+| DB-007 | Concurrent write operations | Data remains consistent |
+| DB-008 | Upgrade app using schema migration | Existing records retained |
+| DB-009 | Invalid migration | Failure handled without silent data loss |
+| DB-010 | Database read fails | UI displays recoverable error |
+| DB-011 | Delete referenced category | No orphaned transactions |
+| DB-012 | Delete referenced currency | No orphaned transactions |
+| DB-013 | Save under low storage conditions | Clear failure without corruption |
+| DB-014 | Force-close and reopen after completed write | Committed data retained |
+
+Run SQLite integrity checks on a disposable test database where feasible:
+
+```sql
+PRAGMA integrity_check;
+PRAGMA foreign_key_check;
+```
+
+Verify both return healthy results.
+
+### Migration Requirements
+
+Test:
+
+1. Create a database with the previous schema version.
+2. Populate realistic historical records.
+3. Upgrade using the current migration.
+4. Verify record counts and values.
+5. Verify foreign key integrity.
+6. Verify monetary values and currency codes remain unchanged.
+7. Verify backup and restore still work afterward.
+
+Never use destructive migration as a silent fallback.
+
+---
+
+# 9. Dashboard and Financial Reporting QA
+
+Required dashboard components:
+
+- Monthly income
+- Monthly expense
+- Net cash flow
+- Category spending totals
+- Monthly spending trend
+- Recent transactions
+- MYR-converted financial summaries
+
+## Controlled Reporting Dataset
+
+Create these transactions for November 2026:
+
+| Transaction | Type | Original | Rate | MYR equivalent |
+|---|---|---|---|---|
+| Salary | Income | MYR 5000 | 1 | RM 5000 |
+| Freelance | Income | USD 100 | 4.50 | RM 450 |
+| Food | Expense | MYR 50 | 1 | RM 50 |
+| Shopping | Expense | USD 20 | 4.50 | RM 90 |
+| Travel | Expense | JPY 1000 | 0.03 | RM 30 |
+| Transport | Expense | KRW 10000 | 0.0035 | RM 35 |
+
+## Expected Dashboard Results
+
+<Expected values>
+
+- Total income: **RM 5,450.00**
+- Total expenses: **RM 205.00**
+- Net cash flow: **RM 5,245.00**
+- Total transactions: **6**
+
+</Expected values>
+
+Category expense totals:
+
+- Food: RM 50.00
+- Shopping: RM 90.00
+- Travel: RM 30.00
+- Transport: RM 35.00
+
+## Additional Reporting Tests
+
+| ID | Scenario | Expected |
+|---|---|---|
+| RPT-001 | November summary | Matches controlled dataset |
+| RPT-002 | No transactions in month | Zero totals and appropriate empty state |
+| RPT-003 | Income only | Expense = zero |
+| RPT-004 | Expenses only | Income = zero |
+| RPT-005 | Delete transaction | Totals update |
+| RPT-006 | Edit transaction amount | Totals update |
+| RPT-007 | Change historical default exchange rate | Historical totals unchanged |
+| RPT-008 | Archived category | Historical total preserved |
+| RPT-009 | Transaction dated December 1 | Excluded from November |
+| RPT-010 | Transaction dated November 30 | Included in November |
+| RPT-011 | February 29 of leap year | Date handled correctly |
+| RPT-012 | Chart category totals | Match database sums |
+| RPT-013 | Recent transactions | Correct date ordering |
+| RPT-014 | Large dataset | Acceptable query and rendering performance |
+
+Check for timezone-related month shifts, date filtering errors, stale provider state, incorrect chart proportions, and mixed-currency sums without conversion.
+
+---
+
+# 10. Backup and Restore QA — Critical
+
+The application uses manual versioned JSON backup files.
+
+A backup must include:
+
+- Transactions
+- Categories
+- Currencies
+- Exchange rates/default conversion settings
+- Application settings
+- Backup format version
+- Export timestamp
+- Any additional data required to reconstruct the ledger
+
+## Backup Tests
+
+| ID | Scenario | Expected |
+|---|---|---|
+| BAK-001 | Export populated database | Valid backup created |
+| BAK-002 | Export empty database | Valid empty backup |
+| BAK-003 | Check exported transaction data | All required fields preserved |
+| BAK-004 | Check exported category data | All records preserved |
+| BAK-005 | Check exported currency data | Rates and precision preserved |
+| BAK-006 | Restore valid backup | Data restored successfully |
+| BAK-007 | Restore same backup twice using Replace All | No duplicates |
+| BAK-008 | Restore invalid JSON | Rejected safely |
+| BAK-009 | Restore truncated file | Rejected safely |
+| BAK-010 | Restore unsupported future version | Rejected clearly |
+| BAK-011 | Restore file with missing fields | Validation failure |
+| BAK-012 | Restore duplicate IDs | Validation failure |
+| BAK-013 | Restore invalid currency reference | Validation failure |
+| BAK-014 | Restore invalid category reference | Validation failure |
+| BAK-015 | Restore invalid monetary precision | Rejected safely |
+| BAK-016 | Restore invalid conversion rate | Rejected safely |
+| BAK-017 | Restore corrupted checksum, if implemented | Rejected |
+| BAK-018 | Cancel file picker | No changes |
+| BAK-019 | Cancel restore confirmation | No changes |
+| BAK-020 | Restore fails midway | Existing database unchanged |
+| BAK-021 | Restore with existing records | Replace All works correctly |
+| BAK-022 | Restart after restore | Restored data retained |
+| BAK-023 | Export Android, restore iOS | Same financial records |
+| BAK-024 | Export iOS, restore Android | Same financial records |
+| BAK-025 | Export many transactions | No missing or truncated records |
+| BAK-026 | Restore file with oversized/malicious data | Safely rejected or bounded |
+| BAK-027 | File sharing/save fails | No false success message |
+| BAK-028 | Restore historical archived records | Relationships preserved |
+
+## Atomic Restore Test
+
+This is mandatory.
+
+1. Create 20 existing transactions.
+2. Record their IDs and financial totals.
+3. Prepare a backup with a deliberate invalid reference.
+4. Attempt restoration.
+5. Confirm restoration fails.
+6. Confirm the original 20 transactions still exist.
+7. Confirm original categories, currencies, settings, and totals remain unchanged.
+8. Confirm the app remains usable.
+
+**A failed restore must never leave a partially restored database.**
+
+Test the order of inserts, foreign keys, transaction boundaries, and state-provider refreshes.
+
+### Backup Security
+
+Verify:
+
+- No unauthorized automatic upload.
+- No network request during export.
+- Temporary files are handled safely.
+- Plain JSON backups are clearly identified as unencrypted.
+- No passwords, secrets, or unrelated device data included.
+- Sensitive exports do not remain unnecessarily in publicly accessible temporary storage.
+- Large backups do not freeze the UI or exhaust memory without appropriate limits.
+
+---
+
+# 11. Offline Operation QA
+
+The application must function without internet access.
+
+## Offline Test Procedure
+
+1. Install and initialize the application.
+2. Turn off Wi-Fi.
+3. Turn off mobile data.
+4. Force-close and reopen the application.
+5. Add a transaction.
+6. Edit a transaction.
+7. Delete a transaction.
+8. Add and edit a category.
+9. Add a new currency.
+10. Update a manual exchange rate.
+11. View dashboard and reports.
+12. Export a backup to local device storage.
+13. Restore the backup from local storage.
+14. Restart the application.
+
+**Expected:** All core functions remain operational.
+
+Inspect dependencies and platform configuration for:
+
+- Unnecessary INTERNET permission on Android
+- Hidden external API requests
+- Remote fonts or assets
+- Cloud-dependent startup processes
+- Analytics or tracking SDKs
+- Crash-reporting SDKs with network activity
+- External authentication dependencies
+
+Distinguish application-generated traffic from operating-system activity. If testing the claim of zero network traffic, use appropriate network inspection tools and report the actual capture method.
+
+Also review Android/iOS operating-system backup configuration to identify whether the app's private data might be included in automatic device or cloud backups. Report any conflict with the stated local-only privacy requirement.
+
+---
+
+# 12. UI/UX QA
+
+Validate Material 3 appearance and behavior.
+
+## Screen-Level Tests
+
+Check:
+
+- Dashboard
+- Transaction list
+- Add transaction
+- Edit transaction
+- Category management
+- Currency management
+- Reports
+- Settings
+- Backup and restore
+
+For every screen, validate:
+
+- Correct layout
+- No clipping or overflow
+- Proper loading state
+- Appropriate empty state
+- Error state
+- Correct validation messages
+- Buttons respond properly
+- Navigation works
+- Back navigation preserves appropriate state
+- No duplicated or unintended screen transitions
+- Keyboard does not obscure inputs
+- Forms remain usable on small screens
+- Dialogs can be cancelled
+- Confirmation before destructive actions
+- Light mode and dark mode
+- Accessible tap targets and screen reader labels
+
+## Device Coverage
+
+Test where environments are available:
+
+- Small Android phone
+- Large Android phone
+- Android with gesture navigation
+- iPhone with safe-area insets
+- iPhone with larger accessibility text
+- Portrait mode
+- Dark mode
+- App backgrounding and foregrounding
+
+Test text scaling at 100%, 150%, and 200%.
+
+If a required platform or device is unavailable, classify its tests as **Blocked**, not Passed.
+
+---
+
+# 13. Input Validation and Negative Testing
+
+Attempt deliberately invalid input.
+
+## Monetary Inputs
+
+- Empty value
+- `0`
+- `-10`
+- `12.345` for MYR
+- `12.5.5`
+- `abc`
+- `12abc`
+- Whitespace
+- `NaN`
+- `Infinity`
+- Extremely large number
+- Excessive decimal places
+- Thousand separators
+- Comma decimal separator under different locales
+- Leading zeros
+- Very long input
+- Paste invalid content into amount field
+
+## Category Inputs
+
+- Empty name
+- Whitespace-only name
+- Very long name
+- Duplicate name
+- Emoji
+- Unicode characters
+- SQL-like strings
+- HTML-like strings
+- Type change with existing transactions
+
+## Currency Inputs
+
+- Empty currency code
+- Lowercase code
+- Invalid code
+- Duplicate code
+- Empty rate
+- Zero rate
+- Negative rate
+- Extremely small rate
+- Extremely large rate
+- Too many decimals
+- Invalid precision
+- Attempt to modify MYR invariants
+
+Verify invalid inputs produce helpful messages, never crashes, silent truncation, corrupted financial values, or partial database writes.
+
+Test strings as data rather than evaluating or executing them.
+
+---
+
+# 14. State Management and Concurrency QA
+
+Review Riverpod provider behavior.
+
+Test:
+
+1. Adding a transaction updates the dashboard.
+2. Editing a transaction updates transaction history.
+3. Deleting a transaction updates reports.
+4. Editing a category updates appropriate selectors.
+5. Archiving a currency updates new transaction options.
+6. Updating an exchange rate updates the default value displayed in new transaction forms.
+7. Existing transactions retain saved exchange-rate snapshots.
+8. Returning from Settings does not show stale values.
+9. Reopening a screen does not create duplicate subscriptions.
+10. Disposing widgets does not leave active listeners or trigger updates to disposed widgets.
+11. Fast navigation does not create inconsistent state.
+12. Multiple simultaneous saves do not create unexpected duplicate records.
+13. Database failures are surfaced without showing false success states.
+14. Restore completion invalidates/reloads all affected state correctly.
+
+Look for race conditions, uncontrolled asynchronous operations, outdated cached state, and double submissions.
+
+---
+
+# 15. Performance and Stability QA
+
+Test with generated disposable datasets.
+
+| Dataset | Size | Test goal |
+|---|---:|---|
+| Small | 100 transactions | General correctness |
+| Medium | 1,000 transactions | Smooth navigation |
+| Large | 10,000 transactions | Query and rendering performance |
+| Stress | 50,000 transactions | Identify bottlenecks |
+
+Verify:
+
+- App startup performance
+- Transaction list scrolling
+- Search/filter responsiveness
+- Dashboard aggregation performance
+- Monthly reports
+- Chart rendering
+- Backup generation
+- Backup restore
+- Memory usage
+- App responsiveness under repeated navigation
+- Memory leaks
+- Database index effectiveness
+
+Measure actual latency and memory where tooling allows.
+
+Do not invent benchmark values. Report the test device, environment, dataset size, methodology, and observed results.
+
+Identify database queries that could be improved through indexing, aggregation, pagination, or avoiding N+1 reads.
+
+---
+
+# 16. Security and Privacy QA
+
+Even though the application has no authentication, it stores personal financial data.
+
+Review:
+
+- Local application sandbox storage
+- SQLite file access
+- Android backup policy
+- iOS backup policy
+- Exported JSON file protection
+- Temporary file cleanup
+- Sensitive data in application logs
+- Database injection risks
+- Unsafe file path handling
+- Malformed backup parsing
+- Oversized file parsing
+- Third-party dependency risks
+- Excessive application permissions
+- Hardcoded credentials or API keys
+- Unnecessary network libraries
+- Debug-only behavior leaking into release builds
+
+Distinguish confidentiality, integrity, and availability risks.
+
+Do not claim the database is encrypted unless encryption is genuinely implemented.
+
+---
+
+# 17. Automated Testing Requirements
+
+Evaluate existing tests and identify coverage gaps.
+
+Where possible, implement non-destructive automated tests for:
+
+## Unit Tests
+
+- Money parsing
+- Currency decimal precision
+- Currency conversion
+- Rounding
+- MYR base-rate enforcement
+- Transaction validation
+- Category validation
+- Currency validation
+- Monthly financial aggregation
+- Exchange-rate snapshot preservation
+
+## Repository/Database Tests
+
+- Transaction CRUD
+- Category CRUD and archive
+- Currency CRUD and archive
+- Foreign key restrictions
+- Database transactions
+- Query filtering
+- Database migrations
+
+## Widget Tests
+
+- Transaction form validation
+- Category selection
+- Currency selection
+- Rate display
+- Dashboard summary display
+- Delete confirmation
+- Empty states
+- Error messages
+
+## Integration Tests
+
+- Add transaction through UI and verify persistence
+- Change currency rate and verify historical preservation
+- Create/update/archive category
+- Export and restore backup
+- Restart and verify persistence
+- Offline end-to-end workflow
+
+Use isolated in-memory or temporary databases for test execution. Never run destructive tests against the user's real financial database.
+
+Use deterministic fixtures, explicit expected amounts, and fake time where necessary.
+
+Target strong coverage of critical financial, database, and backup logic. Report actual coverage rather than treating a high line-coverage percentage as proof of correctness.
+
+---
+
+# 18. Cross-Platform and Release Validation
+
+Where build tools are available:
+
+## Android
+
+- Debug build
+- Release APK build
+- Appropriate Android SDK compatibility
+- Runtime permissions
+- App lifecycle
+- Back navigation
+- Local file picker
+- Backup export and import
+- Database persistence after restart
+
+## iOS
+
+- Debug build/simulator run
+- Release build where signing permits
+- iOS storage sandbox behavior
+- Files picker
+- Backup sharing
+- Safe area layouts
+- App background/foreground lifecycle
+- SQLite persistence
+
+Classify any tests requiring unavailable macOS, Xcode, signing credentials, hardware, or simulators as Blocked.
+
+A successful compilation is not sufficient to claim functional validation.
+
+---
+
+# 19. Defect Classification
+
+Classify findings using:
+
+| Severity | Definition |
+|---|---|
+| Critical (P0) | Financial data loss/corruption, incorrect balances, unsafe restore destroying existing data |
+| High (P1) | Major feature broken, wrong conversion, persistent database integrity issue, serious security vulnerability |
+| Medium (P2) | Important workflow failure, inconsistent state, incorrect filtering, significant UI usability problem |
+| Low (P3) | Minor visual defect, polish, noncritical warning, small usability issue |
+
+For every defect, provide:
+
+- Defect ID
+- Severity
+- Affected module
+- Title
+- Environment
+- Preconditions
+- Exact reproduction steps
+- Expected behavior
+- Actual behavior
+- Source file and line reference
+- Root cause, if established
+- Evidence (test output, screenshot, logs, or query results)
+- Recommended fix
+- Regression test recommendation
+
+Do not report hypothetical concerns as confirmed bugs. Label unverified concerns as Potential Risk or Needs Verification.
+
+---
+
+# 20. Required Final QA Report
+
+Produce the following deliverables.
+
+## A. Executive Summary
+
+Include:
+
+- Overall QA status: PASS / CONDITIONAL PASS / FAIL / INCOMPLETE
+- Critical defects
+- High-priority defects
+- Major risks
+- Release readiness
+- Most urgent fixes
+
+## B. Environment and Execution Evidence
+
+Document:
+
+- Flutter/Dart versions
+- Platform and operating system
+- Dependency resolution
+- Commands executed
+- Devices/emulators used
+- Test database strategy
+- Build results
+- Any environmental limitations
+
+## C. Feature Completion Matrix
+
+| Module | Implemented | Tested | Result | Notes |
+|---|---|---|---|---|
+| Dashboard | Yes/No/Partial | Yes/No | Pass/Fail/Blocked | |
+| Transaction CRUD | | | | |
+| Category CRUD | | | | |
+| Currency CRUD | | | | |
+| Exchange-rate snapshots | | | | |
+| Reporting | | | | |
+| Backup | | | | |
+| Restore | | | | |
+| Offline operation | | | | |
+| Android | | | | |
+| iOS | | | | |
+
+## D. Detailed Test Results
+
+For each test:
+
+| Test ID | Description | Expected | Actual | Status | Evidence |
+|---|---|---|---|---|---|
+
+Use these statuses:
+
+- PASS
+- FAIL
+- BLOCKED
+- NOT RUN
+- NOT IMPLEMENTED
+
+Never mark a test as PASS based only on assumptions or code inspection. If behavior is verified by static review rather than execution, state that separately.
+
+## E. Defect Report
+
+Sort by severity, Critical first.
+
+Include all verified defects with reproduction instructions and source references.
+
+## F. Financial Accuracy Report
+
+Explicitly report:
+
+- Supported currency precisions
+- Conversion formula
+- Rounding policy
+- Snapshot preservation
+- All FX fixture results
+- Aggregation consistency
+- Large-value/overflow handling
+- Any discrepancies
+
+## G. Database and Backup Integrity Report
+
+Explicitly report:
+
+- Foreign key status
+- Constraint validation
+- Migration safety
+- Database integrity results
+- Restore atomicity
+- Cross-platform portability status
+- Data loss risks
+
+## H. Security and Offline Compliance Report
+
+Document whether there is:
+
+- Any required network dependency
+- Any unrequested network communication
+- Any unwanted cloud synchronization
+- Unnecessary platform permissions
+- Unencrypted personal financial data
+- Unprotected temporary backup files
+- Unsafe import handling
+
+## I. Test Coverage and Gaps
+
+Include:
+
+- Existing automated test coverage
+- Tests executed
+- Missing tests
+- Manual-only scenarios
+- Platform-specific blocked tests
+- Recommended regression tests
+
+## J. Prioritized Remediation Plan
+
+Rank defects by:
+
+1. Data integrity and money accuracy
+2. Backup and restore safety
+3. Core feature failures
+4. Offline/privacy violations
+5. State management and concurrency
+6. Performance
+7. UI/UX issues
+8. Code maintainability
+
+For each recommendation, identify the relevant source file and the smallest safe correction where possible.
+
+---
+
+# 21. Release Acceptance Criteria
+
+Do not recommend production release unless all of the following are satisfied:
+
+- [ ] No unresolved Critical or High defects
+- [ ] All implemented core CRUD operations verified
+- [ ] Currency precision and conversion tests pass
+- [ ] Exchange-rate snapshots preserved
+- [ ] Financial report totals match stored MYR amounts
+- [ ] No known database integrity violations
+- [ ] Existing data survives supported migrations
+- [ ] Backup export and restore verified
+- [ ] Failed restore leaves existing data unchanged
+- [ ] Application works offline
+- [ ] Application state remains correct after restart
+- [ ] Relevant automated tests pass
+- [ ] Static analysis has no unexplained issues
+- [ ] Android release build succeeds
+- [ ] iOS release build succeeds where environment permits
+- [ ] No known release-blocking privacy or security risks
+
+If any critical acceptance test cannot be executed, clearly state that release readiness remains unverified for that area.
+
+---
+
+# 22. Execution Instructions
+
+Follow this sequence:
+
+**Step 1 — Discovery**
+
+Inspect the project and map actual implementation against requirements.
+
+**Step 2 — Static Analysis**
+
+Run project validation commands and review architecture, financial logic, database code, and error handling.
+
+**Step 3 — Automated Tests**
+
+Run existing tests. Create and execute isolated additional tests where appropriate.
+
+**Step 4 — Functional Validation**
+
+Validate real application workflows using available devices, emulators, or integration tooling.
+
+**Step 5 — Financial Validation**
+
+Execute every defined monetary and exchange-rate test using deterministic fixtures.
+
+**Step 6 — Data Integrity Validation**
+
+Test persistence, database constraints, migrations, and failure recovery.
+
+**Step 7 — Backup and Restore Validation**
+
+Test valid, invalid, incomplete, corrupted, and incompatible backups without risking real user data.
+
+**Step 8 — Offline, Security, and Platform Validation**
+
+Check network independence, storage, privacy, lifecycle behavior, and platform compatibility.
+
+**Step 9 — Final Report**
+
+Provide the complete structured QA report, including execution evidence and exact source references.
+
+## Final Rules
+
+- Be rigorous, evidence-driven, and specific.
+- Never fabricate test executions or results.
+- Do not treat successful compilation as proof of correct behavior.
+- Do not silently skip unavailable tests.
+- Do not modify real user financial data.
+- Do not automatically change production code.
+- Never silently replace expected behavior with what the current implementation happens to do.
+- Explain every functional deviation from the specification.
+- Prioritize financial accuracy and prevention of data loss above cosmetic quality.
+- Prefer reproducible automated tests over subjective assessments.
+- If project access is unavailable, clearly state that execution is blocked and provide an executable test plan instead of claiming the application was validated.
+
+**Begin immediately by inspecting the actual project and establishing its implemented feature baseline. Then execute the QA workflow and provide a detailed, evidence-based report.**
