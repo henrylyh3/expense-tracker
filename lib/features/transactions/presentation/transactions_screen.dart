@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/money/display_currency.dart';
+import '../../../core/providers/default_currency_provider.dart';
 import '../../../core/models/ledger_types.dart';
 import '../../../shared/widgets/category_appearance.dart';
 import '../../../shared/widgets/management_widgets.dart';
@@ -73,6 +75,8 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final display =
+        ref.watch(defaultCurrencyProvider).asData?.value ?? DisplayCurrency.myr;
     final filter = ref.watch(historyFilterProvider);
     ref.listen(historyFilterProvider, (previous, next) {
       if (previous?.query != next.query && _search.text.trim() != next.query) {
@@ -177,7 +181,10 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
               );
             }
             final item = visible[index - 1];
-            const sign = '−';
+            final displayedAmount = display.format(
+              item.conversion.myr.minorUnits,
+            );
+            final originalAmount = item.conversion.original.format();
             return Card(
               child: ListTile(
                 leading: CircleAvatar(
@@ -191,8 +198,8 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
                 ),
                 title: Text(item.categoryName),
                 subtitle: Text(
-                  '${item.date} · ${item.type.name}\n$sign${item.conversion.original.format()}'
-                  '${item.conversion.original.currencyCode == 'MYR' ? '' : '\n${item.conversion.myr.format()} equivalent'}',
+                  '${item.date} · ${item.type.name}\n−$displayedAmount'
+                  '${originalAmount == displayedAmount ? '' : '\nOriginal: $originalAmount'}',
                 ),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () => context.push('/transactions/${item.id}'),

@@ -179,7 +179,7 @@ void main() {
         expect(iterator.current.single.usageCount, 0);
         await database.customInsert(
           '''INSERT INTO transactions VALUES
-        ('123e4567-e89b-42d3-a456-426614174000', 'seed-food', 'expense', 1250, 'MYR', '1', 1250, '2026-11-05', NULL, 0, 0)''',
+        ('123e4567-e89b-42d3-a456-426614174000', 'seed-food', 'expense', 1250, 'MYR', '1', 1250, '2026-11-05', NULL, 0, 0, 'personal')''',
           updates: {database.transactions},
         );
         expect(
@@ -222,6 +222,6 @@ Future<void> _transaction(
   int myr = 1250,
 }) => database.customStatement(
   '''INSERT INTO transactions VALUES
-  ('123e4567-e89b-42d3-a456-426614174000', 'seed-food', 'expense', 1250, ?, ?, ?, '2026-11-05', NULL, 0, 0)''',
+  ('123e4567-e89b-42d3-a456-426614174000', 'seed-food', 'expense', 1250, ?, ?, ?, '2026-11-05', NULL, 0, 0, 'personal')''',
   [currency, rate, myr],
 );

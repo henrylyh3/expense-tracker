@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/providers/database_providers.dart';
+import '../../../core/providers/trip_provider.dart';
 import '../../../core/models/ledger_types.dart';
 import '../data/transaction_repository.dart';
 import '../domain/ledger_transaction.dart';
@@ -44,6 +45,7 @@ final transactionsProvider = StreamProvider<List<LedgerTransaction>>(
       .watch(transactionRepositoryProvider)
       .watchHistory(
         limit: ref.watch(historyLimitProvider),
+        tripId: ref.watch(activeTripProvider).asData?.value ?? personalTripId,
         filter: ref.watch(historyFilterProvider).expensesOnly,
       ),
   retry: (count, error) => null,
@@ -52,7 +54,11 @@ final transactionProvider = StreamProvider.autoDispose
     .family<LedgerTransaction?, String>(
       (ref, id) => ref
           .watch(transactionRepositoryProvider)
-          .watchById(id)
+          .watchById(
+            id,
+            tripId:
+                ref.watch(activeTripProvider).asData?.value ?? personalTripId,
+          )
           .map((item) => item?.type == TransactionType.expense ? item : null),
       retry: (count, error) => null,
     );

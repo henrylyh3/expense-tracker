@@ -25,13 +25,14 @@ class TransactionRepository {
   /// Returns one look-ahead row for the History screen's Load more action.
   Stream<List<LedgerTransaction>> watchHistory({
     int limit = 100,
+    String? tripId,
     TransactionFilter filter = const TransactionFilter.empty(),
   }) {
     if (limit < 1) {
       throw const LedgerException('History limit must be positive.');
     }
     final fetchLimit = Money.checkedMinorUnits(BigInt.from(limit) + BigInt.one);
-    final predicate = buildHistoryPredicate(filter);
+    final predicate = buildHistoryPredicate(filter, tripId: tripId);
     return _database
         .customSelect(
           '$_projection${predicate.sql} ORDER BY t.transaction_date DESC, t.created_at_utc DESC, t.id DESC LIMIT ?',
@@ -50,10 +51,13 @@ class TransactionRepository {
         .map((rows) => rows.map(_fromRow).toList(growable: false));
   }
 
-  Stream<LedgerTransaction?> watchById(String id) => _database
+  Stream<LedgerTransaction?> watchById(String id, {String? tripId}) => _database
       .customSelect(
-        '$_projection WHERE t.id = ?',
-        variables: [Variable<String>(id)],
+        '$_projection WHERE t.id = ?${tripId == null ? '' : ' AND t.trip_id = ?'}',
+        variables: [
+          Variable<String>(id),
+          if (tripId != null) Variable<String>(tripId),
+        ],
         readsFrom: {
           _database.transactions,
           _database.categories,
@@ -100,10 +104,24 @@ class TransactionRepository {
         'Archived categories cannot be selected for new transactions.',
       );
     }
+    final trip = await _database
+        .customSelect(
+          id == null
+              ? """SELECT COALESCE((SELECT value FROM app_settings WHERE key = 'active_trip'), 'personal') AS trip_id"""
+              : 'SELECT trip_id FROM transactions WHERE id = ?',
+          variables: [if (id != null) Variable.withString(id)],
+        )
+        .getSingle();
+    final tripId = trip.read<String>('trip_id');
     final currency = await _database
         .customSelect(
-          'SELECT decimal_places, rate_to_myr, is_active FROM currencies WHERE code = ?',
-          variables: [Variable<String>(input.currencyCode)],
+          '''SELECT c.decimal_places, COALESCE(r.rate_to_myr, c.rate_to_myr) AS rate_to_myr, c.is_active
+          FROM currencies c LEFT JOIN trip_rates r ON r.currency_code = c.code AND r.trip_id = ?
+          WHERE c.code = ?''',
+          variables: [
+            Variable.withString(tripId),
+            Variable<String>(input.currencyCode),
+          ],
         )
         .getSingleOrNull();
     if (currency == null) {
@@ -132,8 +150,8 @@ class TransactionRepository {
       final newId = const Uuid().v4();
       await _database.customInsert(
         '''INSERT INTO transactions (id, category_id, type, amount_minor, currency_code,
-          exchange_rate_snapshot, amount_myr_minor, transaction_date, note, created_at_utc, updated_at_utc)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+          exchange_rate_snapshot, amount_myr_minor, transaction_date, note, created_at_utc, updated_at_utc, trip_id)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
         variables: [
           Variable<String>(newId),
           Variable<String>(input.categoryId),
@@ -146,6 +164,7 @@ class TransactionRepository {
           Variable<String>(input.note),
           Variable<int>(now),
           Variable<int>(now),
+          Variable.withString(tripId),
         ],
         updates: {_database.transactions},
       );

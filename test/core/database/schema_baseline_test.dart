@@ -11,13 +11,13 @@ void main() {
   final verifier = SchemaVerifier(GeneratedHelper());
 
   test(
-    'fresh schema matches the exported v1 tables, indexes and triggers',
+    'fresh schema matches the exported v2 tables, indexes and triggers',
     () async {
       final db = AppDatabase.forTesting(NativeDatabase.memory());
       addTearDown(db.close);
       await verifier.migrateAndValidate(
         db,
-        1,
+        2,
         options: const ValidationOptions(validateDropped: true),
       );
       await db.initialize();
@@ -25,7 +25,7 @@ void main() {
     },
   );
 
-  test('opening exported v1 preserves data and does not reseed defaults', () async {
+  test('migrating exported v1 preserves data and does not reseed defaults', () async {
     final schema = await verifier.schemaAt(1);
     addTearDown(schema.rawDatabase.close);
     schema.rawDatabase.execute(
@@ -43,7 +43,7 @@ void main() {
     final db = AppDatabase.forTesting(schema.newConnection());
     addTearDown(db.close);
     await db.initialize();
-    await verifier.migrateAndValidate(db, 1);
+    await verifier.migrateAndValidate(db, 2);
     expect(
       (await db
               .customSelect('SELECT count(*) AS n FROM categories')
@@ -60,7 +60,9 @@ void main() {
     );
     expect(
       (await db
-              .customSelect('SELECT amount_minor FROM transactions')
+              .customSelect(
+                "SELECT amount_minor FROM transactions WHERE trip_id = 'personal'",
+              )
               .getSingle())
           .read<int>('amount_minor'),
       1250,
@@ -109,7 +111,7 @@ void main() {
         expect(
           (await reopened.customSelect('PRAGMA user_version').getSingle())
               .read<int>('user_version'),
-          2,
+          3,
         );
         expect(
           (await reopened
@@ -132,9 +134,9 @@ void main() {
   );
 }
 
-// Synthetic future file only. This does not introduce a production v2 migration.
+// Synthetic future file only. This does not introduce a production v3 migration.
 class _FutureDatabase extends AppDatabase {
   _FutureDatabase(super.executor) : super.forTesting();
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 }

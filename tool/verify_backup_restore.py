@@ -11,7 +11,7 @@ import unittest
 
 SCHEMA = (Path(__file__).resolve().parents[1] / 'lib/core/database/tables/ledger.drift').read_text()
 PLANS = json.load(sys.stdin.buffer)
-TABLES = {'categories': 'categories', 'currencies': 'currencies', 'transactions': 'transactions', 'settings': 'app_settings'}
+TABLES = {'categories': 'categories', 'currencies': 'currencies', 'transactions': 'transactions', 'settings': 'app_settings', 'trips': 'trips', 'trip_rates': 'trip_rates'}
 
 
 class BackupRestoreChecks(unittest.TestCase):
@@ -20,10 +20,11 @@ class BackupRestoreChecks(unittest.TestCase):
         self.db.row_factory = sqlite3.Row
         self.db.execute('PRAGMA foreign_keys=ON')
         self.db.executescript(SCHEMA)
+        self.db.execute("INSERT INTO trips VALUES ('personal', 'Personal')")
         self.db.execute("INSERT INTO currencies VALUES ('MYR','Old Ringgit','RM',2,'1',1,0,0)")
         self.db.execute("INSERT INTO categories VALUES ('old','Old category','expense','restaurant','#123456',0,0)")
         self.db.execute("INSERT INTO app_settings VALUES ('theme_mode','system')")
-        self.db.execute("INSERT INTO transactions VALUES ('00000000-0000-4000-8000-000000000000','old','expense',100,'MYR','1',100,'2026-01-01','Old data',0,0)")
+        self.db.execute("INSERT INTO transactions VALUES ('00000000-0000-4000-8000-000000000000','old','expense',100,'MYR','1',100,'2026-01-01','Old data',0,0, 'personal')")
 
     def tearDown(self):
         self.db.close()

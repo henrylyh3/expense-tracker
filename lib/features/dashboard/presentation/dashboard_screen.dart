@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/providers/trip_provider.dart';
+import '../../currencies/presentation/currency_view_model.dart';
 import '../../../core/models/ledger_types.dart';
 import '../../../shared/widgets/management_widgets.dart';
 import '../../reports/domain/report_period.dart';
@@ -15,36 +17,70 @@ class DashboardScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final period = ref.watch(dashboardPeriodProvider);
+    final display = ref.watch(reportDisplayCurrencyProvider);
+    final active =
+        ref.watch(activeTripProvider).asData?.value ?? personalTripId;
+    final trip = ref
+        .watch(tripsProvider)
+        .asData
+        ?.value
+        .where((item) => item.id == active)
+        .firstOrNull;
+    final codes =
+        ref
+            .watch(currenciesProvider)
+            .asData
+            ?.value
+            .where((item) => item.isActive)
+            .map((item) => item.code)
+            .toList() ??
+        [];
+    final choice = ref.watch(reportCurrencyChoiceProvider);
+    final period = ReportPeriod.trip();
     final report = ref.watch(financialReportProvider(period));
-    final year = ReportPeriod.year(period.year);
-    final annual = ref.watch(financialReportProvider(year));
     final recent = ref.watch(dashboardRecentProvider(period));
     void history({String? category}) {
       ref
           .read(historyFilterProvider.notifier)
-          .set(
-            TransactionFilter(
-              from: period.start,
-              to: period.lastDay,
-              categoryId: category,
-            ),
-          );
+          .set(TransactionFilter(categoryId: category));
       context.go('/history');
     }
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 112),
       children: [
-        Text(
-          'Your private ledger',
-          style: Theme.of(context).textTheme.headlineSmall,
+        Wrap(
+          spacing: 12,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          alignment: WrapAlignment.spaceBetween,
+          children: [
+            Text(
+              'Your private ledger',
+              style: Theme.of(context).textTheme.headlineSmall,
+            ),
+            SizedBox(
+              width: 160,
+              child: DropdownButton<String>(
+                isExpanded: true,
+                value: codes.contains(choice) ? choice : null,
+                hint: Text(display.code),
+                items: [
+                  const DropdownMenuItem<String>(
+                    child: Text('Use default', overflow: TextOverflow.ellipsis),
+                  ),
+                  for (final code in codes)
+                    DropdownMenuItem(value: code, child: Text(code)),
+                ],
+                onChanged: codes.isEmpty
+                    ? null
+                    : ref.read(reportCurrencyChoiceProvider.notifier).select,
+              ),
+            ),
+          ],
         ),
-        const SizedBox(height: 12),
-        PeriodControl(
-          period: period,
-          onMove: ref.read(dashboardPeriodProvider.notifier).move,
-          onToday: ref.read(dashboardPeriodProvider.notifier).today,
+        Text(
+          trip?.name ?? 'Personal',
+          style: Theme.of(context).textTheme.titleMedium,
         ),
         const SizedBox(height: 16),
         report.when(
@@ -55,15 +91,16 @@ class DashboardScreen extends ConsumerWidget {
           error: (error, stack) => ManagementLoadError(
             message: error is LedgerException
                 ? error.message
-                : 'Unable to load this month.',
+                : 'Unable to load this trip.',
             onRetry: () => ref.invalidate(financialReportProvider(period)),
           ),
           data: (value) => Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              FinancialSummary(report: value),
+              FinancialSummary(report: value, currency: display),
               const SizedBox(height: 16),
               SpendingBreakdown(
+                currency: display,
                 report: value,
                 onCategory: (category) => history(category: category.id),
               ),
@@ -71,27 +108,28 @@ class DashboardScreen extends ConsumerWidget {
           ),
         ),
         const SizedBox(height: 16),
-        annual.when(
+        report.when(
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (error, stack) => ManagementLoadError(
             message: error is LedgerException
                 ? error.message
-                : 'Unable to load monthly trends.',
-            onRetry: () => ref.invalidate(financialReportProvider(year)),
+                : 'Unable to load trip trends.',
+            onRetry: () => ref.invalidate(financialReportProvider(period)),
           ),
           data: (value) => CashFlowTrend(
             report: value,
-            title: 'Monthly expenses · ${period.year}',
+            currency: display,
+            title: 'Trip spending by day',
           ),
         ),
         const SizedBox(height: 16),
         Text(
-          'Recent transactions · ${periodLabel(period)}',
+          'Recent transactions',
           style: Theme.of(context).textTheme.titleLarge,
         ),
         TextButton(
           onPressed: () => history(),
-          child: const Text('View period history'),
+          child: const Text('View trip history'),
         ),
         recent.when(
           loading: () => const Center(child: CircularProgressIndicator()),
@@ -102,7 +140,7 @@ class DashboardScreen extends ConsumerWidget {
           data: (items) => items.isEmpty
               ? const Padding(
                   padding: EdgeInsets.all(16),
-                  child: Text('No transactions in this month.'),
+                  child: Text('No transactions in this trip.'),
                 )
               : Column(
                   children: [
@@ -111,7 +149,7 @@ class DashboardScreen extends ConsumerWidget {
                         child: ListTile(
                           title: Text(item.categoryName),
                           subtitle: Text(
-                            '${item.date} · ${item.type.name}\n${item.conversion.myr.format()}',
+                            '${item.date} · ${item.type.name}\n${display.format(item.conversion.myr.minorUnits)}',
                           ),
                           trailing: const Icon(Icons.chevron_right),
                           onTap: () => context.push('/transactions/${item.id}'),

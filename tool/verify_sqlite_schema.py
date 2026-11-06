@@ -19,6 +19,7 @@ TX_ID = "123e4567-e89b-42d3-a456-426614174000"
 def initialize(connection):
     connection.execute("PRAGMA foreign_keys = ON")
     connection.executescript(SCHEMA)
+    connection.execute("INSERT INTO trips VALUES ('personal', 'Personal')")
     connection.execute("INSERT INTO currencies VALUES ('MYR', 'Ringgit', 'RM', 2, '1', 1, 0, 0)")
     connection.execute("INSERT INTO currencies VALUES ('USD', 'Dollar', '$', 2, '4.5', 1, 0, 0)")
     connection.execute("INSERT INTO categories VALUES ('food', 'Food', 'expense', 'restaurant', '#EF6C00', 0, 0)")

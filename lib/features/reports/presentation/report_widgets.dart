@@ -5,87 +5,29 @@ import 'package:flutter/material.dart';
 
 import '../../../core/dates/date_labels.dart';
 import '../../../core/money/money.dart';
+import '../../../core/money/display_currency.dart';
 import '../../../shared/widgets/category_appearance.dart';
 import '../domain/financial_report.dart';
-import '../domain/report_period.dart';
-
-String periodLabel(ReportPeriod period) =>
-    period.isYear ? '${period.year}' : monthYearLabel(period.start);
-
-class PeriodControl extends StatelessWidget {
-  const PeriodControl({
-    required this.period,
-    required this.onMove,
-    required this.onToday,
-    this.onYearlyChanged,
-    super.key,
-  });
-  final ReportPeriod period;
-  final ValueChanged<int> onMove;
-  final VoidCallback onToday;
-  final ValueChanged<bool>? onYearlyChanged;
-  @override
-  Widget build(BuildContext context) => Column(
-    children: [
-      Row(
-        children: [
-          IconButton(
-            tooltip: 'Previous period',
-            onPressed: period.shift(-1) == null ? null : () => onMove(-1),
-            icon: const Icon(Icons.chevron_left),
-          ),
-          Expanded(
-            child: Text(
-              periodLabel(period),
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-          ),
-          IconButton(
-            tooltip: 'Next period',
-            onPressed: period.shift(1) == null ? null : () => onMove(1),
-            icon: const Icon(Icons.chevron_right),
-          ),
-        ],
-      ),
-      Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        crossAxisAlignment: WrapCrossAlignment.center,
-        children: [
-          if (onYearlyChanged != null) ...[
-            ChoiceChip(
-              label: const Text('Monthly'),
-              selected: !period.isYear,
-              onSelected: (_) => onYearlyChanged!(false),
-            ),
-            ChoiceChip(
-              label: const Text('Yearly'),
-              selected: period.isYear,
-              onSelected: (_) => onYearlyChanged!(true),
-            ),
-          ],
-          TextButton(onPressed: onToday, child: const Text('Current period')),
-        ],
-      ),
-    ],
-  );
-}
 
 class FinancialSummary extends StatelessWidget {
-  const FinancialSummary({required this.report, super.key});
+  const FinancialSummary({
+    required this.report,
+    this.currency = DisplayCurrency.myr,
+    super.key,
+  });
   final FinancialReport report;
+  final DisplayCurrency currency;
   @override
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      Text('${report.expenseCount} expenses · Saved conversions in MYR'),
+      Text('${report.expenseCount} expenses · Displayed in ${currency.code}'),
       const SizedBox(height: 12),
       _summaryCard(
         context,
         double.infinity,
         'Expenses',
-        report.expenses,
+        report.expenseMinor,
         Theme.of(context).colorScheme.error,
       ),
     ],
@@ -94,7 +36,7 @@ class FinancialSummary extends StatelessWidget {
     BuildContext context,
     double width,
     String label,
-    Money value,
+    int value,
     Color color,
   ) => SizedBox(
     width: width,
@@ -110,7 +52,7 @@ class FinancialSummary extends StatelessWidget {
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: Text(
-                value.format(),
+                currency.format(value),
                 style: Theme.of(
                   context,
                 ).textTheme.headlineSmall?.copyWith(color: color),
@@ -124,8 +66,14 @@ class FinancialSummary extends StatelessWidget {
 }
 
 class SpendingBreakdown extends StatelessWidget {
-  const SpendingBreakdown({required this.report, this.onCategory, super.key});
+  const SpendingBreakdown({
+    required this.report,
+    this.currency = DisplayCurrency.myr,
+    this.onCategory,
+    super.key,
+  });
   final FinancialReport report;
+  final DisplayCurrency currency;
   final ValueChanged<CategorySpending>? onCategory;
   @override
   Widget build(BuildContext context) {
@@ -168,11 +116,11 @@ class SpendingBreakdown extends StatelessWidget {
             if (positive.isEmpty)
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 24),
-                child: Text('No MYR spending in this period.'),
+                child: Text('No spending in this period.'),
               )
             else ...[
               Semantics(
-                label: 'Spending by category. Exact MYR values follow.',
+                label: 'Spending by category in ${currency.code}.',
                 child: ExcludeSemantics(
                   child: SizedBox(
                     height: 220,
@@ -220,7 +168,7 @@ class SpendingBreakdown extends StatelessWidget {
                 ),
                 title: Text(item.name),
                 subtitle: Text(
-                  '${item.amount.format()} · ${item.count} transactions',
+                  '${currency.format(item.amountMinor)} · ${item.count} transactions',
                 ),
                 onTap: onCategory == null ? null : () => onCategory!(item),
               ),
@@ -232,8 +180,14 @@ class SpendingBreakdown extends StatelessWidget {
 }
 
 class CashFlowTrend extends StatelessWidget {
-  const CashFlowTrend({required this.report, this.title, super.key});
+  const CashFlowTrend({
+    required this.report,
+    this.currency = DisplayCurrency.myr,
+    this.title,
+    super.key,
+  });
   final FinancialReport report;
+  final DisplayCurrency currency;
   final String? title;
   @override
   Widget build(BuildContext context) {
@@ -242,8 +196,11 @@ class CashFlowTrend extends StatelessWidget {
       0,
       (value, bucket) => math.max(value, bucket.expenseMinor),
     );
-    String label(TrendBucket bucket) =>
-        report.period.isYear ? monthLabel(bucket.date) : dayLabel(bucket.date);
+    String label(TrendBucket bucket) => report.period.isTrip
+        ? '${bucket.date.day}/${bucket.date.month}'
+        : report.period.isYear
+        ? monthLabel(bucket.date)
+        : dayLabel(bucket.date);
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -258,7 +215,7 @@ class CashFlowTrend extends StatelessWidget {
               style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: 12),
-            const Text('MYR · Exact values below'),
+            Text('${currency.code} · Values below'),
             Wrap(
               spacing: 16,
               runSpacing: 8,
@@ -272,7 +229,7 @@ class CashFlowTrend extends StatelessWidget {
             else
               Semantics(
                 label:
-                    'Expense trends in MYR. Exact values are available below.',
+                    'Expense trends in ${currency.code}. Values are available below.',
                 child: ExcludeSemantics(
                   child: SizedBox(
                     height: 240,
@@ -281,7 +238,7 @@ class CashFlowTrend extends StatelessWidget {
                       child: BarChart(
                         BarChartData(
                           minY: 0,
-                          maxY: maximum.toDouble() / 100 * 1.15,
+                          maxY: currency.chartValue(maximum) * 1.15,
                           borderData: FlBorderData(show: false),
                           gridData: const FlGridData(drawVerticalLine: false),
                           barTouchData: BarTouchData(enabled: false),
@@ -299,7 +256,17 @@ class CashFlowTrend extends StatelessWidget {
                                   final index = value.round();
                                   if (index < 0 ||
                                       index >= report.buckets.length ||
-                                      index % (report.period.isYear ? 3 : 7) !=
+                                      index %
+                                              (report.period.isTrip
+                                                  ? math.max(
+                                                      1,
+                                                      (report.buckets.length /
+                                                              5)
+                                                          .ceil(),
+                                                    )
+                                                  : report.period.isYear
+                                                  ? 3
+                                                  : 7) !=
                                           0) {
                                     return const SizedBox.shrink();
                                   }
@@ -325,10 +292,9 @@ class CashFlowTrend extends StatelessWidget {
                                 x: index,
                                 barRods: [
                                   BarChartRodData(
-                                    toY:
-                                        report.buckets[index].expenseMinor
-                                            .toDouble() /
-                                        100,
+                                    toY: currency.chartValue(
+                                      report.buckets[index].expenseMinor,
+                                    ),
                                     color: colors.error,
                                     width: report.period.isYear ? 7 : 3,
                                   ),
@@ -349,7 +315,9 @@ class CashFlowTrend extends StatelessWidget {
                   ListTile(
                     contentPadding: EdgeInsets.zero,
                     title: Text(label(bucket)),
-                    subtitle: Text('Expenses: ${_myr(bucket.expenseMinor)}'),
+                    subtitle: Text(
+                      'Expenses: ${currency.format(bucket.expenseMinor)}',
+                    ),
                   ),
               ],
             ),
@@ -359,12 +327,6 @@ class CashFlowTrend extends StatelessWidget {
     );
   }
 }
-
-String _myr(int value) => Money.fromMinor(
-  minorUnits: value,
-  currencyCode: 'MYR',
-  decimalPlaces: 2,
-).format();
 
 class _Legend extends StatelessWidget {
   const _Legend({required this.color, required this.label});

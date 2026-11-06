@@ -17,7 +17,8 @@ void main() {
     () {
       final backup = BackupValidator.fromDocument(backupDocument());
       final restored = BackupValidator.decode(backup.encode());
-      expect(restored.toDocument(), backupDocument());
+      expect(restored.toDocument(), backup.toDocument());
+      expect(restored.tables['transactions']!.single['trip_id'], 'personal');
       expect(
         restored.tables['transactions']!.single['exchange_rate_snapshot'],
         '4.5000',
@@ -48,7 +49,10 @@ void main() {
       appVersion: backup.appVersion,
       exportedAtUtc: backup.exportedAtUtc,
     );
-    expect(BackupValidator.decode(exported.encode()).toDocument(), document);
+    expect(
+      BackupValidator.decode(exported.encode()).toDocument(),
+      backup.toDocument(),
+    );
   });
   test('background decoding uses sendable values', () async {
     final backup = await BackupValidator.decodeInBackground(
@@ -261,13 +265,15 @@ void main() {
     final plan = replacementStatements(
       BackupValidator.fromDocument(document),
     ).toList();
-    expect(plan.take(4).map((s) => s.sql), [
+    expect(plan.take(6).map((s) => s.sql), [
       'DELETE FROM transactions',
+      'DELETE FROM trip_rates',
+      'DELETE FROM trips',
       'DELETE FROM categories',
       "DELETE FROM currencies WHERE code <> 'MYR'",
       'DELETE FROM app_settings',
     ]);
-    expect(plan[4].sql, contains('ON CONFLICT(code) DO UPDATE'));
+    expect(plan[6].sql, contains('ON CONFLICT(code) DO UPDATE'));
     expect(
       plan.any(
         (s) =>

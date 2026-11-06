@@ -26,23 +26,37 @@ class AppDatabase extends _$AppDatabase {
   void markLedgerRestored() => _writeGate.restored();
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
     onCreate: (migrator) => transaction(() async {
       await migrator.createAll();
       await seedDatabase(this);
+      await _seedPersonalTrip();
     }),
     onUpgrade: (migrator, from, to) async {
-      // Add ordered migrations when schemaVersion first increases.
-      // Never delete/reset a user's ledger to recover from an upgrade error.
-      throw UnsupportedError('No migration from schema $from to $to.');
+      if (from != 1 || to != 2) {
+        throw UnsupportedError('No migration from schema $from to $to.');
+      }
+      await transaction(() async {
+        await migrator.createTable(trips);
+        await migrator.createTable(tripRates);
+        await _seedPersonalTrip();
+        await migrator.addColumn(transactions, transactions.tripId);
+        await customStatement(
+          'CREATE INDEX transactions_trip_date_idx ON transactions(trip_id, transaction_date DESC, id)',
+        );
+      });
     },
     beforeOpen: (details) async {
       // This pragma must run outside the completed migration transaction.
       await customStatement('PRAGMA foreign_keys = ON');
     },
+  );
+
+  Future<void> _seedPersonalTrip() => customStatement(
+    "INSERT INTO trips (id, name) VALUES ('personal', 'Personal')",
   );
 
   Future<void> initialize() async {

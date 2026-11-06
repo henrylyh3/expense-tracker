@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/money/display_currency.dart';
+import '../../../core/providers/default_currency_provider.dart';
 import '../../../core/models/ledger_types.dart';
 import '../../../shared/widgets/management_widgets.dart';
 import '../domain/ledger_transaction.dart';
@@ -56,6 +58,8 @@ class TransactionDetailScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final display =
+        ref.watch(defaultCurrencyProvider).asData?.value ?? DisplayCurrency.myr;
     final transaction = ref.watch(transactionProvider(transactionId));
     final busy = ref.watch(transactionActionsProvider).isLoading;
     return PopScope(
@@ -77,7 +81,7 @@ class TransactionDetailScreen extends ConsumerWidget {
                     padding: const EdgeInsets.all(24),
                     children: [
                       Text(
-                        item.conversion.original.format(),
+                        display.format(item.conversion.myr.minorUnits),
                         style: Theme.of(context).textTheme.headlineMedium,
                       ),
                       const SizedBox(height: 8),
@@ -90,6 +94,9 @@ class TransactionDetailScreen extends ConsumerWidget {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
+                              Text(
+                                'Original: ${item.conversion.original.format()}',
+                              ),
                               Text(
                                 'MYR equivalent: ${item.conversion.myr.format()}',
                               ),

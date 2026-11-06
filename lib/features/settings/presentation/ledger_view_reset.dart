@@ -12,8 +12,7 @@ import '../../transactions/presentation/transaction_view_model.dart';
 void resetLedgerViews(Ref ref) {
   ref.invalidate(historyFilterProvider);
   ref.invalidate(historyLimitProvider);
-  ref.invalidate(dashboardPeriodProvider);
-  ref.invalidate(reportPeriodProvider);
+  ref.invalidate(reportCurrencyChoiceProvider);
   ref.invalidate(categoryActionsProvider);
   ref.invalidate(currencyActionsProvider);
   ref.invalidate(transactionActionsProvider);

@@ -2,10 +2,14 @@ import 'package:expense_tracker/app/router.dart';
 import 'package:expense_tracker/core/providers/database_providers.dart';
 import 'package:expense_tracker/app/theme.dart';
 import 'package:expense_tracker/core/models/ledger_types.dart';
+import 'package:expense_tracker/core/money/display_currency.dart';
+import 'package:expense_tracker/core/providers/default_currency_provider.dart';
+import 'package:expense_tracker/core/providers/trip_provider.dart';
 import 'package:expense_tracker/features/categories/domain/ledger_category.dart';
 import 'package:expense_tracker/features/categories/presentation/category_view_model.dart';
 import 'package:expense_tracker/features/currencies/domain/configured_currency.dart';
 import 'package:expense_tracker/features/currencies/presentation/currency_view_model.dart';
+import 'package:expense_tracker/features/reports/presentation/report_view_model.dart';
 import 'package:expense_tracker/features/transactions/presentation/transaction_view_model.dart';
 import 'package:expense_tracker/features/transactions/domain/transaction_input.dart';
 import 'package:flutter/material.dart';
@@ -15,6 +19,22 @@ import 'package:flutter_test/flutter_test.dart';
 import '../support/report_overrides.dart';
 
 void main() {
+  testWidgets('Home report currency does not change the expense default', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_navigationApp());
+    await tester.pumpAndSettle();
+    final dropdown = find.byType(DropdownButton<String>);
+    await tester.tap(dropdown);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('USD').last);
+    await tester.pumpAndSettle();
+    final container = ProviderScope.containerOf(tester.element(dropdown));
+    expect(container.read(reportDisplayCurrencyProvider).code, 'USD');
+    expect(container.read(defaultCurrencyProvider).requireValue.code, 'MYR');
+    expect(find.text('0 expenses · Displayed in USD'), findsOneWidget);
+  });
+
   testWidgets('hides Add in Settings and returns to History after saving', (
     tester,
   ) async {
@@ -105,6 +125,14 @@ void main() {
 Widget _navigationApp({double textScale = 1}) => ProviderScope(
   overrides: [
     databaseReadyProvider.overrideWith((ref) async {}),
+    activeTripProvider.overrideWith((ref) => Stream.value(personalTripId)),
+    tripsProvider.overrideWith(
+      (ref) => Stream.value([(id: personalTripId, name: 'Personal')]),
+    ),
+    tripRatesProvider.overrideWith((ref, id) => Stream.value(const {})),
+    defaultCurrencyProvider.overrideWith(
+      (ref) => Stream.value(DisplayCurrency.myr),
+    ),
     ...emptyReportOverrides(),
     transactionsProvider.overrideWith((ref) => Stream.value(const [])),
     categoriesProvider.overrideWith(
@@ -130,6 +158,15 @@ Widget _navigationApp({double textScale = 1}) => ProviderScope(
           symbol: 'RM',
           decimalPlaces: 2,
           rateToMyr: '1',
+          isActive: true,
+          usageCount: 0,
+        ),
+        ConfiguredCurrency(
+          code: 'USD',
+          name: 'US Dollar',
+          symbol: r'$',
+          decimalPlaces: 2,
+          rateToMyr: '4.5',
           isActive: true,
           usageCount: 0,
         ),

@@ -74,6 +74,7 @@ class FinancialReport {
     var expenseCount = 0;
     final incomeBuckets = List.filled(period.bucketCount, BigInt.zero);
     final expenseBuckets = List.filled(period.bucketCount, BigInt.zero);
+    final tripDays = <CalendarDate, BigInt>{};
     final totals = <String, BigInt>{};
     final counts = <String, int>{};
     final metadata = <String, ReportEntry>{};
@@ -95,11 +96,19 @@ class FinancialReport {
       if (entry.type == TransactionType.income) {
         income += value;
         incomeCount++;
-        incomeBuckets[bucket] += value;
+        if (!period.isTrip) incomeBuckets[bucket] += value;
       } else {
         expense += value;
         expenseCount++;
-        expenseBuckets[bucket] += value;
+        if (period.isTrip) {
+          tripDays.update(
+            entry.date,
+            (total) => total + value,
+            ifAbsent: () => value,
+          );
+        } else {
+          expenseBuckets[bucket] += value;
+        }
         totals.update(
           entry.categoryId,
           (old) => old + value,
@@ -138,18 +147,29 @@ class FinancialReport {
       incomeCount: incomeCount,
       expenseCount: expenseCount,
       categories: categories,
-      buckets: [
-        for (var index = 0; index < period.bucketCount; index++)
-          TrendBucket(
-            date: CalendarDate.parse(
-              '${period.year.toString().padLeft(4, '0')}-'
-              '${(period.isYear ? index + 1 : period.month!).toString().padLeft(2, '0')}-'
-              '${(period.isYear ? 1 : index + 1).toString().padLeft(2, '0')}',
-            ),
-            incomeMinor: Money.checkedMinorUnits(incomeBuckets[index]),
-            expenseMinor: Money.checkedMinorUnits(expenseBuckets[index]),
-          ),
-      ],
+      buckets: period.isTrip
+          ? [
+              for (final day
+                  in (tripDays.keys.toList()
+                    ..sort((a, b) => a.toString().compareTo(b.toString()))))
+                TrendBucket(
+                  date: day,
+                  incomeMinor: 0,
+                  expenseMinor: Money.checkedMinorUnits(tripDays[day]!),
+                ),
+            ]
+          : [
+              for (var index = 0; index < period.bucketCount; index++)
+                TrendBucket(
+                  date: CalendarDate.parse(
+                    '${period.year.toString().padLeft(4, '0')}-'
+                    '${(period.isYear ? index + 1 : period.month!).toString().padLeft(2, '0')}-'
+                    '${(period.isYear ? 1 : index + 1).toString().padLeft(2, '0')}',
+                  ),
+                  incomeMinor: Money.checkedMinorUnits(incomeBuckets[index]),
+                  expenseMinor: Money.checkedMinorUnits(expenseBuckets[index]),
+                ),
+            ],
     );
   }
 

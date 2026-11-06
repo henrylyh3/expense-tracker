@@ -1,4 +1,4 @@
--- Source of truth for schema v1; also executable by SQLite for independent QA.
+-- Source of truth for schema v2; also executable by SQLite for independent QA.
 CREATE TABLE categories (
   id TEXT NOT NULL PRIMARY KEY CHECK (length(id) BETWEEN 1 AND 64),
   name TEXT NOT NULL CHECK (length(trim(name)) BETWEEN 1 AND 80),
@@ -39,6 +39,31 @@ CREATE TABLE currencies (
     (decimal_places = 2 AND rate_to_myr = '1' AND is_active = 1))
 );
 
+CREATE TABLE trips (
+  id TEXT NOT NULL PRIMARY KEY CHECK (length(id) BETWEEN 1 AND 64),
+  name TEXT NOT NULL CHECK (length(trim(name)) BETWEEN 1 AND 80)
+);
+
+CREATE TABLE trip_rates (
+  trip_id TEXT NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
+  currency_code TEXT NOT NULL REFERENCES currencies(code) ON DELETE CASCADE ON UPDATE CASCADE,
+  rate_to_myr TEXT NOT NULL CHECK (
+    length(rate_to_myr) BETWEEN 1 AND 25
+    AND rate_to_myr NOT GLOB '*[^0-9.]*'
+    AND rate_to_myr GLOB '*[1-9]*'
+    AND substr(rate_to_myr, 1, 1) <> '.'
+    AND substr(rate_to_myr, -1) <> '.'
+    AND (length(rate_to_myr) = 1 OR substr(rate_to_myr, 1, 1) <> '0'
+         OR substr(rate_to_myr, 2, 1) = '.')
+    AND (instr(rate_to_myr, '.') = 0 AND length(rate_to_myr) <= 12
+      OR instr(rate_to_myr, '.') BETWEEN 2 AND 13
+         AND length(rate_to_myr) - instr(rate_to_myr, '.') BETWEEN 1 AND 12
+         AND substr(rate_to_myr, instr(rate_to_myr, '.') + 1) NOT GLOB '*.*')
+  ),
+  PRIMARY KEY (trip_id, currency_code),
+  CHECK (currency_code <> 'MYR')
+);
+
 CREATE TABLE transactions (
   id TEXT NOT NULL PRIMARY KEY CHECK (
     length(id) = 36 AND substr(id, 9, 1) = '-'
@@ -76,6 +101,7 @@ CREATE TABLE transactions (
   note TEXT CHECK (note IS NULL OR length(note) <= 2000),
   created_at_utc INTEGER NOT NULL CHECK (typeof(created_at_utc) = 'integer' AND created_at_utc >= 0),
   updated_at_utc INTEGER NOT NULL CHECK (typeof(updated_at_utc) = 'integer' AND updated_at_utc >= created_at_utc),
+  trip_id TEXT NOT NULL DEFAULT 'personal' REFERENCES trips(id),
   CHECK (currency_code <> 'MYR' OR
     (exchange_rate_snapshot = '1' AND amount_myr_minor = amount_minor))
 );
@@ -85,6 +111,7 @@ CREATE TABLE app_settings (
   value TEXT NOT NULL CHECK (length(value) <= 4000)
 );
 
+CREATE INDEX transactions_trip_date_idx ON transactions(trip_id, transaction_date DESC, id);
 CREATE INDEX transactions_date_idx ON transactions(transaction_date DESC, id);
 CREATE INDEX transactions_category_date_idx ON transactions(category_id, transaction_date);
 CREATE INDEX transactions_currency_date_idx ON transactions(currency_code, transaction_date);

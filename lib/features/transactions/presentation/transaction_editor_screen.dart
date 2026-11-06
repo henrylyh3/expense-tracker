@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/money/display_currency.dart';
+import '../../../core/providers/default_currency_provider.dart';
+import '../../../core/providers/trip_provider.dart';
 import '../../../core/dates/calendar_date.dart';
 import '../../../core/models/ledger_types.dart';
 import '../../../core/money/exchange_rate.dart';
@@ -23,6 +26,12 @@ class TransactionEditorScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final display =
+        ref.watch(defaultCurrencyProvider).asData?.value ?? DisplayCurrency.myr;
+    final trip = ref.watch(activeTripProvider).asData?.value ?? personalTripId;
+    final rates =
+        ref.watch(tripRatesProvider(trip)).asData?.value ??
+        const <String, String>{};
     final categories = ref.watch(categoriesProvider);
     final currencies = ref.watch(currenciesProvider);
     Widget loading() => const Center(child: CircularProgressIndicator());
@@ -49,6 +58,8 @@ class TransactionEditorScreen extends ConsumerWidget {
               Widget form(LedgerTransaction? original) => _TransactionForm(
                 key: ValueKey(transactionId ?? 'new'),
                 original: original,
+                display: display,
+                tripRates: rates,
                 categories: allCategories,
                 currencies: allCurrencies,
               );
@@ -75,11 +86,15 @@ class TransactionEditorScreen extends ConsumerWidget {
 class _TransactionForm extends ConsumerStatefulWidget {
   const _TransactionForm({
     required this.original,
+    required this.display,
+    required this.tripRates,
     required this.categories,
     required this.currencies,
     super.key,
   });
   final LedgerTransaction? original;
+  final DisplayCurrency display;
+  final Map<String, String> tripRates;
   final List<LedgerCategory> categories;
   final List<ConfiguredCurrency> currencies;
   @override
@@ -95,6 +110,7 @@ class _TransactionFormState extends ConsumerState<_TransactionForm> {
   late String _currencyCode;
   late CalendarDate _date;
   String? _categoryId;
+  bool _changedSelection = false;
   bool _customRate = false;
   bool _currencyConfirmed = false;
   Object? _error;
@@ -110,9 +126,20 @@ class _TransactionFormState extends ConsumerState<_TransactionForm> {
     );
     _note = TextEditingController(text: _original?.note ?? '');
     _rate = TextEditingController();
-    _currencyCode = _original?.conversion.original.currencyCode ?? 'MYR';
+    _currencyCode =
+        _original?.conversion.original.currencyCode ?? widget.display.code;
     _categoryId = _original?.categoryId;
     _date = _original?.date ?? CalendarDate.today();
+  }
+
+  @override
+  void didUpdateWidget(covariant _TransactionForm oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (_original == null &&
+        !_changedSelection &&
+        oldWidget.display.code != widget.display.code) {
+      _currencyCode = widget.display.code;
+    }
   }
 
   @override
@@ -141,13 +168,13 @@ class _TransactionFormState extends ConsumerState<_TransactionForm> {
   String _defaultRate(ConfiguredCurrency currency) =>
       currency.code == _original?.conversion.original.currencyCode
       ? _original!.conversion.exchangeRate
-      : currency.rateToMyr;
+      : widget.tripRates[currency.code] ?? currency.rateToMyr;
   String _effectiveRate(ConfiguredCurrency currency) =>
       _customRate ? _rate.text : _defaultRate(currency);
 
   String _preview(ConfiguredCurrency? currency) {
     if (currency == null || _amount.text.trim().isEmpty) {
-      return 'Enter an amount to preview the MYR equivalent.';
+      return 'Enter an amount to preview the ${widget.display.code} equivalent.';
     }
     try {
       final money = Money.parsePositive(
@@ -164,7 +191,7 @@ class _TransactionFormState extends ConsumerState<_TransactionForm> {
             ? _effectiveRate(currency)
             : null,
       );
-      return 'MYR equivalent: ${snapshot.myr.format()}';
+      return '${widget.display.code} equivalent: ${widget.display.format(snapshot.myr.minorUnits)}';
     } on LedgerException catch (error) {
       return error.message;
     }
@@ -293,6 +320,7 @@ class _TransactionFormState extends ConsumerState<_TransactionForm> {
               ),
           ],
           onChanged: (value) => setState(() {
+            _changedSelection = true;
             _currencyCode = value!;
             _customRate = false;
             _currencyConfirmed = false;
@@ -356,7 +384,8 @@ class _TransactionFormState extends ConsumerState<_TransactionForm> {
             TextButton(
               onPressed: () => setState(() {
                 _customRate = true;
-                _rate.text = currency.rateToMyr;
+                _rate.text =
+                    widget.tripRates[currency.code] ?? currency.rateToMyr;
               }),
               child: const Text('Use current configured rate'),
             ),

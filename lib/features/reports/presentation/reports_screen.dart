@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/providers/trip_provider.dart';
+import '../domain/report_period.dart';
 import '../../../core/models/ledger_types.dart';
 import '../../../shared/widgets/management_widgets.dart';
 import '../../transactions/domain/transaction_filter.dart';
@@ -14,7 +16,16 @@ class ReportsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final period = ref.watch(reportPeriodProvider);
+    final display = ref.watch(reportDisplayCurrencyProvider);
+    final active =
+        ref.watch(activeTripProvider).asData?.value ?? personalTripId;
+    final trip = ref
+        .watch(tripsProvider)
+        .asData
+        ?.value
+        .where((item) => item.id == active)
+        .firstOrNull;
+    final period = ReportPeriod.trip();
     final report = ref.watch(financialReportProvider(period));
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 112),
@@ -24,12 +35,7 @@ class ReportsScreen extends ConsumerWidget {
           style: Theme.of(context).textTheme.headlineSmall,
         ),
         const SizedBox(height: 12),
-        PeriodControl(
-          period: period,
-          onMove: ref.read(reportPeriodProvider.notifier).move,
-          onToday: ref.read(reportPeriodProvider.notifier).today,
-          onYearlyChanged: ref.read(reportPeriodProvider.notifier).yearly,
-        ),
+        Text(trip?.name ?? 'Personal'),
         const SizedBox(height: 16),
         report.when(
           loading: () => const Padding(
@@ -45,22 +51,17 @@ class ReportsScreen extends ConsumerWidget {
           data: (value) => Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              FinancialSummary(report: value),
+              FinancialSummary(report: value, currency: display),
               const SizedBox(height: 16),
-              CashFlowTrend(report: value),
+              CashFlowTrend(report: value, currency: display),
               const SizedBox(height: 16),
               SpendingBreakdown(
+                currency: display,
                 report: value,
                 onCategory: (category) {
                   ref
                       .read(historyFilterProvider.notifier)
-                      .set(
-                        TransactionFilter(
-                          categoryId: category.id,
-                          from: period.start,
-                          to: period.lastDay,
-                        ),
-                      );
+                      .set(TransactionFilter(categoryId: category.id));
                   context.go('/history');
                 },
               ),

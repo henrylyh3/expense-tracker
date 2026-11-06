@@ -31,7 +31,7 @@ void main() {
         (await db.customSelect('PRAGMA user_version').getSingle()).read<int>(
           'user_version',
         ),
-        1,
+        2,
       );
     },
   );
@@ -81,7 +81,7 @@ void main() {
       await db.customStatement('PRAGMA ignore_check_constraints = ON');
       await db.customStatement(
         '''INSERT INTO transactions VALUES
-      ('12345678-1234-4234-8234-123456789abc','seed-food','expense',0,'MYR','1',0,'2026-11-05',NULL,0,0)''',
+      ('12345678-1234-4234-8234-123456789abc','seed-food','expense',0,'MYR','1',0,'2026-11-05',NULL,0,0, 'personal')''',
       );
       await db.customStatement('PRAGMA ignore_check_constraints = OFF');
       await expectLater(db.initialize(), throwsStateError);
@@ -100,7 +100,7 @@ void main() {
       await db.customStatement('PRAGMA foreign_keys = OFF');
       await db.customStatement(
         '''INSERT INTO transactions VALUES
-      ('12345678-1234-4234-8234-123456789abc','seed-food','expense',100,'ZZZ','1',100,'2026-11-05',NULL,0,0)''',
+      ('12345678-1234-4234-8234-123456789abc','seed-food','expense',100,'ZZZ','1',100,'2026-11-05',NULL,0,0, 'personal')''',
       );
       await db.customStatement('PRAGMA foreign_keys = ON');
       expect(

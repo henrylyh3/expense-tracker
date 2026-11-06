@@ -11,6 +11,8 @@ class BackupSqlWrite {
 /// or deletes MYR. The service runs every statement in one SQLite transaction.
 Iterable<BackupSqlWrite> replacementStatements(ValidatedBackup backup) sync* {
   yield BackupSqlWrite('DELETE FROM transactions', const []);
+  yield BackupSqlWrite('DELETE FROM trip_rates', const []);
+  yield BackupSqlWrite('DELETE FROM trips', const []);
   yield BackupSqlWrite('DELETE FROM categories', const []);
   yield BackupSqlWrite("DELETE FROM currencies WHERE code <> 'MYR'", const []);
   yield BackupSqlWrite('DELETE FROM app_settings', const []);
@@ -18,6 +20,8 @@ Iterable<BackupSqlWrite> replacementStatements(ValidatedBackup backup) sync* {
     'currencies': 'currencies',
     'categories': 'categories',
     'settings': 'app_settings',
+    'trips': 'trips',
+    'trip_rates': 'trip_rates',
     'transactions': 'transactions',
   };
   for (final table in tableNames.entries) {

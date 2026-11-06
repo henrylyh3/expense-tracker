@@ -3,8 +3,11 @@ import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/providers/appearance_provider.dart';
+import '../../../core/providers/default_currency_provider.dart';
 import '../../../core/app_info.dart';
 import '../../../core/models/ledger_types.dart';
+import '../../currencies/presentation/currency_view_model.dart';
+import 'trips_screen.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -16,6 +19,16 @@ class SettingsScreen extends ConsumerWidget {
       Card(
         child: Column(
           children: [
+            ListTile(
+              leading: const Icon(Icons.luggage_outlined),
+              title: const Text('Trips and profiles'),
+              subtitle: const Text(
+                'Choose a default trip and set its currency rates',
+              ),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(builder: (_) => const TripsScreen()),
+              ),
+            ),
             ListTile(
               leading: const Icon(Icons.category_outlined),
               title: const Text('Manage categories'),
@@ -29,6 +42,13 @@ class SettingsScreen extends ConsumerWidget {
               subtitle: const Text('Manual rates relative to MYR'),
               trailing: const Icon(Icons.chevron_right),
               onTap: () => context.push('/settings/currencies'),
+            ),
+            ListTile(
+              title: const Text('Default currency'),
+              subtitle: const Text(
+                'New expenses and displayed totals. Base: MYR.',
+              ),
+              trailing: _DefaultCurrencyPicker(),
             ),
           ],
         ),
@@ -116,4 +136,49 @@ class SettingsScreen extends ConsumerWidget {
       ),
     ],
   );
+}
+
+class _DefaultCurrencyPicker extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final currencies = ref.watch(currenciesProvider);
+    final preference = ref.watch(defaultCurrencyProvider);
+    final options = currencies.asData?.value.where((item) => item.isActive);
+    final selected = preference.asData?.value.code;
+    if (currencies.hasError || preference.hasError) {
+      return TextButton(
+        onPressed: () {
+          ref.invalidate(currenciesProvider);
+          ref.invalidate(defaultCurrencyProvider);
+        },
+        child: const Text('Retry'),
+      );
+    }
+    if (options == null || selected == null) {
+      return const SizedBox.square(
+        dimension: 20,
+        child: CircularProgressIndicator(),
+      );
+    }
+    return DropdownButton<String>(
+      value: options.any((item) => item.code == selected) ? selected : null,
+      items: [
+        for (final item in options)
+          DropdownMenuItem(value: item.code, child: Text(item.code)),
+      ],
+      onChanged: ref.watch(defaultCurrencyActionsProvider).isLoading
+          ? null
+          : (code) async {
+              if (code == null || code == selected) return;
+              await ref.read(defaultCurrencyActionsProvider.notifier).set(code);
+              if (!context.mounted) return;
+              final error = ref.read(defaultCurrencyActionsProvider).error;
+              if (error != null) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text(ledgerErrorMessage(error))),
+                );
+              }
+            },
+    );
+  }
 }

@@ -1,6 +1,5 @@
 import 'package:expense_tracker/core/models/ledger_types.dart';
 import 'package:expense_tracker/features/reports/domain/financial_report.dart';
-import 'package:expense_tracker/features/reports/domain/report_period.dart';
 import 'package:expense_tracker/features/reports/presentation/report_view_model.dart';
 import 'package:expense_tracker/features/reports/presentation/reports_screen.dart';
 import 'package:expense_tracker/features/transactions/domain/transaction_filter.dart';
@@ -13,12 +12,11 @@ import 'package:go_router/go_router.dart';
 
 void main() {
   testWidgets(
-    'report mode changes between monthly and yearly while preserving the month',
+    'report displays the active trip without month or year controls',
     (tester) async {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
-            reportPeriodProvider.overrideWith(_FixedPeriod.new),
             financialReportProvider.overrideWith(
               (ref, period) =>
                   Stream.value(FinancialReport.calculate(period, const [])),
@@ -28,19 +26,15 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      expect(find.text('November 2026'), findsOneWidget);
-      await tester.tap(find.text('Yearly'));
-      await tester.pumpAndSettle();
-      expect(find.text('2026'), findsOneWidget);
-      await tester.tap(find.text('Monthly'));
-      await tester.pumpAndSettle();
-      expect(find.text('November 2026'), findsOneWidget);
+      expect(find.text('Personal'), findsOneWidget);
+      expect(find.text('Yearly'), findsNothing);
+      expect(find.text('Monthly'), findsNothing);
       expect(tester.takeException(), isNull);
     },
   );
 
   testWidgets(
-    'category drill-down opens history with expense/category/date constraints',
+    'category drill-down opens history with category and no date constraints',
     (tester) async {
       final router = GoRouter(
         initialLocation: '/reports',
@@ -60,7 +54,6 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
-            reportPeriodProvider.overrideWith(_FixedPeriod.new),
             transactionsProvider.overrideWith((ref) => Stream.value(const [])),
             financialReportProvider.overrideWith(
               (ref, period) => Stream.value(
@@ -93,8 +86,8 @@ void main() {
       final filter = container.read(historyFilterProvider);
       expect(filter.categoryId, 'food');
       expect(filter.type, isNull);
-      expect(filter.from.toString(), '2026-11-01');
-      expect(filter.to.toString(), '2026-11-30');
+      expect(filter.from, isNull);
+      expect(filter.to, isNull);
       expect(find.text('No transactions match these filters.'), findsOneWidget);
     },
   );
@@ -128,11 +121,6 @@ void main() {
       findsOneWidget,
     );
   });
-}
-
-class _FixedPeriod extends PeriodSelection {
-  @override
-  ReportPeriod build() => ReportPeriod.month(2026, 11);
 }
 
 class _FilteredHistory extends HistoryFilter {

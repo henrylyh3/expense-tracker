@@ -13,6 +13,7 @@ class ReportRepository {
   Stream<FinancialReport> watchPeriod(
     ReportPeriod period, {
     bool expensesOnly = false,
+    String? tripId,
   }) {
     final end = period.endExclusive;
     // One bounded, consistent SQLite result drives totals, category groups and
@@ -23,10 +24,11 @@ class ReportRepository {
           '''SELECT t.type, t.amount_myr_minor, t.transaction_date, t.category_id,
         c.name AS category_name, c.color_hex, c.icon_key
         FROM transactions t JOIN categories c ON c.id = t.category_id
-        WHERE t.transaction_date >= ?${end == null ? '' : ' AND t.transaction_date < ?'}${expensesOnly ? " AND t.type = 'expense'" : ''}''',
+        WHERE t.transaction_date >= ?${end == null ? '' : ' AND t.transaction_date < ?'}${expensesOnly ? " AND t.type = 'expense'" : ''}${tripId == null ? '' : ' AND t.trip_id = ?'}''',
           variables: [
             Variable<String>(period.start.toString()),
             if (end != null) Variable<String>(end.toString()),
+            if (tripId != null) Variable.withString(tripId),
           ],
           readsFrom: {_database.transactions, _database.categories},
         )

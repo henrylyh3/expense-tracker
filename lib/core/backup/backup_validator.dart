@@ -42,7 +42,10 @@ const backupColumns = <String, List<String>>{
     'note',
     'created_at_utc',
     'updated_at_utc',
+    'trip_id',
   ],
+  'trips': ['id', 'name'],
+  'trip_rates': ['trip_id', 'currency_code', 'rate_to_myr'],
   'settings': ['key', 'value'],
 };
 const _stringIntegers = <String, Set<String>>{
@@ -90,7 +93,7 @@ final class ValidatedBackup {
   Map<String, Object?> toDocument() => {
     'format': 'expense-tracker',
     'format_version': 1,
-    'schema_version': 1,
+    'schema_version': 2,
     'app_version': appVersion,
     'exported_at_utc': exportedAtUtc.toIso8601String(),
     'base_currency': 'MYR',
@@ -183,7 +186,7 @@ abstract final class BackupValidator {
     return fromDocument({
       'format': 'expense-tracker',
       'format_version': 1,
-      'schema_version': 1,
+      'schema_version': 2,
       'app_version': appVersion,
       'exported_at_utc': exportedAtUtc.toUtc().toIso8601String(),
       'base_currency': 'MYR',
@@ -214,7 +217,7 @@ abstract final class BackupValidator {
         root['format_version'] is! int ||
         root['format_version'] != 1 ||
         root['schema_version'] is! int ||
-        root['schema_version'] != 1) {
+        !{1, 2}.contains(root['schema_version'])) {
       throw const LedgerException(
         'This backup format or schema version is not supported.',
       );
@@ -232,7 +235,9 @@ abstract final class BackupValidator {
         exported.toIso8601String() != exportedText) {
       _invalid('The export timestamp must be a canonical UTC ISO-8601 string.');
     }
+    final legacy = root['schema_version'] == 1;
     final names = backupColumns.keys.toSet();
+    if (legacy) names.removeAll({'trips', 'trip_rates'});
     final data = _object(root['data'], names);
     final counts = _object(root['counts'], names);
     final tables = <String, List<Map<String, Object?>>>{};
@@ -247,10 +252,31 @@ abstract final class BackupValidator {
       tables[name] = [
         for (final value in rows)
           Map<String, Object?>.from(
-            _object(value, backupColumns[name]!.toSet()),
+            _object(
+              value,
+              backupColumns[name]!
+                  .where((column) => !legacy || column != 'trip_id')
+                  .toSet(),
+            ),
           ),
       ];
     }
+
+    if (legacy) {
+      tables['trips'] = [
+        {'id': 'personal', 'name': 'Personal'},
+      ];
+      tables['trip_rates'] = [];
+      for (final row in tables['transactions']!) {
+        row['trip_id'] = 'personal';
+      }
+    }
+    final trips = <String>{};
+    for (final row in tables['trips']!) {
+      if (!trips.add(_text(row, 'id', 64))) _invalid('Duplicate trip ID.');
+      _text(row, 'name', 80);
+    }
+    if (!trips.contains('personal')) _invalid('The Personal trip is missing.');
 
     final categories = <String, Map<String, Object?>>{};
     final categoryNames = <(String, String)>{};
@@ -301,6 +327,21 @@ abstract final class BackupValidator {
       _invalid('The MYR currency is missing.');
     }
 
+    final rateKeys = <(String, String)>{};
+    for (final row in tables['trip_rates']!) {
+      final trip = _text(row, 'trip_id', 64);
+      final code = _text(row, 'currency_code', 3);
+      if (!trips.contains(trip) ||
+          !currencies.containsKey(code) ||
+          code == 'MYR' ||
+          !rateKeys.add((trip, code))) {
+        _invalid(
+          'A trip rate is duplicated or references an invalid trip or currency.',
+        );
+      }
+      _rate(row, 'rate_to_myr');
+    }
+
     final transactionIds = <String>{};
     for (final row in tables['transactions']!) {
       final id = _text(row, 'id', 36);
@@ -309,6 +350,9 @@ abstract final class BackupValidator {
           ).hasMatch(id) ||
           !transactionIds.add(id.toLowerCase())) {
         _invalid('Transaction UUIDs are invalid or duplicated.');
+      }
+      if (!trips.contains(_text(row, 'trip_id', 64))) {
+        _invalid('A transaction references a missing trip.');
       }
       final category = categories[_text(row, 'category_id', 64)];
       final currency = currencies[_text(row, 'currency_code', 3)];
@@ -348,9 +392,15 @@ abstract final class BackupValidator {
     final settingKeys = <String>{};
     for (final row in tables['settings']!) {
       final key = _text(row, 'key', 80);
-      if (!settingKeys.add(key) ||
-          key != 'theme_mode' ||
-          !{'system', 'light', 'dark'}.contains(row['value'])) {
+      final value = row['value'];
+      final valid = switch (key) {
+        'active_trip' => trips.contains(value),
+        'theme_mode' => {'system', 'light', 'dark'}.contains(value),
+        'default_currency' =>
+          value is String && RegExp(r'^[A-Z]{3}$').hasMatch(value),
+        _ => false,
+      };
+      if (!settingKeys.add(key) || !valid) {
         _invalid('Settings are unsupported, duplicated or invalid.');
       }
     }

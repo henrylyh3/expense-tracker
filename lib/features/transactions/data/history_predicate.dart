@@ -7,7 +7,10 @@ class HistoryPredicate {
   final List<String> arguments;
 }
 
-HistoryPredicate buildHistoryPredicate(TransactionFilter filter) {
+HistoryPredicate buildHistoryPredicate(
+  TransactionFilter filter, {
+  String? tripId,
+}) {
   final clauses = <String>[];
   final arguments = <String>[];
   void add(String sql, String? value) {
@@ -17,6 +20,7 @@ HistoryPredicate buildHistoryPredicate(TransactionFilter filter) {
     }
   }
 
+  add('t.trip_id = ?', tripId);
   add('t.type = ?', filter.type?.name);
   add('t.category_id = ?', filter.categoryId);
   add('t.currency_code = ?', filter.currencyCode);

@@ -70,6 +70,13 @@ Future<void> verifyLedgerHealth(
       myr.read<int>('is_active') != 1) {
     throw StateError('The fixed base currency is missing or invalid.');
   }
+  final trip = await database.customSelect(
+    """SELECT 1 FROM trips WHERE id = COALESCE(
+      (SELECT value FROM app_settings WHERE key = 'active_trip'), 'personal')""",
+  ).getSingleOrNull();
+  if (trip == null) {
+    throw StateError('The default trip is missing.');
+  }
   final theme = await database
       .customSelect("SELECT value FROM app_settings WHERE key = 'theme_mode'")
       .getSingleOrNull();

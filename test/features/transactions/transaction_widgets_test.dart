@@ -1,6 +1,8 @@
 import 'package:expense_tracker/core/dates/calendar_date.dart';
 import 'package:expense_tracker/core/models/ledger_types.dart';
 import 'package:expense_tracker/core/money/money.dart';
+import 'package:expense_tracker/core/money/display_currency.dart';
+import 'package:expense_tracker/core/providers/default_currency_provider.dart';
 import 'package:expense_tracker/features/categories/domain/ledger_category.dart';
 import 'package:expense_tracker/features/categories/presentation/category_view_model.dart';
 import 'package:expense_tracker/features/currencies/domain/configured_currency.dart';
@@ -14,6 +16,20 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  testWidgets('new expense starts in the saved default currency', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _app(display: const DisplayCurrency('USD', 2, '4.7')),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('USD · Dollar'), findsOneWidget);
+    await tester.ensureVisible(_field('Amount'));
+    await tester.enterText(_field('Amount'), '12.50');
+    await tester.pumpAndSettle();
+    expect(find.text('USD equivalent: USD 12.50'), findsOneWidget);
+  });
+
   testWidgets('new MYR transaction previews its exact MYR amount', (
     tester,
   ) async {
@@ -83,8 +99,13 @@ void main() {
   );
 }
 
-Widget _app({bool edit = false, bool archived = false}) => ProviderScope(
+Widget _app({
+  bool edit = false,
+  bool archived = false,
+  DisplayCurrency display = DisplayCurrency.myr,
+}) => ProviderScope(
   overrides: [
+    defaultCurrencyProvider.overrideWith((ref) => Stream.value(display)),
     categoriesProvider.overrideWith(
       (ref) => Stream.value([
         LedgerCategory(
