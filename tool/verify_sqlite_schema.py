@@ -4,6 +4,7 @@ This is an additional schema check, not a replacement for Drift generation,
 Flutter tests or mobile builds. Run: python3 tool/verify_sqlite_schema.py
 """
 
+from contextlib import closing
 from pathlib import Path
 import sqlite3
 import tempfile
@@ -163,10 +164,11 @@ class LedgerSchemaTests(unittest.TestCase):
     def test_file_persistence(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "ledger.sqlite"
-            with sqlite3.connect(path) as disk:
+            with closing(sqlite3.connect(path)) as disk:
                 initialize(disk)
                 disk.execute("INSERT INTO app_settings VALUES ('theme_mode', 'dark')")
-            with sqlite3.connect(path) as disk:
+                disk.commit()
+            with closing(sqlite3.connect(path)) as disk:
                 self.assertEqual(disk.execute("SELECT value FROM app_settings").fetchone()[0], "dark")
                 self.assertEqual(disk.execute("PRAGMA integrity_check").fetchone()[0], "ok")
 

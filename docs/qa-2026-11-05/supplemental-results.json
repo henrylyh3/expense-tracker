@@ -1,0 +1,114 @@
+{
+  "scope": "Actual SQL schema; independent Python oracle; no Flutter execution",
+  "sqlite_version": "3.31.1",
+  "fx_oracle": [
+    {
+      "id": "FX-001",
+      "code": "MYR",
+      "expected_minor": 1250,
+      "oracle_minor": 1250,
+      "production_status": "BLOCKED"
+    },
+    {
+      "id": "FX-002",
+      "code": "USD",
+      "expected_minor": 5625,
+      "oracle_minor": 5625,
+      "production_status": "BLOCKED"
+    },
+    {
+      "id": "FX-003",
+      "code": "USD",
+      "expected_minor": 4700,
+      "oracle_minor": 4700,
+      "production_status": "BLOCKED"
+    },
+    {
+      "id": "FX-004",
+      "code": "JPY",
+      "expected_minor": 1500,
+      "oracle_minor": 1500,
+      "production_status": "BLOCKED"
+    },
+    {
+      "id": "FX-005",
+      "code": "KRW",
+      "expected_minor": 5250,
+      "oracle_minor": 5250,
+      "production_status": "BLOCKED"
+    },
+    {
+      "id": "FX-006",
+      "code": "SGD",
+      "expected_minor": 8670,
+      "oracle_minor": 8670,
+      "production_status": "BLOCKED"
+    },
+    {
+      "id": "FX-007",
+      "code": "KWD",
+      "expected_minor": 1781,
+      "oracle_minor": 1781,
+      "production_status": "BLOCKED"
+    },
+    {
+      "id": "FX-008",
+      "code": "USD",
+      "expected_minor": 5,
+      "oracle_minor": 5,
+      "production_status": "BLOCKED"
+    },
+    {
+      "id": "FX-009",
+      "code": "JPY",
+      "expected_minor": 2,
+      "oracle_minor": 2,
+      "production_status": "BLOCKED"
+    },
+    {
+      "id": "FX-010",
+      "code": "MYR",
+      "expected_minor": 1,
+      "oracle_minor": 1,
+      "production_status": "BLOCKED"
+    }
+  ],
+  "sql_checks": {
+    "persistence": "PASS",
+    "controlled_totals_minor": {
+      "expense": 20500,
+      "income": 545000
+    },
+    "net_minor": 524500,
+    "snapshot_after_rate_edit": "PASS",
+    "failed_replacement_rollback": "PASS",
+    "integrity_check": [
+      [
+        "ok"
+      ]
+    ],
+    "foreign_key_check": []
+  },
+  "performance_sql_only": [
+    {
+      "rows": 100,
+      "insert_seconds": 0.0168,
+      "read_101_seconds": 0.0011
+    },
+    {
+      "rows": 1000,
+      "insert_seconds": 0.0981,
+      "read_101_seconds": 0.001
+    },
+    {
+      "rows": 10000,
+      "insert_seconds": 1.4858,
+      "read_101_seconds": 0.001
+    },
+    {
+      "rows": 50000,
+      "insert_seconds": 8.3286,
+      "read_101_seconds": 0.0015
+    }
+  ]
+}

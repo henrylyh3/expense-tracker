@@ -10,7 +10,7 @@ import sys
 import unittest
 
 SCHEMA = (Path(__file__).resolve().parents[1] / 'lib/core/database/tables/ledger.drift').read_text()
-PLANS = json.load(sys.stdin)
+PLANS = json.load(sys.stdin.buffer)
 TABLES = {'categories': 'categories', 'currencies': 'currencies', 'transactions': 'transactions', 'settings': 'app_settings'}
 
 

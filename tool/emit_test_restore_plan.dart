@@ -19,6 +19,7 @@ void main() {
   row['currency_code'] = 'MYR';
   row['exchange_rate_snapshot'] = '1';
   row['amount_minor'] = row['amount_myr_minor'] = '9223372036854775807';
+  stdout.encoding = utf8;
   stdout.write(
     jsonEncode({
       for (final entry in {

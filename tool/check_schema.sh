@@ -17,7 +17,21 @@ if len(exported) != 1:
 expected = Path('drift_schemas') / exported[0].name
 if not expected.exists():
     sys.exit(f'Missing {expected}; export and review the new schema version.')
-if json.loads(expected.read_text()) != json.loads(exported[0].read_text()):
+def normalize_line_endings(value):
+    if isinstance(value, str):
+        return value.replace('\r\n', '\n')
+    if isinstance(value, list):
+        return [normalize_line_endings(item) for item in value]
+    if isinstance(value, dict):
+        return {key: normalize_line_endings(item) for key, item in value.items()}
+    return value
+
+
+def load_schema(path):
+    return normalize_line_endings(json.loads(path.read_text(encoding='utf-8')))
+
+
+if load_schema(expected) != load_schema(exported[0]):
     sys.exit('Schema differs from its versioned snapshot. Add a versioned migration; do not overwrite a released snapshot.')
 print(f'Schema matches {expected}.')
 PY
