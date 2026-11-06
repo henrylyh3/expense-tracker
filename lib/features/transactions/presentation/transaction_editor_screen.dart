@@ -31,7 +31,7 @@ class TransactionEditorScreen extends ConsumerWidget {
     final trip = ref.watch(activeTripProvider).asData?.value ?? personalTripId;
     final rates =
         ref.watch(tripRatesProvider(trip)).asData?.value ??
-        const <String, String>{};
+        const <String, TripCurrencyRate>{};
     final categories = ref.watch(categoriesProvider);
     final currencies = ref.watch(currenciesProvider);
     Widget loading() => const Center(child: CircularProgressIndicator());
@@ -94,7 +94,7 @@ class _TransactionForm extends ConsumerStatefulWidget {
   });
   final LedgerTransaction? original;
   final DisplayCurrency display;
-  final Map<String, String> tripRates;
+  final Map<String, TripCurrencyRate> tripRates;
   final List<LedgerCategory> categories;
   final List<ConfiguredCurrency> currencies;
   @override
@@ -168,7 +168,7 @@ class _TransactionFormState extends ConsumerState<_TransactionForm> {
   String _defaultRate(ConfiguredCurrency currency) =>
       currency.code == _original?.conversion.original.currencyCode
       ? _original!.conversion.exchangeRate
-      : widget.tripRates[currency.code] ?? currency.rateToMyr;
+      : widget.tripRates[currency.code]?.rate ?? currency.rateToMyr;
   String _effectiveRate(ConfiguredCurrency currency) =>
       _customRate ? _rate.text : _defaultRate(currency);
 
@@ -245,7 +245,44 @@ class _TransactionFormState extends ConsumerState<_TransactionForm> {
       if (id == null) {
         setState(() => _error = ref.read(transactionActionsProvider).error);
       } else {
-        context.pop();
+        if (_original == null) {
+          final amount = Money.parsePositive(
+            input.amountText,
+            currencyCode: currency.code,
+            decimalPlaces: currency.decimalPlaces,
+          );
+          await showDialog<void>(
+            context: context,
+            builder: (context) {
+              final colors = Theme.of(context).colorScheme;
+              return AlertDialog(
+                icon: CircleAvatar(
+                  radius: 28,
+                  backgroundColor: colors.primaryContainer,
+                  child: Icon(
+                    Icons.check_rounded,
+                    size: 32,
+                    color: colors.onPrimaryContainer,
+                  ),
+                ),
+                title: const Text('Expense saved'),
+                content: Text(
+                  amount.format(),
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.headlineSmall,
+                ),
+                actionsAlignment: MainAxisAlignment.center,
+                actions: [
+                  FilledButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: const Text('Done'),
+                  ),
+                ],
+              );
+            },
+          );
+        }
+        if (mounted) context.pop();
       }
     } on LedgerException catch (error) {
       if (mounted) setState(() => _error = error);
@@ -315,7 +352,7 @@ class _TransactionFormState extends ConsumerState<_TransactionForm> {
               DropdownMenuItem(
                 value: item.code,
                 child: Text(
-                  '${item.code} · ${item.name}${!item.isActive ? ' (archived)' : ''}',
+                  '${item.code} · ${widget.tripRates[item.code]?.name ?? item.name}${!item.isActive ? ' (archived)' : ''}',
                 ),
               ),
           ],
@@ -385,7 +422,7 @@ class _TransactionFormState extends ConsumerState<_TransactionForm> {
               onPressed: () => setState(() {
                 _customRate = true;
                 _rate.text =
-                    widget.tripRates[currency.code] ?? currency.rateToMyr;
+                    widget.tripRates[currency.code]?.rate ?? currency.rateToMyr;
               }),
               child: const Text('Use current configured rate'),
             ),

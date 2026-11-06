@@ -3,9 +3,18 @@ import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/providers/ledger_operation_providers.dart';
+import '../../core/providers/trip_provider.dart';
 
 class AppShell extends ConsumerWidget {
-  const AppShell({required this.navigationShell, super.key});
+  const AppShell({
+    required this.navigationShell,
+    required this.location,
+    this.tripId,
+    super.key,
+  });
+
+  final String location;
+  final String? tripId;
 
   final StatefulNavigationShell navigationShell;
 
@@ -13,10 +22,23 @@ class AppShell extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final busy = ref.watch(ledgerTransferBusyProvider);
     const titles = ['Home', 'History', 'Reports', 'Settings'];
+    final title = tripId != null
+        ? ref
+                  .watch(tripsProvider)
+                  .asData
+                  ?.value
+                  .where((trip) => trip.id == tripId)
+                  .firstOrNull
+                  ?.name ??
+              'Trip rates'
+        : location == '/settings/trips'
+        ? 'Trips and profiles'
+        : titles[navigationShell.currentIndex];
     return Scaffold(
       appBar: AppBar(
-        title: Text(titles[navigationShell.currentIndex]),
-        leading: !busy && GoRouter.of(context).canPop()
+        title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
+        automaticallyImplyLeading: false,
+        leading: !busy && location.startsWith('/settings/')
             ? BackButton(onPressed: () => context.pop())
             : null,
       ),

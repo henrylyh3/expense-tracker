@@ -7,7 +7,6 @@ import '../../../core/providers/default_currency_provider.dart';
 import '../../../core/app_info.dart';
 import '../../../core/models/ledger_types.dart';
 import '../../currencies/presentation/currency_view_model.dart';
-import 'trips_screen.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -25,9 +24,7 @@ class SettingsScreen extends ConsumerWidget {
               subtitle: const Text(
                 'Choose a default trip and set its currency rates',
               ),
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute<void>(builder: (_) => const TripsScreen()),
-              ),
+              onTap: () => context.push('/settings/trips'),
             ),
             ListTile(
               leading: const Icon(Icons.category_outlined),

@@ -35,7 +35,6 @@ class DashboardScreen extends ConsumerWidget {
             .map((item) => item.code)
             .toList() ??
         [];
-    final choice = ref.watch(reportCurrencyChoiceProvider);
     final period = ReportPeriod.trip();
     final report = ref.watch(financialReportProvider(period));
     final recent = ref.watch(dashboardRecentProvider(period));
@@ -49,25 +48,27 @@ class DashboardScreen extends ConsumerWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 112),
       children: [
-        Wrap(
-          spacing: 12,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          alignment: WrapAlignment.spaceBetween,
+        Row(
           children: [
-            Text(
-              'Your private ledger',
-              style: Theme.of(context).textTheme.headlineSmall,
+            Expanded(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Your private ledger',
+                  maxLines: 1,
+                  style: Theme.of(context).textTheme.headlineSmall,
+                ),
+              ),
             ),
+            const SizedBox(width: 12),
             SizedBox(
-              width: 160,
+              width: 88,
               child: DropdownButton<String>(
                 isExpanded: true,
-                value: codes.contains(choice) ? choice : null,
+                value: codes.contains(display.code) ? display.code : null,
                 hint: Text(display.code),
                 items: [
-                  const DropdownMenuItem<String>(
-                    child: Text('Use default', overflow: TextOverflow.ellipsis),
-                  ),
                   for (final code in codes)
                     DropdownMenuItem(value: code, child: Text(code)),
                 ],

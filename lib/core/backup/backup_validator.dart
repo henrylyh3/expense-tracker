@@ -45,7 +45,7 @@ const backupColumns = <String, List<String>>{
     'trip_id',
   ],
   'trips': ['id', 'name'],
-  'trip_rates': ['trip_id', 'currency_code', 'rate_to_myr'],
+  'trip_rates': ['trip_id', 'currency_code', 'rate_to_myr', 'name'],
   'settings': ['key', 'value'],
 };
 const _stringIntegers = <String, Set<String>>{
@@ -93,7 +93,7 @@ final class ValidatedBackup {
   Map<String, Object?> toDocument() => {
     'format': 'expense-tracker',
     'format_version': 1,
-    'schema_version': 2,
+    'schema_version': 3,
     'app_version': appVersion,
     'exported_at_utc': exportedAtUtc.toIso8601String(),
     'base_currency': 'MYR',
@@ -186,7 +186,7 @@ abstract final class BackupValidator {
     return fromDocument({
       'format': 'expense-tracker',
       'format_version': 1,
-      'schema_version': 2,
+      'schema_version': 3,
       'app_version': appVersion,
       'exported_at_utc': exportedAtUtc.toUtc().toIso8601String(),
       'base_currency': 'MYR',
@@ -217,7 +217,7 @@ abstract final class BackupValidator {
         root['format_version'] is! int ||
         root['format_version'] != 1 ||
         root['schema_version'] is! int ||
-        !{1, 2}.contains(root['schema_version'])) {
+        !{1, 2, 3}.contains(root['schema_version'])) {
       throw const LedgerException(
         'This backup format or schema version is not supported.',
       );
@@ -235,7 +235,8 @@ abstract final class BackupValidator {
         exported.toIso8601String() != exportedText) {
       _invalid('The export timestamp must be a canonical UTC ISO-8601 string.');
     }
-    final legacy = root['schema_version'] == 1;
+    final schema = root['schema_version'];
+    final legacy = schema == 1;
     final names = backupColumns.keys.toSet();
     if (legacy) names.removeAll({'trips', 'trip_rates'});
     final data = _object(root['data'], names);
@@ -255,7 +256,13 @@ abstract final class BackupValidator {
             _object(
               value,
               backupColumns[name]!
-                  .where((column) => !legacy || column != 'trip_id')
+                  .where(
+                    (column) =>
+                        (!legacy || column != 'trip_id') &&
+                        (schema != 2 ||
+                            name != 'trip_rates' ||
+                            column != 'name'),
+                  )
                   .toSet(),
             ),
           ),
@@ -329,6 +336,8 @@ abstract final class BackupValidator {
 
     final rateKeys = <(String, String)>{};
     for (final row in tables['trip_rates']!) {
+      if (schema == 2) row['name'] = null;
+      if (row['name'] != null) _text(row, 'name', 80);
       final trip = _text(row, 'trip_id', 64);
       final code = _text(row, 'currency_code', 3);
       if (!trips.contains(trip) ||

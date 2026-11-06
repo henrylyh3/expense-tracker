@@ -1239,8 +1239,18 @@ class TripRates extends Table with TableInfo<TripRates, TripRate> {
     $customConstraints:
         'NOT NULL CHECK (length(rate_to_myr) BETWEEN 1 AND 25 AND rate_to_myr NOT GLOB \'*[^0-9.]*\' AND rate_to_myr GLOB \'*[1-9]*\' AND substr(rate_to_myr, 1, 1) <> \'.\' AND substr(rate_to_myr, -1) <> \'.\' AND(length(rate_to_myr) = 1 OR substr(rate_to_myr, 1, 1) <> \'0\' OR substr(rate_to_myr, 2, 1) = \'.\')AND(instr(rate_to_myr, \'.\') = 0 AND length(rate_to_myr) <= 12 OR instr(rate_to_myr, \'.\') BETWEEN 2 AND 13 AND length(rate_to_myr) - instr(rate_to_myr, \'.\') BETWEEN 1 AND 12 AND substr(rate_to_myr, instr(rate_to_myr, \'.\') + 1) NOT GLOB \'*.*\'))',
   );
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+    'name',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    $customConstraints:
+        'CHECK (name IS NULL OR length(trim(name)) BETWEEN 1 AND 80)',
+  );
   @override
-  List<GeneratedColumn> get $columns => [tripId, currencyCode, rateToMyr];
+  List<GeneratedColumn> get $columns => [tripId, currencyCode, rateToMyr, name];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -1280,6 +1290,12 @@ class TripRates extends Table with TableInfo<TripRates, TripRate> {
     } else if (isInserting) {
       context.missing(_rateToMyrMeta);
     }
+    if (data.containsKey('name')) {
+      context.handle(
+        _nameMeta,
+        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
+      );
+    }
     return context;
   }
 
@@ -1301,6 +1317,10 @@ class TripRates extends Table with TableInfo<TripRates, TripRate> {
         DriftSqlType.string,
         data['${effectivePrefix}rate_to_myr'],
       )!,
+      name: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}name'],
+      ),
     );
   }
 
@@ -1322,10 +1342,12 @@ class TripRate extends DataClass implements Insertable<TripRate> {
   final String tripId;
   final String currencyCode;
   final String rateToMyr;
+  final String? name;
   const TripRate({
     required this.tripId,
     required this.currencyCode,
     required this.rateToMyr,
+    this.name,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -1333,6 +1355,9 @@ class TripRate extends DataClass implements Insertable<TripRate> {
     map['trip_id'] = Variable<String>(tripId);
     map['currency_code'] = Variable<String>(currencyCode);
     map['rate_to_myr'] = Variable<String>(rateToMyr);
+    if (!nullToAbsent || name != null) {
+      map['name'] = Variable<String>(name);
+    }
     return map;
   }
 
@@ -1341,6 +1366,7 @@ class TripRate extends DataClass implements Insertable<TripRate> {
       tripId: Value(tripId),
       currencyCode: Value(currencyCode),
       rateToMyr: Value(rateToMyr),
+      name: name == null && nullToAbsent ? const Value.absent() : Value(name),
     );
   }
 
@@ -1353,6 +1379,7 @@ class TripRate extends DataClass implements Insertable<TripRate> {
       tripId: serializer.fromJson<String>(json['trip_id']),
       currencyCode: serializer.fromJson<String>(json['currency_code']),
       rateToMyr: serializer.fromJson<String>(json['rate_to_myr']),
+      name: serializer.fromJson<String?>(json['name']),
     );
   }
   @override
@@ -1362,6 +1389,7 @@ class TripRate extends DataClass implements Insertable<TripRate> {
       'trip_id': serializer.toJson<String>(tripId),
       'currency_code': serializer.toJson<String>(currencyCode),
       'rate_to_myr': serializer.toJson<String>(rateToMyr),
+      'name': serializer.toJson<String?>(name),
     };
   }
 
@@ -1369,10 +1397,12 @@ class TripRate extends DataClass implements Insertable<TripRate> {
     String? tripId,
     String? currencyCode,
     String? rateToMyr,
+    Value<String?> name = const Value.absent(),
   }) => TripRate(
     tripId: tripId ?? this.tripId,
     currencyCode: currencyCode ?? this.currencyCode,
     rateToMyr: rateToMyr ?? this.rateToMyr,
+    name: name.present ? name.value : this.name,
   );
   TripRate copyWithCompanion(TripRatesCompanion data) {
     return TripRate(
@@ -1381,6 +1411,7 @@ class TripRate extends DataClass implements Insertable<TripRate> {
           ? data.currencyCode.value
           : this.currencyCode,
       rateToMyr: data.rateToMyr.present ? data.rateToMyr.value : this.rateToMyr,
+      name: data.name.present ? data.name.value : this.name,
     );
   }
 
@@ -1389,37 +1420,42 @@ class TripRate extends DataClass implements Insertable<TripRate> {
     return (StringBuffer('TripRate(')
           ..write('tripId: $tripId, ')
           ..write('currencyCode: $currencyCode, ')
-          ..write('rateToMyr: $rateToMyr')
+          ..write('rateToMyr: $rateToMyr, ')
+          ..write('name: $name')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(tripId, currencyCode, rateToMyr);
+  int get hashCode => Object.hash(tripId, currencyCode, rateToMyr, name);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       (other is TripRate &&
           other.tripId == this.tripId &&
           other.currencyCode == this.currencyCode &&
-          other.rateToMyr == this.rateToMyr);
+          other.rateToMyr == this.rateToMyr &&
+          other.name == this.name);
 }
 
 class TripRatesCompanion extends UpdateCompanion<TripRate> {
   final Value<String> tripId;
   final Value<String> currencyCode;
   final Value<String> rateToMyr;
+  final Value<String?> name;
   final Value<int> rowid;
   const TripRatesCompanion({
     this.tripId = const Value.absent(),
     this.currencyCode = const Value.absent(),
     this.rateToMyr = const Value.absent(),
+    this.name = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   TripRatesCompanion.insert({
     required String tripId,
     required String currencyCode,
     required String rateToMyr,
+    this.name = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : tripId = Value(tripId),
        currencyCode = Value(currencyCode),
@@ -1428,12 +1464,14 @@ class TripRatesCompanion extends UpdateCompanion<TripRate> {
     Expression<String>? tripId,
     Expression<String>? currencyCode,
     Expression<String>? rateToMyr,
+    Expression<String>? name,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
       if (tripId != null) 'trip_id': tripId,
       if (currencyCode != null) 'currency_code': currencyCode,
       if (rateToMyr != null) 'rate_to_myr': rateToMyr,
+      if (name != null) 'name': name,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -1442,12 +1480,14 @@ class TripRatesCompanion extends UpdateCompanion<TripRate> {
     Value<String>? tripId,
     Value<String>? currencyCode,
     Value<String>? rateToMyr,
+    Value<String?>? name,
     Value<int>? rowid,
   }) {
     return TripRatesCompanion(
       tripId: tripId ?? this.tripId,
       currencyCode: currencyCode ?? this.currencyCode,
       rateToMyr: rateToMyr ?? this.rateToMyr,
+      name: name ?? this.name,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -1464,6 +1504,9 @@ class TripRatesCompanion extends UpdateCompanion<TripRate> {
     if (rateToMyr.present) {
       map['rate_to_myr'] = Variable<String>(rateToMyr.value);
     }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -1476,6 +1519,7 @@ class TripRatesCompanion extends UpdateCompanion<TripRate> {
           ..write('tripId: $tripId, ')
           ..write('currencyCode: $currencyCode, ')
           ..write('rateToMyr: $rateToMyr, ')
+          ..write('name: $name, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -3702,6 +3746,7 @@ typedef $TripRatesCreateCompanionBuilder =
       required String tripId,
       required String currencyCode,
       required String rateToMyr,
+      Value<String?> name,
       Value<int> rowid,
     });
 typedef $TripRatesUpdateCompanionBuilder =
@@ -3709,6 +3754,7 @@ typedef $TripRatesUpdateCompanionBuilder =
       Value<String> tripId,
       Value<String> currencyCode,
       Value<String> rateToMyr,
+      Value<String?> name,
       Value<int> rowid,
     });
 
@@ -3761,6 +3807,11 @@ class $TripRatesFilterComposer extends Composer<_$AppDatabase, TripRates> {
   });
   ColumnFilters<String> get rateToMyr => $composableBuilder(
     column: $table.rateToMyr,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get name => $composableBuilder(
+    column: $table.name,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -3824,6 +3875,11 @@ class $TripRatesOrderingComposer extends Composer<_$AppDatabase, TripRates> {
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $TripsOrderingComposer get tripId {
     final $TripsOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -3881,6 +3937,9 @@ class $TripRatesAnnotationComposer extends Composer<_$AppDatabase, TripRates> {
   });
   GeneratedColumn<String> get rateToMyr =>
       $composableBuilder(column: $table.rateToMyr, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
 
   $TripsAnnotationComposer get tripId {
     final $TripsAnnotationComposer composer = $composerBuilder(
@@ -3960,11 +4019,13 @@ class $TripRatesTableManager
                 Value<String> tripId = const Value.absent(),
                 Value<String> currencyCode = const Value.absent(),
                 Value<String> rateToMyr = const Value.absent(),
+                Value<String?> name = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => TripRatesCompanion(
                 tripId: tripId,
                 currencyCode: currencyCode,
                 rateToMyr: rateToMyr,
+                name: name,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -3972,11 +4033,13 @@ class $TripRatesTableManager
                 required String tripId,
                 required String currencyCode,
                 required String rateToMyr,
+                Value<String?> name = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => TripRatesCompanion.insert(
                 tripId: tripId,
                 currencyCode: currencyCode,
                 rateToMyr: rateToMyr,
+                name: name,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

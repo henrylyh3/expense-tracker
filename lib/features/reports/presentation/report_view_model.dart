@@ -65,6 +65,7 @@ final reportDisplayCurrencyProvider = Provider<DisplayCurrency>((ref) {
   if (item == null) return fallback;
   final trip = ref.watch(activeTripProvider).asData?.value ?? personalTripId;
   final rate =
-      ref.watch(tripRatesProvider(trip)).asData?.value[code] ?? item.rateToMyr;
+      ref.watch(tripRatesProvider(trip)).asData?.value[code]?.rate ??
+      item.rateToMyr;
   return DisplayCurrency(code, item.decimalPlaces, rate);
 });

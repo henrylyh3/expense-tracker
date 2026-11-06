@@ -11,13 +11,13 @@ void main() {
   final verifier = SchemaVerifier(GeneratedHelper());
 
   test(
-    'fresh schema matches the exported v2 tables, indexes and triggers',
+    'fresh schema matches the exported v3 tables, indexes and triggers',
     () async {
       final db = AppDatabase.forTesting(NativeDatabase.memory());
       addTearDown(db.close);
       await verifier.migrateAndValidate(
         db,
-        2,
+        3,
         options: const ValidationOptions(validateDropped: true),
       );
       await db.initialize();
@@ -43,7 +43,7 @@ void main() {
     final db = AppDatabase.forTesting(schema.newConnection());
     addTearDown(db.close);
     await db.initialize();
-    await verifier.migrateAndValidate(db, 2);
+    await verifier.migrateAndValidate(db, 3);
     expect(
       (await db
               .customSelect('SELECT count(*) AS n FROM categories')
@@ -76,6 +76,34 @@ void main() {
       db.customStatement("DELETE FROM currencies WHERE code='MYR'"),
       throwsException,
     );
+  });
+
+  test('migrating v2 preserves existing trip rates', () async {
+    final schema = await verifier.schemaAt(2);
+    addTearDown(schema.rawDatabase.close);
+    schema.rawDatabase.execute(
+      "INSERT INTO currencies VALUES ('MYR','Ringgit','RM',2,'1',1,0,0), ('THB','Baht','THB',2,'0.13',1,0,0)",
+    );
+    schema.rawDatabase.execute(
+      "INSERT INTO trips VALUES ('personal','Personal'), ('thailand','Thailand')",
+    );
+    schema.rawDatabase.execute(
+      "INSERT INTO trip_rates VALUES ('thailand','THB','0.12')",
+    );
+    schema.rawDatabase.execute(
+      "INSERT INTO app_settings VALUES ('theme_mode','system'), ('active_trip','thailand')",
+    );
+    final db = AppDatabase.forTesting(schema.newConnection());
+    addTearDown(db.close);
+    await db.initialize();
+    await verifier.migrateAndValidate(db, 3);
+    final row = await db
+        .customSelect(
+          "SELECT rate_to_myr, name FROM trip_rates WHERE trip_id = 'thailand'",
+        )
+        .getSingle();
+    expect(row.read<String>('rate_to_myr'), '0.12');
+    expect(row.readNullable<String>('name'), isNull);
   });
 
   test(
@@ -111,7 +139,7 @@ void main() {
         expect(
           (await reopened.customSelect('PRAGMA user_version').getSingle())
               .read<int>('user_version'),
-          3,
+          4,
         );
         expect(
           (await reopened
@@ -134,9 +162,9 @@ void main() {
   );
 }
 
-// Synthetic future file only. This does not introduce a production v3 migration.
+// Synthetic future file only. This does not introduce a production v4 migration.
 class _FutureDatabase extends AppDatabase {
   _FutureDatabase(super.executor) : super.forTesting();
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 }

@@ -25,6 +25,14 @@ void main() {
     await tester.pumpWidget(_navigationApp());
     await tester.pumpAndSettle();
     final dropdown = find.byType(DropdownButton<String>);
+    expect(tester.widget<DropdownButton<String>>(dropdown).value, 'MYR');
+    expect(
+      tester
+          .widget<DropdownButton<String>>(dropdown)
+          .items!
+          .map((item) => item.value),
+      ['MYR', 'USD'],
+    );
     await tester.tap(dropdown);
     await tester.pumpAndSettle();
     await tester.tap(find.text('USD').last);
@@ -77,8 +85,35 @@ void main() {
     await tester.ensureVisible(save);
     await tester.tap(save);
     await tester.pumpAndSettle();
+    expect(find.text('Expense saved'), findsOneWidget);
+    await tester.tap(find.text('Done'));
+    await tester.pumpAndSettle();
     expect(find.text('Transaction history'), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('trip pages share Settings navigation and one app bar', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_navigationApp());
+    await tester.pumpAndSettle();
+    await tester.tap(find.byIcon(Icons.settings_outlined));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Trips and profiles'));
+    await tester.pumpAndSettle();
+    expect(find.widgetWithText(AppBar, 'Trips and profiles'), findsOneWidget);
+    expect(find.byType(BackButton), findsOneWidget);
+    await tester.tap(find.text('Personal'));
+    await tester.pumpAndSettle();
+    expect(find.widgetWithText(AppBar, 'Personal'), findsOneWidget);
+    expect(find.byType(BackButton), findsOneWidget);
+    await tester.tap(find.byType(BackButton));
+    await tester.pumpAndSettle();
+    expect(find.widgetWithText(AppBar, 'Trips and profiles'), findsOneWidget);
+    await tester.tap(find.byIcon(Icons.settings));
+    await tester.pumpAndSettle();
+    expect(find.widgetWithText(AppBar, 'Settings'), findsOneWidget);
+    expect(find.text('Manage currencies'), findsOneWidget);
   });
 
   testWidgets('preserves the settings stack across tabs and supports Back', (

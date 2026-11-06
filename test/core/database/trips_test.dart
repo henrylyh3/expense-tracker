@@ -41,8 +41,8 @@ void main() {
               .read<String>('id');
       final december = await tripId('Thailand December');
       final april = await tripId('Thailand April');
-      await trips.setRate(december, 'THB', '0.12');
-      await trips.setRate(april, 'THB', '0.14');
+      await trips.setRate(december, 'THB', '0.12', name: 'THB 2025');
+      await trips.setRate(april, 'THB', '0.14', name: 'THB 2026');
 
       final transactions = TransactionRepository(db);
       Future<String> add(String date) => transactions.save(
@@ -84,10 +84,15 @@ void main() {
       ]);
 
       final bytes = await BackupService(db).exportBytes();
+      final backup = BackupValidator.decode(bytes);
+      expect(
+        backup.tables['trip_rates']!.map((row) => row['name']),
+        unorderedEquals(['THB 2025', 'THB 2026']),
+      );
       final restored = AppDatabase.forTesting(NativeDatabase.memory());
       addTearDown(restored.close);
       await restored.initialize();
-      await BackupService(restored).restore(BackupValidator.decode(bytes));
+      await BackupService(restored).restore(backup);
       final restoredRepo = TransactionRepository(restored);
       expect(
         (await restoredRepo.watchHistory(tripId: december).first).length,
@@ -109,6 +114,22 @@ void main() {
       expect(
         (await restoredRepo.getById(newExpense)).conversion.myr.minorUnits,
         700,
+      );
+      await trips.delete(april);
+      expect(await transactions.watchHistory(tripId: april).first, isEmpty);
+      final moved =
+          (await transactions.watchHistory(tripId: personalTripId).first)
+              .single;
+      expect(moved.id, second);
+      expect(moved.conversion.exchangeRate, '0.14');
+      final afterDeletion = await add('2026-04-07');
+      expect(
+        (await transactions.getById(afterDeletion)).conversion.exchangeRate,
+        '0.13',
+      );
+      expect(
+        (await transactions.watchHistory(tripId: personalTripId).first).length,
+        2,
       );
     },
   );

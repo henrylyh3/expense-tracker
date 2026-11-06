@@ -26,7 +26,7 @@ class AppDatabase extends _$AppDatabase {
   void markLedgerRestored() => _writeGate.restored();
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -36,10 +36,14 @@ class AppDatabase extends _$AppDatabase {
       await _seedPersonalTrip();
     }),
     onUpgrade: (migrator, from, to) async {
-      if (from != 1 || to != 2) {
+      if (from < 1 || from >= 3 || to != 3) {
         throw UnsupportedError('No migration from schema $from to $to.');
       }
       await transaction(() async {
+        if (from == 2) {
+          await migrator.addColumn(tripRates, tripRates.name);
+          return;
+        }
         await migrator.createTable(trips);
         await migrator.createTable(tripRates);
         await _seedPersonalTrip();

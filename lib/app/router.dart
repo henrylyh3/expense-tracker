@@ -7,6 +7,7 @@ import '../features/currencies/presentation/currencies_screen.dart';
 import '../features/dashboard/presentation/dashboard_screen.dart';
 import '../features/reports/presentation/reports_screen.dart';
 import '../features/settings/presentation/settings_screen.dart';
+import '../features/settings/presentation/trips_screen.dart';
 import '../features/transactions/presentation/transaction_detail_screen.dart';
 import '../features/transactions/presentation/transaction_editor_screen.dart';
 import '../features/transactions/presentation/transactions_screen.dart';
@@ -32,7 +33,11 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const StartupScreen(),
       ),
       StatefulShellRoute.indexedStack(
-        builder: (context, state, shell) => AppShell(navigationShell: shell),
+        builder: (context, state, shell) => AppShell(
+          navigationShell: shell,
+          location: state.uri.path,
+          tripId: state.pathParameters['tripId'],
+        ),
         branches: [
           StatefulShellBranch(
             routes: [
@@ -71,6 +76,18 @@ final routerProvider = Provider<GoRouter>((ref) {
                   GoRoute(
                     path: 'currencies',
                     builder: (context, state) => const CurrenciesScreen(),
+                  ),
+                  GoRoute(
+                    path: 'trips',
+                    builder: (context, state) => const TripsScreen(),
+                    routes: [
+                      GoRoute(
+                        path: ':tripId',
+                        builder: (context, state) => TripRatesScreen(
+                          id: state.pathParameters['tripId']!,
+                        ),
+                      ),
+                    ],
                   ),
                   GoRoute(
                     path: 'backup',

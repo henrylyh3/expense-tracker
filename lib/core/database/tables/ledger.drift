@@ -1,4 +1,4 @@
--- Source of truth for schema v2; also executable by SQLite for independent QA.
+-- Source of truth for schema v3; also executable by SQLite for independent QA.
 CREATE TABLE categories (
   id TEXT NOT NULL PRIMARY KEY CHECK (length(id) BETWEEN 1 AND 64),
   name TEXT NOT NULL CHECK (length(trim(name)) BETWEEN 1 AND 80),
@@ -60,6 +60,7 @@ CREATE TABLE trip_rates (
          AND length(rate_to_myr) - instr(rate_to_myr, '.') BETWEEN 1 AND 12
          AND substr(rate_to_myr, instr(rate_to_myr, '.') + 1) NOT GLOB '*.*')
   ),
+  name TEXT CHECK (name IS NULL OR length(trim(name)) BETWEEN 1 AND 80),
   PRIMARY KEY (trip_id, currency_code),
   CHECK (currency_code <> 'MYR')
 );
