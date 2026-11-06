@@ -15,7 +15,6 @@ class CategoriesScreen extends ConsumerStatefulWidget {
 }
 
 class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
-  TransactionType _type = TransactionType.expense;
   bool _showArchived = false;
 
   Future<void> _edit([LedgerCategory? category]) async {
@@ -24,8 +23,7 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
-      builder: (context) =>
-          CategoryEditor(category: category, initialType: _type),
+      builder: (context) => CategoryEditor(category: category),
     );
     if (mounted && saved == true) {
       showManagementMessage(context, 'Category saved.');
@@ -82,7 +80,8 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
         final items = all
             .where(
               (item) =>
-                  item.type == _type && (_showArchived || !item.isArchived),
+                  item.type == TransactionType.expense &&
+                  (_showArchived || !item.isArchived),
             )
             .toList();
         return ListView(
@@ -93,23 +92,6 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
               style: Theme.of(context).textTheme.headlineSmall,
             ),
             const SizedBox(height: 16),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (final type in [
-                  TransactionType.expense,
-                  TransactionType.income,
-                ])
-                  ChoiceChip(
-                    label: Text(
-                      type == TransactionType.expense ? 'Expense' : 'Income',
-                    ),
-                    selected: _type == type,
-                    onSelected: (_) => setState(() => _type = type),
-                  ),
-              ],
-            ),
             SwitchListTile.adaptive(
               contentPadding: EdgeInsets.zero,
               title: const Text('Show archived'),

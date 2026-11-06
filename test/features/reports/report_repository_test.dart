@@ -77,6 +77,13 @@ void main() {
       final yearly = await reports.watchPeriod(ReportPeriod.year(2026)).first;
       expect(yearly.expenseMinor, 5925);
       expect(yearly.transactionCount, 4);
+
+      final expenses = await reports
+          .watchPeriod(ReportPeriod.month(2026, 11), expensesOnly: true)
+          .first;
+      expect(expenses.expenseMinor, 5625);
+      expect(expenses.transactionCount, 1);
+      expect(expenses.incomeMinor, 0);
     },
   );
 

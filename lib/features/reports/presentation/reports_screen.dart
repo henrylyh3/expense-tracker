@@ -56,7 +56,6 @@ class ReportsScreen extends ConsumerWidget {
                       .read(historyFilterProvider.notifier)
                       .set(
                         TransactionFilter(
-                          type: TransactionType.expense,
                           categoryId: category.id,
                           from: period.start,
                           to: period.lastDay,

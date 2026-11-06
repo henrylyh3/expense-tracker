@@ -163,7 +163,7 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
                             ? 'Updating results…'
                             : filter.hasConstraints
                             ? 'No transactions match these filters.'
-                            : 'No transactions yet. Add your first income or expense.',
+                            : 'No transactions yet. Add your first expense.',
                       ),
                     ),
                 ],
@@ -177,7 +177,7 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
               );
             }
             final item = visible[index - 1];
-            final sign = item.type == TransactionType.income ? '+' : '−';
+            const sign = '−';
             return Card(
               child: ListTile(
                 leading: CircleAvatar(

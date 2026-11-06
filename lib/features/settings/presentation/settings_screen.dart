@@ -19,7 +19,7 @@ class SettingsScreen extends ConsumerWidget {
             ListTile(
               leading: const Icon(Icons.category_outlined),
               title: const Text('Manage categories'),
-              subtitle: const Text('Income and expense categories'),
+              subtitle: const Text('Expense categories'),
               trailing: const Icon(Icons.chevron_right),
               onTap: () => context.push('/settings/categories'),
             ),

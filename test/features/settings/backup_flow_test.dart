@@ -73,12 +73,7 @@ void main() {
             .onDestinationSelected,
         isNull,
       );
-      expect(
-        tester
-            .widget<FloatingActionButton>(find.byType(FloatingActionButton))
-            .onPressed,
-        isNull,
-      );
+      expect(find.byType(FloatingActionButton), findsNothing);
       expect(
         BackupValidator.decode(files.safetyBytes!).count('categories'),
         10,

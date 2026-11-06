@@ -9,8 +9,7 @@ import '../domain/ledger_category.dart';
 import 'category_view_model.dart';
 
 class CategoryEditor extends ConsumerStatefulWidget {
-  const CategoryEditor({required this.initialType, this.category, super.key});
-  final TransactionType initialType;
+  const CategoryEditor({this.category, super.key});
   final LedgerCategory? category;
 
   @override
@@ -21,7 +20,6 @@ class _CategoryEditorState extends ConsumerState<CategoryEditor> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _name;
   late final TextEditingController _color;
-  late TransactionType _type;
   late String _icon;
   Object? _inputError;
 
@@ -32,7 +30,6 @@ class _CategoryEditorState extends ConsumerState<CategoryEditor> {
     _color = TextEditingController(
       text: widget.category?.colorHex ?? '#176B58',
     );
-    _type = widget.category?.type ?? widget.initialType;
     _icon = widget.category?.iconKey ?? 'more_horiz';
   }
 
@@ -49,7 +46,7 @@ class _CategoryEditorState extends ConsumerState<CategoryEditor> {
     try {
       final draft = CategoryDraft(
         name: _name.text,
-        type: _type,
+        type: TransactionType.expense,
         iconKey: _icon,
         colorHex: _color.text,
       );
@@ -84,27 +81,6 @@ class _CategoryEditorState extends ConsumerState<CategoryEditor> {
               maxLength: 80,
             ),
           ),
-        ),
-        DropdownButtonFormField<TransactionType>(
-          initialValue: _type,
-          decoration: InputDecoration(
-            labelText: 'Type',
-            helperText: widget.category?.isUsed == true
-                ? 'Type is fixed because this category has transactions.'
-                : null,
-          ),
-          items: [
-            for (final type in TransactionType.values)
-              DropdownMenuItem(
-                value: type,
-                child: Text(
-                  type == TransactionType.income ? 'Income' : 'Expense',
-                ),
-              ),
-          ],
-          onChanged: widget.category?.isUsed == true
-              ? null
-              : (value) => setState(() => _type = value!),
         ),
         DropdownButtonFormField<String>(
           itemHeight: null,

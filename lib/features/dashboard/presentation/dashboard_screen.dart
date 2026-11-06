@@ -28,7 +28,6 @@ class DashboardScreen extends ConsumerWidget {
               from: period.start,
               to: period.lastDay,
               categoryId: category,
-              type: category == null ? null : TransactionType.expense,
             ),
           );
       context.go('/history');
@@ -82,7 +81,7 @@ class DashboardScreen extends ConsumerWidget {
           ),
           data: (value) => CashFlowTrend(
             report: value,
-            title: 'Monthly cash flow · ${period.year}',
+            title: 'Monthly expenses · ${period.year}',
           ),
         ),
         const SizedBox(height: 16),

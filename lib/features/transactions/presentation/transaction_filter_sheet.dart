@@ -19,7 +19,6 @@ class TransactionFilterSheet extends ConsumerStatefulWidget {
 class _TransactionFilterSheetState
     extends ConsumerState<TransactionFilterSheet> {
   final _formKey = GlobalKey<FormState>();
-  TransactionType? _type;
   String? _category;
   String? _currency;
   CalendarDate? _from;
@@ -29,7 +28,6 @@ class _TransactionFilterSheetState
   void initState() {
     super.initState();
     final initial = widget.initial;
-    _type = initial.type;
     _category = initial.categoryId;
     _currency = initial.currencyCode;
     _from = initial.from;
@@ -58,7 +56,6 @@ class _TransactionFilterSheetState
     try {
       final value = TransactionFilter(
         query: widget.initial.query,
-        type: _type,
         categoryId: category,
         currencyCode: currency,
         from: _from,
@@ -92,7 +89,7 @@ class _TransactionFilterSheetState
         error: failure,
         data: (allCurrencies) {
           final available = allCategories
-              .where((item) => _type == null || item.type == _type)
+              .where((item) => item.type == TransactionType.expense)
               .toList();
           final category = available.any((item) => item.id == _category)
               ? _category
@@ -108,27 +105,6 @@ class _TransactionFilterSheetState
             onSave: () => _apply(category, currency),
             error: _error,
             fields: [
-              DropdownButtonFormField<TransactionType>(
-                key: ValueKey('type:$_type'),
-                initialValue: _type,
-                decoration: const InputDecoration(labelText: 'Type'),
-                items: [
-                  const DropdownMenuItem<TransactionType>(
-                    child: Text('All types'),
-                  ),
-                  for (final type in TransactionType.values)
-                    DropdownMenuItem(
-                      value: type,
-                      child: Text(
-                        type == TransactionType.income ? 'Income' : 'Expense',
-                      ),
-                    ),
-                ],
-                onChanged: (value) => setState(() {
-                  _type = value;
-                  _category = null;
-                }),
-              ),
               DropdownButtonFormField<String>(
                 key: ValueKey('category:$category'),
                 initialValue: category,
@@ -198,7 +174,6 @@ class _TransactionFilterSheetState
               ),
               TextButton(
                 onPressed: () => setState(() {
-                  _type = null;
                   _category = null;
                   _currency = null;
                   _from = null;

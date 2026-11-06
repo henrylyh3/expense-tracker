@@ -79,43 +79,14 @@ class FinancialSummary extends StatelessWidget {
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      Text(
-        '${report.transactionCount} transactions · Saved conversions in MYR',
-      ),
+      Text('${report.expenseCount} expenses · Saved conversions in MYR'),
       const SizedBox(height: 12),
-      LayoutBuilder(
-        builder: (context, constraints) {
-          final width = constraints.maxWidth >= 700
-              ? (constraints.maxWidth - 24) / 3
-              : constraints.maxWidth;
-          return Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            children: [
-              _summaryCard(
-                context,
-                width,
-                'Income',
-                report.income,
-                Theme.of(context).colorScheme.primary,
-              ),
-              _summaryCard(
-                context,
-                width,
-                'Expenses',
-                report.expenses,
-                Theme.of(context).colorScheme.error,
-              ),
-              _summaryCard(
-                context,
-                width,
-                'Net cash flow',
-                report.net,
-                Theme.of(context).colorScheme.onSurface,
-              ),
-            ],
-          );
-        },
+      _summaryCard(
+        context,
+        double.infinity,
+        'Expenses',
+        report.expenses,
+        Theme.of(context).colorScheme.error,
       ),
     ],
   );
@@ -269,8 +240,7 @@ class CashFlowTrend extends StatelessWidget {
     final colors = Theme.of(context).colorScheme;
     final maximum = report.buckets.fold<int>(
       0,
-      (value, bucket) =>
-          math.max(value, math.max(bucket.incomeMinor, bucket.expenseMinor)),
+      (value, bucket) => math.max(value, bucket.expenseMinor),
     );
     String label(TrendBucket bucket) =>
         report.period.isYear ? monthLabel(bucket.date) : dayLabel(bucket.date);
@@ -283,8 +253,8 @@ class CashFlowTrend extends StatelessWidget {
             Text(
               title ??
                   (report.period.isYear
-                      ? 'Monthly cash flow'
-                      : 'Daily cash flow'),
+                      ? 'Monthly expenses'
+                      : 'Daily expenses'),
               style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: 12),
@@ -292,20 +262,17 @@ class CashFlowTrend extends StatelessWidget {
             Wrap(
               spacing: 16,
               runSpacing: 8,
-              children: [
-                _Legend(color: colors.primary, label: 'Income'),
-                _Legend(color: colors.error, label: 'Expenses'),
-              ],
+              children: [_Legend(color: colors.error, label: 'Expenses')],
             ),
             if (maximum == 0)
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 24),
-                child: Text('No MYR cash flow to chart in this period.'),
+                child: Text('No expenses to chart in this period.'),
               )
             else
               Semantics(
                 label:
-                    'Income and expense trends in MYR. Exact values are available below.',
+                    'Expense trends in MYR. Exact values are available below.',
                 child: ExcludeSemantics(
                   child: SizedBox(
                     height: 240,
@@ -359,14 +326,6 @@ class CashFlowTrend extends StatelessWidget {
                                 barRods: [
                                   BarChartRodData(
                                     toY:
-                                        report.buckets[index].incomeMinor
-                                            .toDouble() /
-                                        100,
-                                    color: colors.primary,
-                                    width: report.period.isYear ? 7 : 3,
-                                  ),
-                                  BarChartRodData(
-                                    toY:
                                         report.buckets[index].expenseMinor
                                             .toDouble() /
                                         100,
@@ -390,9 +349,7 @@ class CashFlowTrend extends StatelessWidget {
                   ListTile(
                     contentPadding: EdgeInsets.zero,
                     title: Text(label(bucket)),
-                    subtitle: Text(
-                      'Income: ${_myr(bucket.incomeMinor)}\nExpenses: ${_myr(bucket.expenseMinor)}',
-                    ),
+                    subtitle: Text('Expenses: ${_myr(bucket.expenseMinor)}'),
                   ),
               ],
             ),

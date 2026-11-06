@@ -54,6 +54,14 @@ class TransactionFilter {
       (categoryId == null ? 0 : 1) +
       (currencyCode == null ? 0 : 1) +
       (from == null && to == null ? 0 : 1);
+  TransactionFilter get expensesOnly => TransactionFilter._(
+    query,
+    TransactionType.expense,
+    categoryId,
+    currencyCode,
+    from,
+    to,
+  );
   TransactionFilter withQuery(String value) => TransactionFilter(
     query: value,
     type: type,

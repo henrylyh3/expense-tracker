@@ -9,63 +9,61 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  testWidgets(
-    'category filters hide archives and separate income from expenses',
-    (tester) async {
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            categoriesProvider.overrideWith(
-              (ref) => Stream.value(const [
-                LedgerCategory(
-                  id: 'food',
-                  name: 'Food',
-                  type: TransactionType.expense,
-                  iconKey: 'restaurant',
-                  colorHex: '#123456',
-                  sortOrder: 0,
-                  isArchived: false,
-                  usageCount: 1,
-                ),
-                LedgerCategory(
-                  id: 'old',
-                  name: 'Old category',
-                  type: TransactionType.expense,
-                  iconKey: 'more_horiz',
-                  colorHex: '#123456',
-                  sortOrder: 1,
-                  isArchived: true,
-                  usageCount: 1,
-                ),
-                LedgerCategory(
-                  id: 'salary',
-                  name: 'Salary',
-                  type: TransactionType.income,
-                  iconKey: 'payments',
-                  colorHex: '#123456',
-                  sortOrder: 2,
-                  isArchived: false,
-                  usageCount: 0,
-                ),
-              ]),
-            ),
-          ],
-          child: const MaterialApp(home: Scaffold(body: CategoriesScreen())),
-        ),
-      );
-      await tester.pumpAndSettle();
-      expect(find.text('Food'), findsOneWidget);
-      expect(find.text('Old category'), findsNothing);
-      expect(find.text('Salary'), findsNothing);
-      await tester.tap(find.text('Show archived'));
-      await tester.pumpAndSettle();
-      expect(find.text('Old category'), findsOneWidget);
-      await tester.tap(find.text('Income'));
-      await tester.pumpAndSettle();
-      expect(find.text('Salary'), findsOneWidget);
-      expect(find.text('Food'), findsNothing);
-    },
-  );
+  testWidgets('expense categories hide archived entries and legacy income', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          categoriesProvider.overrideWith(
+            (ref) => Stream.value(const [
+              LedgerCategory(
+                id: 'food',
+                name: 'Food',
+                type: TransactionType.expense,
+                iconKey: 'restaurant',
+                colorHex: '#123456',
+                sortOrder: 0,
+                isArchived: false,
+                usageCount: 1,
+              ),
+              LedgerCategory(
+                id: 'old',
+                name: 'Old category',
+                type: TransactionType.expense,
+                iconKey: 'more_horiz',
+                colorHex: '#123456',
+                sortOrder: 1,
+                isArchived: true,
+                usageCount: 1,
+              ),
+              LedgerCategory(
+                id: 'salary',
+                name: 'Salary',
+                type: TransactionType.income,
+                iconKey: 'payments',
+                colorHex: '#123456',
+                sortOrder: 2,
+                isArchived: false,
+                usageCount: 0,
+              ),
+            ]),
+          ),
+        ],
+        child: const MaterialApp(home: Scaffold(body: CategoriesScreen())),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Food'), findsOneWidget);
+    expect(find.text('Old category'), findsNothing);
+    expect(find.text('Salary'), findsNothing);
+    await tester.tap(find.text('Show archived'));
+    await tester.pumpAndSettle();
+    expect(find.text('Old category'), findsOneWidget);
+    expect(find.text('Income'), findsNothing);
+    expect(find.text('Salary'), findsNothing);
+    expect(find.text('Food'), findsOneWidget);
+  });
 
   testWidgets(
     'JPY template selects precision zero and leaves rate for manual entry',

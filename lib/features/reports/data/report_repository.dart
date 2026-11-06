@@ -10,7 +10,10 @@ class ReportRepository {
   ReportRepository(this._database);
   final AppDatabase _database;
 
-  Stream<FinancialReport> watchPeriod(ReportPeriod period) {
+  Stream<FinancialReport> watchPeriod(
+    ReportPeriod period, {
+    bool expensesOnly = false,
+  }) {
     final end = period.endExclusive;
     // One bounded, consistent SQLite result drives totals, category groups and
     // trends. Integer SUM can overflow and TOTAL converts to floating point;
@@ -20,7 +23,7 @@ class ReportRepository {
           '''SELECT t.type, t.amount_myr_minor, t.transaction_date, t.category_id,
         c.name AS category_name, c.color_hex, c.icon_key
         FROM transactions t JOIN categories c ON c.id = t.category_id
-        WHERE t.transaction_date >= ?${end == null ? '' : ' AND t.transaction_date < ?'}''',
+        WHERE t.transaction_date >= ?${end == null ? '' : ' AND t.transaction_date < ?'}${expensesOnly ? " AND t.type = 'expense'" : ''}''',
           variables: [
             Variable<String>(period.start.toString()),
             if (end != null) Variable<String>(end.toString()),

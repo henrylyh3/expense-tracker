@@ -55,7 +55,9 @@ final reportRepositoryProvider = Provider<ReportRepository>(
 );
 final financialReportProvider = StreamProvider.autoDispose
     .family<FinancialReport, ReportPeriod>(
-      (ref, period) => ref.watch(reportRepositoryProvider).watchPeriod(period),
+      (ref, period) => ref
+          .watch(reportRepositoryProvider)
+          .watchPeriod(period, expensesOnly: true),
       retry: (count, error) => null,
     );
 final dashboardRecentProvider = StreamProvider.autoDispose
@@ -64,7 +66,10 @@ final dashboardRecentProvider = StreamProvider.autoDispose
           .watch(transactionRepositoryProvider)
           .watchHistory(
             limit: 5,
-            filter: TransactionFilter(from: period.start, to: period.lastDay),
+            filter: TransactionFilter(
+              from: period.start,
+              to: period.lastDay,
+            ).expensesOnly,
           ),
       retry: (count, error) => null,
     );

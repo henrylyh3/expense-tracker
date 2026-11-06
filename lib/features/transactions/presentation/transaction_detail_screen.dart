@@ -81,9 +81,7 @@ class TransactionDetailScreen extends ConsumerWidget {
                         style: Theme.of(context).textTheme.headlineMedium,
                       ),
                       const SizedBox(height: 8),
-                      Text(
-                        '${item.type == TransactionType.income ? 'Income' : 'Expense'} · ${item.categoryName}',
-                      ),
+                      Text('Expense · ${item.categoryName}'),
                       Text('Date: ${item.date}'),
                       const SizedBox(height: 24),
                       Card(

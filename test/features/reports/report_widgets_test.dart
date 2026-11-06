@@ -92,7 +92,7 @@ void main() {
       );
       final filter = container.read(historyFilterProvider);
       expect(filter.categoryId, 'food');
-      expect(filter.type, TransactionType.expense);
+      expect(filter.type, isNull);
       expect(filter.from.toString(), '2026-11-01');
       expect(filter.to.toString(), '2026-11-30');
       expect(find.text('No transactions match these filters.'), findsOneWidget);
@@ -124,7 +124,7 @@ void main() {
       const TransactionFilter.empty(),
     );
     expect(
-      find.text('No transactions yet. Add your first income or expense.'),
+      find.text('No transactions yet. Add your first expense.'),
       findsOneWidget,
     );
   });

@@ -21,11 +21,13 @@ class AppShell extends ConsumerWidget {
             : null,
       ),
       body: SafeArea(child: navigationShell),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: busy ? null : () => context.push('/transactions/new'),
-        icon: const Icon(Icons.add),
-        label: const Text('Add transaction'),
-      ),
+      floatingActionButton: navigationShell.currentIndex == 3
+          ? null
+          : FloatingActionButton.extended(
+              onPressed: busy ? null : () => context.push('/transactions/new'),
+              icon: const Icon(Icons.add),
+              label: const Text('Add transaction'),
+            ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: navigationShell.currentIndex,
         onDestinationSelected: busy

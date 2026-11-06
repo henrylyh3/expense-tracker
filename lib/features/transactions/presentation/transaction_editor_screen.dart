@@ -92,7 +92,6 @@ class _TransactionFormState extends ConsumerState<_TransactionForm> {
   late final TextEditingController _amount;
   late final TextEditingController _note;
   late final TextEditingController _rate;
-  late TransactionType _type;
   late String _currencyCode;
   late CalendarDate _date;
   String? _categoryId;
@@ -111,7 +110,6 @@ class _TransactionFormState extends ConsumerState<_TransactionForm> {
     );
     _note = TextEditingController(text: _original?.note ?? '');
     _rate = TextEditingController();
-    _type = _original?.type ?? TransactionType.expense;
     _currencyCode = _original?.conversion.original.currencyCode ?? 'MYR';
     _categoryId = _original?.categoryId;
     _date = _original?.date ?? CalendarDate.today();
@@ -198,7 +196,7 @@ class _TransactionFormState extends ConsumerState<_TransactionForm> {
         );
       }
       final input = TransactionInput(
-        type: _type,
+        type: TransactionType.expense,
         categoryId: _categoryId!,
         currencyCode: currency.code,
         amountText: _amount.text,
@@ -219,8 +217,6 @@ class _TransactionFormState extends ConsumerState<_TransactionForm> {
       if (!mounted) return;
       if (id == null) {
         setState(() => _error = ref.read(transactionActionsProvider).error);
-      } else if (_original == null) {
-        context.replace('/transactions/$id');
       } else {
         context.pop();
       }
@@ -236,7 +232,7 @@ class _TransactionFormState extends ConsumerState<_TransactionForm> {
     final categories = widget.categories
         .where(
           (item) =>
-              item.type == _type &&
+              item.type == TransactionType.expense &&
               (!item.isArchived || item.id == _original?.categoryId),
         )
         .toList();
@@ -258,25 +254,8 @@ class _TransactionFormState extends ConsumerState<_TransactionForm> {
       onSave: _save,
       includeKeyboardInsets: false,
       fields: [
-        DropdownButtonFormField<TransactionType>(
-          initialValue: _type,
-          decoration: const InputDecoration(labelText: 'Type'),
-          items: [
-            for (final type in TransactionType.values)
-              DropdownMenuItem(
-                value: type,
-                child: Text(
-                  type == TransactionType.income ? 'Income' : 'Expense',
-                ),
-              ),
-          ],
-          onChanged: (value) => setState(() {
-            _type = value!;
-            _categoryId = null;
-          }),
-        ),
         DropdownButtonFormField<String>(
-          key: ValueKey('category:${_type.name}:$categoryId'),
+          key: ValueKey('category:$categoryId'),
           initialValue: categoryId,
           decoration: const InputDecoration(labelText: 'Category'),
           isExpanded: true,
