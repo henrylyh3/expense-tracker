@@ -26,12 +26,15 @@ class DashboardScreen extends ConsumerWidget {
         ?.value
         .where((item) => item.id == active)
         .firstOrNull;
+    final used =
+        ref.watch(tripUsedCurrenciesProvider(active)).asData?.value ??
+        const <String>{};
     final codes =
         ref
             .watch(currenciesProvider)
             .asData
             ?.value
-            .where((item) => item.isActive)
+            .where((item) => used.contains(item.code))
             .map((item) => item.code)
             .toList() ??
         [];

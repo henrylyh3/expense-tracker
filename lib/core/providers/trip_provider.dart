@@ -59,6 +59,23 @@ final tripRatesProvider =
           );
     }, retry: (count, error) => null);
 
+final tripUsedCurrenciesProvider = StreamProvider.family<Set<String>, String>((
+  ref,
+  trip,
+) {
+  final db = ref.watch(databaseProvider);
+  return db
+      .customSelect(
+        "SELECT DISTINCT currency_code FROM transactions WHERE trip_id = ? AND type = 'expense'",
+        variables: [Variable.withString(trip)],
+        readsFrom: {db.transactions},
+      )
+      .watch()
+      .map(
+        (rows) => {for (final row in rows) row.read<String>('currency_code')},
+      );
+}, retry: (count, error) => null);
+
 final tripActionsProvider = Provider(TripActions.new);
 
 class TripActions {
@@ -101,6 +118,31 @@ class TripActions {
     });
   }
 
+  Future<void> setDefaultCurrency(String trip, String code) async {
+    final db = ref.read(databaseProvider);
+    await db.writeTransaction(() async {
+      final valid = await db
+          .customSelect(
+            'SELECT 1 FROM trips t JOIN currencies c ON c.code = ? AND c.is_active = 1 WHERE t.id = ?',
+            variables: [Variable.withString(code), Variable.withString(trip)],
+          )
+          .getSingleOrNull();
+      if (valid == null) {
+        throw const LedgerException(
+          'Choose an active currency and existing trip.',
+        );
+      }
+      await db.customUpdate(
+        'INSERT INTO app_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
+        variables: [
+          Variable.withString('trip_currency:$trip'),
+          Variable.withString(code),
+        ],
+        updates: {db.appSettings},
+      );
+    });
+  }
+
   Future<void> delete(String id) async {
     if (id == personalTripId) {
       throw const LedgerException('The Personal trip cannot be deleted.');
@@ -115,6 +157,11 @@ class TripActions {
       await db.customUpdate(
         "DELETE FROM app_settings WHERE key = 'active_trip' AND value = ?",
         variables: [Variable.withString(id)],
+        updates: {db.appSettings},
+      );
+      await db.customUpdate(
+        'DELETE FROM app_settings WHERE key = ?',
+        variables: [Variable.withString('trip_currency:$id')],
         updates: {db.appSettings},
       );
       await db.customUpdate(

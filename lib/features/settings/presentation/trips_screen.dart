@@ -5,6 +5,11 @@ import 'package:go_router/go_router.dart';
 import '../../../core/models/ledger_types.dart';
 import '../../../core/providers/trip_provider.dart';
 import '../../currencies/presentation/currency_view_model.dart';
+import '../../../core/providers/default_currency_provider.dart';
+import '../../../core/money/display_currency.dart';
+import '../../reports/presentation/report_view_model.dart';
+import '../../reports/presentation/report_widgets.dart';
+import '../../reports/domain/report_period.dart';
 
 class TripsScreen extends ConsumerWidget {
   const TripsScreen({super.key});
@@ -42,68 +47,149 @@ class TripsScreen extends ConsumerWidget {
               child: ListTile(
                 title: Text(trip.name),
                 subtitle: Text(
-                  trip.id == active ? 'Default trip' : 'Tap to edit rates',
+                  trip.id == active ? 'Default trip' : 'Tap for summary',
                 ),
                 onTap: () => context.push(
                   '/settings/trips/${Uri.encodeComponent(trip.id)}',
                 ),
-                trailing: trip.id == active && trip.id == personalTripId
-                    ? const Icon(Icons.check_circle)
-                    : PopupMenuButton<String>(
-                        tooltip: 'Trip options',
-                        itemBuilder: (_) => [
-                          if (trip.id != active)
-                            const PopupMenuItem(
-                              value: 'default',
-                              child: Text('Make default'),
-                            ),
-                          if (trip.id != personalTripId)
-                            const PopupMenuItem(
-                              value: 'delete',
-                              child: Text('Delete trip'),
-                            ),
-                        ],
-                        onSelected: (choice) async {
-                          if (choice == 'default') {
-                            await _run(
-                              context,
-                              () => actions.activate(trip.id),
-                            );
-                          } else {
-                            final confirmed = await showDialog<bool>(
-                              context: context,
-                              builder: (context) => AlertDialog(
-                                title: Text('Delete ${trip.name}?'),
-                                content: const Text(
-                                  'Its expenses will move to Personal with their saved rates. Its trip currency settings will be removed.',
-                                ),
-                                actions: [
-                                  TextButton(
-                                    onPressed: () =>
-                                        Navigator.pop(context, false),
-                                    child: const Text('Cancel'),
-                                  ),
-                                  FilledButton(
-                                    onPressed: () =>
-                                        Navigator.pop(context, true),
-                                    child: const Text('Delete trip'),
-                                  ),
-                                ],
-                              ),
-                            );
-                            if (confirmed == true && context.mounted) {
-                              await _run(
-                                context,
-                                () => actions.delete(trip.id),
-                              );
-                            }
-                          }
-                        },
+                trailing: PopupMenuButton<String>(
+                  tooltip: 'Trip options',
+                  itemBuilder: (_) => [
+                    const PopupMenuItem(
+                      value: 'currencies',
+                      child: Text('Currency settings'),
+                    ),
+                    if (trip.id != active)
+                      const PopupMenuItem(
+                        value: 'default',
+                        child: Text('Make default'),
                       ),
+                    if (trip.id != personalTripId)
+                      const PopupMenuItem(
+                        value: 'delete',
+                        child: Text('Delete trip'),
+                      ),
+                  ],
+                  onSelected: (choice) async {
+                    if (choice == 'currencies') {
+                      await context.push<void>(
+                        '/settings/trips/${Uri.encodeComponent(trip.id)}/currencies',
+                      );
+                    } else if (choice == 'default') {
+                      await _run(context, () => actions.activate(trip.id));
+                    } else {
+                      final confirmed = await showDialog<bool>(
+                        context: context,
+                        builder: (context) => AlertDialog(
+                          title: Text('Delete ${trip.name}?'),
+                          content: const Text(
+                            'Its expenses will move to Personal with their saved rates. Its trip currency settings will be removed.',
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(context, false),
+                              child: const Text('Cancel'),
+                            ),
+                            FilledButton(
+                              onPressed: () => Navigator.pop(context, true),
+                              child: const Text('Delete trip'),
+                            ),
+                          ],
+                        ),
+                      );
+                      if (confirmed == true && context.mounted) {
+                        await _run(context, () => actions.delete(trip.id));
+                      }
+                    }
+                  },
+                ),
               ),
             ),
         ],
       ),
+    );
+  }
+}
+
+final tripSummaryProvider = StreamProvider.family(
+  (ref, String id) => ref
+      .watch(reportRepositoryProvider)
+      .watchPeriod(ReportPeriod.trip(), expensesOnly: true, tripId: id),
+  retry: (count, error) => null,
+);
+
+class TripSummaryScreen extends ConsumerStatefulWidget {
+  const TripSummaryScreen({required this.id, super.key});
+  final String id;
+  @override
+  ConsumerState<TripSummaryScreen> createState() => _TripSummaryScreenState();
+}
+
+class _TripSummaryScreenState extends ConsumerState<TripSummaryScreen> {
+  String? _code;
+
+  @override
+  Widget build(BuildContext context) {
+    final report = ref.watch(tripSummaryProvider(widget.id));
+    final used =
+        ref.watch(tripUsedCurrenciesProvider(widget.id)).asData?.value ??
+        const <String>{};
+    final currencies = ref.watch(currenciesProvider).asData?.value ?? [];
+    final options = currencies
+        .where((item) => used.contains(item.code))
+        .toList();
+    final preferred =
+        ref.watch(tripDefaultCurrencyProvider(widget.id)).asData?.value ??
+        DisplayCurrency.myr;
+    final code = options.any((item) => item.code == _code)
+        ? _code
+        : options.any((item) => item.code == preferred.code)
+        ? preferred.code
+        : options.firstOrNull?.code;
+    final chosen = options.where((item) => item.code == code).firstOrNull;
+    final rate = ref
+        .watch(tripRatesProvider(widget.id))
+        .asData
+        ?.value[code]
+        ?.rate;
+    final display = chosen == null
+        ? preferred
+        : DisplayCurrency(
+            chosen.code,
+            chosen.decimalPlaces,
+            rate ?? chosen.rateToMyr,
+          );
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        if (options.isNotEmpty)
+          Align(
+            alignment: Alignment.centerRight,
+            child: DropdownButton<String>(
+              value: code,
+              items: [
+                for (final item in options)
+                  DropdownMenuItem(value: item.code, child: Text(item.code)),
+              ],
+              onChanged: (value) => setState(() => _code = value),
+            ),
+          ),
+        report.when(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (_, _) => TextButton(
+            onPressed: () => ref.invalidate(tripSummaryProvider(widget.id)),
+            child: const Text('Retry summary'),
+          ),
+          data: (value) => Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              FinancialSummary(report: value, currency: display),
+              const SizedBox(height: 16),
+              SpendingBreakdown(report: value, currency: display),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
@@ -119,6 +205,11 @@ class TripRatesScreen extends ConsumerWidget {
     final options = currencies.asData?.value.where(
       (item) => item.isActive && !item.isBase,
     );
+    final selected = ref
+        .watch(tripDefaultCurrencyProvider(id))
+        .asData
+        ?.value
+        .code;
     final overrides = rates.asData?.value;
     if (currencies.hasError || rates.hasError) {
       return Center(
@@ -137,6 +228,32 @@ class TripRatesScreen extends ConsumerWidget {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
+        const Text('Default expense currency for this trip'),
+        DropdownButton<String>(
+          isExpanded: true,
+          value:
+              currencies.asData?.value.any(
+                    (item) => item.isActive && item.code == selected,
+                  ) ==
+                  true
+              ? selected
+              : null,
+          items: [
+            for (final item in currencies.asData!.value.where(
+              (item) => item.isActive,
+            ))
+              DropdownMenuItem(value: item.code, child: Text(item.code)),
+          ],
+          onChanged: (code) async {
+            if (code != null) {
+              await _run(
+                context,
+                () =>
+                    ref.read(tripActionsProvider).setDefaultCurrency(id, code),
+              );
+            }
+          },
+        ),
         const Text(
           'Give a currency a name and a manual rate for this trip. Saved expenses keep their original rates.',
         ),

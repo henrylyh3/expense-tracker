@@ -407,7 +407,11 @@ abstract final class BackupValidator {
         'theme_mode' => {'system', 'light', 'dark'}.contains(value),
         'default_currency' =>
           value is String && RegExp(r'^[A-Z]{3}$').hasMatch(value),
-        _ => false,
+        _ =>
+          key.startsWith('trip_currency:') &&
+              trips.contains(key.substring('trip_currency:'.length)) &&
+              value is String &&
+              RegExp(r'^[A-Z]{3}$').hasMatch(value),
       };
       if (!settingKeys.add(key) || !valid) {
         _invalid('Settings are unsupported, duplicated or invalid.');

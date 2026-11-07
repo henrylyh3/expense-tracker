@@ -83,9 +83,17 @@ final routerProvider = Provider<GoRouter>((ref) {
                     routes: [
                       GoRoute(
                         path: ':tripId',
-                        builder: (context, state) => TripRatesScreen(
+                        builder: (context, state) => TripSummaryScreen(
                           id: state.pathParameters['tripId']!,
                         ),
+                        routes: [
+                          GoRoute(
+                            path: 'currencies',
+                            builder: (context, state) => TripRatesScreen(
+                              id: state.pathParameters['tripId']!,
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),

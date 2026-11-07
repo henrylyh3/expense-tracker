@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/models/ledger_types.dart';
+import '../../../core/providers/default_currency_provider.dart';
 import '../../../shared/widgets/management_widgets.dart';
 import '../domain/configured_currency.dart';
 import 'currency_editor.dart';
@@ -129,6 +130,19 @@ class _CurrenciesScreenState extends ConsumerState<CurrenciesScreen> {
                   tooltip: 'Actions for ${currency.code}',
                   onSelected: (action) async {
                     switch (action) {
+                      case 'default':
+                        await ref
+                            .read(defaultCurrencyActionsProvider.notifier)
+                            .set(currency.code);
+                        if (!context.mounted) return;
+                        final error = ref
+                            .read(defaultCurrencyActionsProvider)
+                            .error;
+                        if (error != null) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text(ledgerErrorMessage(error))),
+                          );
+                        }
                       case 'edit':
                         await _edit(all, currency);
                       case 'restore':
@@ -138,6 +152,11 @@ class _CurrenciesScreenState extends ConsumerState<CurrenciesScreen> {
                     }
                   },
                   itemBuilder: (context) => [
+                    if (currency.isActive)
+                      const PopupMenuItem(
+                        value: 'default',
+                        child: Text('Make default'),
+                      ),
                     const PopupMenuItem(value: 'edit', child: Text('Edit')),
                     if (!currency.isActive)
                       const PopupMenuItem(

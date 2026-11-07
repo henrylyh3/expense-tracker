@@ -60,7 +60,7 @@ final reportDisplayCurrencyProvider = Provider<DisplayCurrency>((ref) {
   if (code == null) return fallback;
   final currencies = ref.watch(currenciesProvider).asData?.value ?? [];
   final item = currencies
-      .where((currency) => currency.isActive && currency.code == code)
+      .where((currency) => currency.code == code)
       .firstOrNull;
   if (item == null) return fallback;
   final trip = ref.watch(activeTripProvider).asData?.value ?? personalTripId;

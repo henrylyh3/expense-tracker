@@ -3,6 +3,7 @@ import 'package:expense_tracker/core/models/ledger_types.dart';
 import 'package:expense_tracker/core/money/money.dart';
 import 'package:expense_tracker/core/money/display_currency.dart';
 import 'package:expense_tracker/core/providers/default_currency_provider.dart';
+import 'package:expense_tracker/core/providers/trip_provider.dart';
 import 'package:expense_tracker/features/categories/domain/ledger_category.dart';
 import 'package:expense_tracker/features/categories/presentation/category_view_model.dart';
 import 'package:expense_tracker/features/currencies/domain/configured_currency.dart';
@@ -35,6 +36,7 @@ void main() {
   ) async {
     await tester.pumpWidget(_app());
     await tester.pumpAndSettle();
+    expect(find.text('Food'), findsOneWidget);
     await tester.ensureVisible(_field('Amount'));
     await tester.enterText(_field('Amount'), '12.50');
     await tester.pumpAndSettle();
@@ -105,6 +107,8 @@ Widget _app({
   DisplayCurrency display = DisplayCurrency.myr,
 }) => ProviderScope(
   overrides: [
+    activeTripProvider.overrideWith((ref) => Stream.value(personalTripId)),
+    tripRatesProvider.overrideWith((ref, id) => Stream.value(const {})),
     defaultCurrencyProvider.overrideWith((ref) => Stream.value(display)),
     categoriesProvider.overrideWith(
       (ref) => Stream.value([

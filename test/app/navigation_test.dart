@@ -12,6 +12,9 @@ import 'package:expense_tracker/features/currencies/presentation/currency_view_m
 import 'package:expense_tracker/features/reports/presentation/report_view_model.dart';
 import 'package:expense_tracker/features/transactions/presentation/transaction_view_model.dart';
 import 'package:expense_tracker/features/transactions/domain/transaction_input.dart';
+import 'package:expense_tracker/features/settings/presentation/trips_screen.dart';
+import 'package:expense_tracker/features/reports/domain/financial_report.dart';
+import 'package:expense_tracker/features/reports/domain/report_period.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -107,9 +110,17 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.widgetWithText(AppBar, 'Personal'), findsOneWidget);
     expect(find.byType(BackButton), findsOneWidget);
+    expect(find.text('Expenses by category'), findsOneWidget);
+    expect(find.text('Daily expenses'), findsNothing);
     await tester.tap(find.byType(BackButton));
     await tester.pumpAndSettle();
     expect(find.widgetWithText(AppBar, 'Trips and profiles'), findsOneWidget);
+    await tester.tap(find.byType(PopupMenuButton<String>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Currency settings'));
+    await tester.pumpAndSettle();
+    expect(find.widgetWithText(AppBar, 'Trip currencies'), findsOneWidget);
+    expect(find.text('Default expense currency for this trip'), findsOneWidget);
     await tester.tap(find.byIcon(Icons.settings));
     await tester.pumpAndSettle();
     expect(find.widgetWithText(AppBar, 'Settings'), findsOneWidget);
@@ -165,6 +176,20 @@ Widget _navigationApp({double textScale = 1}) => ProviderScope(
       (ref) => Stream.value([(id: personalTripId, name: 'Personal')]),
     ),
     tripRatesProvider.overrideWith((ref, id) => Stream.value(const {})),
+    tripUsedCurrenciesProvider.overrideWith(
+      (ref, id) => Stream.value({'MYR', 'USD'}),
+    ),
+    tripDefaultCurrencyProvider.overrideWith(
+      (ref, id) => Stream.value(DisplayCurrency.myr),
+    ),
+    globalDefaultCurrencyProvider.overrideWith(
+      (ref) => Stream.value(DisplayCurrency.myr),
+    ),
+    tripSummaryProvider.overrideWith(
+      (ref, id) => Stream.value(
+        FinancialReport.calculate(ReportPeriod.trip(), const []),
+      ),
+    ),
     defaultCurrencyProvider.overrideWith(
       (ref) => Stream.value(DisplayCurrency.myr),
     ),

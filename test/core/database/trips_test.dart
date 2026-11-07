@@ -7,6 +7,7 @@ import 'package:expense_tracker/core/dates/calendar_date.dart';
 import 'package:expense_tracker/core/models/ledger_types.dart';
 import 'package:expense_tracker/core/providers/database_providers.dart';
 import 'package:expense_tracker/core/providers/trip_provider.dart';
+import 'package:expense_tracker/core/providers/default_currency_provider.dart';
 import 'package:expense_tracker/features/reports/data/report_repository.dart';
 import 'package:expense_tracker/features/reports/domain/report_period.dart';
 import 'package:expense_tracker/features/transactions/data/transaction_repository.dart';
@@ -58,6 +59,20 @@ void main() {
       final first = await add('2025-12-30');
       await add('2026-01-02');
       await trips.activate(april);
+      await container.read(defaultCurrencyActionsProvider.notifier).set('MYR');
+      await trips.setDefaultCurrency(april, 'THB');
+      final selected = container.listen(defaultCurrencyProvider, (_, _) {});
+      final global = container.listen(globalDefaultCurrencyProvider, (_, _) {});
+      expect(
+        (await container.read(defaultCurrencyProvider.future)).code,
+        'THB',
+      );
+      expect(
+        (await container.read(globalDefaultCurrencyProvider.future)).code,
+        'MYR',
+      );
+      selected.close();
+      global.close();
       final second = await add('2026-04-05');
       expect(
         (await transactions.getById(first)).conversion.exchangeRate,
@@ -72,6 +87,14 @@ void main() {
         second,
       );
       expect(await transactions.watchById(first, tripId: april).first, isNull);
+      final used = container.listen(
+        tripUsedCurrenciesProvider(april),
+        (_, _) {},
+      );
+      expect(await container.read(tripUsedCurrenciesProvider(april).future), {
+        'THB',
+      });
+      used.close();
 
       final reports = ReportRepository(db);
       final report = await reports
@@ -85,6 +108,13 @@ void main() {
 
       final bytes = await BackupService(db).exportBytes();
       final backup = BackupValidator.decode(bytes);
+      expect(
+        backup.tables['settings']!.any(
+          (row) =>
+              row['key'] == 'trip_currency:$april' && row['value'] == 'THB',
+        ),
+        isTrue,
+      );
       expect(
         backup.tables['trip_rates']!.map((row) => row['name']),
         unorderedEquals(['THB 2025', 'THB 2026']),

@@ -139,14 +139,14 @@ class _DefaultCurrencyPicker extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final currencies = ref.watch(currenciesProvider);
-    final preference = ref.watch(defaultCurrencyProvider);
+    final preference = ref.watch(globalDefaultCurrencyProvider);
     final options = currencies.asData?.value.where((item) => item.isActive);
     final selected = preference.asData?.value.code;
     if (currencies.hasError || preference.hasError) {
       return TextButton(
         onPressed: () {
           ref.invalidate(currenciesProvider);
-          ref.invalidate(defaultCurrencyProvider);
+          ref.invalidate(globalDefaultCurrencyProvider);
         },
         child: const Text('Retry'),
       );

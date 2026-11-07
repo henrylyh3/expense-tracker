@@ -128,7 +128,18 @@ class _TransactionFormState extends ConsumerState<_TransactionForm> {
     _rate = TextEditingController();
     _currencyCode =
         _original?.conversion.original.currencyCode ?? widget.display.code;
-    _categoryId = _original?.categoryId;
+    _categoryId =
+        _original?.categoryId ??
+        widget.categories
+            .where(
+              (category) =>
+                  !category.isArchived &&
+                  category.type == TransactionType.expense &&
+                  (category.id == 'seed-food' ||
+                      category.name.toLowerCase() == 'food'),
+            )
+            .firstOrNull
+            ?.id;
     _date = _original?.date ?? CalendarDate.today();
   }
 
