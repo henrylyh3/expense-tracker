@@ -76,7 +76,7 @@ class _CurrencyEditorState extends ConsumerState<CurrencyEditor> {
       );
       final saved = await ref
           .read(currencyActionsProvider.notifier)
-          .save(draft, originalCode: widget.currency?.code);
+          .save(draft, originalCode: widget.currency?.key);
       if (mounted && saved) Navigator.pop(context, true);
     } on LedgerException catch (error) {
       if (mounted) setState(() => _inputError = error);
@@ -87,7 +87,9 @@ class _CurrencyEditorState extends ConsumerState<CurrencyEditor> {
   Widget build(BuildContext context) {
     final state = ref.watch(currencyActionsProvider);
     final locked =
-        widget.currency?.isBase == true || widget.currency?.isUsed == true;
+        widget.currency?.isBase == true ||
+        widget.currency?.isUsed == true ||
+        widget.currency?.recordId != null;
     final base = widget.currency?.isBase == true;
     final code = _code.text.trim().toUpperCase();
     return EditorSheet(
@@ -108,7 +110,9 @@ class _CurrencyEditorState extends ConsumerState<CurrencyEditor> {
               for (final suggestion in currencyCatalog)
                 DropdownMenuItem(
                   value: suggestion.code,
-                  enabled: !widget.configuredCodes.contains(suggestion.code),
+                  enabled:
+                      suggestion.code != 'MYR' ||
+                      !widget.configuredCodes.contains('MYR'),
                   child: Text('${suggestion.code} · ${suggestion.name}'),
                 ),
             ],

@@ -265,15 +265,16 @@ void main() {
     final plan = replacementStatements(
       BackupValidator.fromDocument(document),
     ).toList();
-    expect(plan.take(6).map((s) => s.sql), [
+    expect(plan.take(7).map((s) => s.sql), [
       'DELETE FROM transactions',
       'DELETE FROM trip_rates',
+      'DELETE FROM currency_rates',
       'DELETE FROM trips',
       'DELETE FROM categories',
       "DELETE FROM currencies WHERE code <> 'MYR'",
       'DELETE FROM app_settings',
     ]);
-    expect(plan[6].sql, contains('ON CONFLICT(code) DO UPDATE'));
+    expect(plan[7].sql, contains('ON CONFLICT(code) DO UPDATE'));
     expect(
       plan.any(
         (s) =>

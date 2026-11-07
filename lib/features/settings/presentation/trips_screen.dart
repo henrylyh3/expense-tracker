@@ -141,23 +141,26 @@ class _TripSummaryScreenState extends ConsumerState<TripSummaryScreen> {
     final preferred =
         ref.watch(tripDefaultCurrencyProvider(widget.id)).asData?.value ??
         DisplayCurrency.myr;
-    final code = options.any((item) => item.code == _code)
+    final code = options.any((item) => item.key == _code)
         ? _code
-        : options.any((item) => item.code == preferred.code)
-        ? preferred.code
-        : options.firstOrNull?.code;
-    final chosen = options.where((item) => item.code == code).firstOrNull;
+        : options.any((item) => item.key == preferred.key)
+        ? preferred.key
+        : options.firstOrNull?.key;
+    final chosen = options.where((item) => item.key == code).firstOrNull;
     final rate = ref
         .watch(tripRatesProvider(widget.id))
         .asData
-        ?.value[code]
+        ?.value[chosen?.code]
         ?.rate;
     final display = chosen == null
         ? preferred
         : DisplayCurrency(
             chosen.code,
             chosen.decimalPlaces,
-            rate ?? chosen.rateToMyr,
+            chosen.recordId != null
+                ? chosen.rateToMyr
+                : rate ?? chosen.rateToMyr,
+            recordId: chosen.recordId,
           );
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -169,7 +172,10 @@ class _TripSummaryScreenState extends ConsumerState<TripSummaryScreen> {
               value: code,
               items: [
                 for (final item in options)
-                  DropdownMenuItem(value: item.code, child: Text(item.code)),
+                  DropdownMenuItem(
+                    value: item.key,
+                    child: Text('${item.code} · ${item.name}'),
+                  ),
               ],
               onChanged: (value) => setState(() => _code = value),
             ),
@@ -203,13 +209,13 @@ class TripRatesScreen extends ConsumerWidget {
     final currencies = ref.watch(currenciesProvider);
     final rates = ref.watch(tripRatesProvider(id));
     final options = currencies.asData?.value.where(
-      (item) => item.isActive && !item.isBase,
+      (item) => item.isActive && !item.isBase && (item.recordId == null),
     );
     final selected = ref
         .watch(tripDefaultCurrencyProvider(id))
         .asData
         ?.value
-        .code;
+        .key;
     final overrides = rates.asData?.value;
     if (currencies.hasError || rates.hasError) {
       return Center(
@@ -233,7 +239,7 @@ class TripRatesScreen extends ConsumerWidget {
           isExpanded: true,
           value:
               currencies.asData?.value.any(
-                    (item) => item.isActive && item.code == selected,
+                    (item) => item.isActive && item.key == selected,
                   ) ==
                   true
               ? selected
@@ -242,7 +248,10 @@ class TripRatesScreen extends ConsumerWidget {
             for (final item in currencies.asData!.value.where(
               (item) => item.isActive,
             ))
-              DropdownMenuItem(value: item.code, child: Text(item.code)),
+              DropdownMenuItem(
+                value: item.key,
+                child: Text('${item.code} · ${item.name}'),
+              ),
           ],
           onChanged: (code) async {
             if (code != null) {
@@ -363,7 +372,8 @@ Future<TripCurrencyRate?> _editRate(
       actions: [
         if (current != null)
           TextButton(
-            onPressed: () => Navigator.pop(context, (rate: '', name: null)),
+            onPressed: () =>
+                Navigator.pop(context, (rate: '', name: null, recordId: null)),
             child: const Text('Reset'),
           ),
         TextButton(
@@ -371,7 +381,11 @@ Future<TripCurrencyRate?> _editRate(
           child: const Text('Cancel'),
         ),
         FilledButton(
-          onPressed: () => Navigator.pop(context, (rate: rate, name: name)),
+          onPressed: () => Navigator.pop(context, (
+            rate: rate,
+            name: name,
+            recordId: current?.recordId,
+          )),
           child: const Text('Save'),
         ),
       ],

@@ -141,7 +141,7 @@ class _DefaultCurrencyPicker extends ConsumerWidget {
     final currencies = ref.watch(currenciesProvider);
     final preference = ref.watch(globalDefaultCurrencyProvider);
     final options = currencies.asData?.value.where((item) => item.isActive);
-    final selected = preference.asData?.value.code;
+    final selected = preference.asData?.value.key;
     if (currencies.hasError || preference.hasError) {
       return TextButton(
         onPressed: () {
@@ -157,25 +157,39 @@ class _DefaultCurrencyPicker extends ConsumerWidget {
         child: CircularProgressIndicator(),
       );
     }
-    return DropdownButton<String>(
-      value: options.any((item) => item.code == selected) ? selected : null,
-      items: [
-        for (final item in options)
-          DropdownMenuItem(value: item.code, child: Text(item.code)),
-      ],
-      onChanged: ref.watch(defaultCurrencyActionsProvider).isLoading
-          ? null
-          : (code) async {
-              if (code == null || code == selected) return;
-              await ref.read(defaultCurrencyActionsProvider.notifier).set(code);
-              if (!context.mounted) return;
-              final error = ref.read(defaultCurrencyActionsProvider).error;
-              if (error != null) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text(ledgerErrorMessage(error))),
-                );
-              }
-            },
+    return SizedBox(
+      width: 88,
+      child: DropdownButton<String>(
+        isExpanded: true,
+        menuWidth: 260,
+        selectedItemBuilder: (context) => [
+          for (final item in options)
+            Align(alignment: Alignment.centerLeft, child: Text(item.code)),
+        ],
+        value: options.any((item) => item.key == selected) ? selected : null,
+        items: [
+          for (final item in options)
+            DropdownMenuItem(
+              value: item.key,
+              child: Text('${item.code} · ${item.name}'),
+            ),
+        ],
+        onChanged: ref.watch(defaultCurrencyActionsProvider).isLoading
+            ? null
+            : (code) async {
+                if (code == null || code == selected) return;
+                await ref
+                    .read(defaultCurrencyActionsProvider.notifier)
+                    .set(code);
+                if (!context.mounted) return;
+                final error = ref.read(defaultCurrencyActionsProvider).error;
+                if (error != null) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text(ledgerErrorMessage(error))),
+                  );
+                }
+              },
+      ),
     );
   }
 }

@@ -45,7 +45,8 @@ const backupColumns = <String, List<String>>{
     'trip_id',
   ],
   'trips': ['id', 'name'],
-  'trip_rates': ['trip_id', 'currency_code', 'rate_to_myr', 'name'],
+  'trip_rates': ['trip_id', 'currency_code', 'rate_to_myr', 'name', 'rate_id'],
+  'currency_rates': ['id', 'currency_code', 'name', 'rate_to_myr', 'is_active'],
   'settings': ['key', 'value'],
 };
 const _stringIntegers = <String, Set<String>>{
@@ -93,7 +94,7 @@ final class ValidatedBackup {
   Map<String, Object?> toDocument() => {
     'format': 'expense-tracker',
     'format_version': 1,
-    'schema_version': 3,
+    'schema_version': 4,
     'app_version': appVersion,
     'exported_at_utc': exportedAtUtc.toIso8601String(),
     'base_currency': 'MYR',
@@ -186,7 +187,7 @@ abstract final class BackupValidator {
     return fromDocument({
       'format': 'expense-tracker',
       'format_version': 1,
-      'schema_version': 3,
+      'schema_version': 4,
       'app_version': appVersion,
       'exported_at_utc': exportedAtUtc.toUtc().toIso8601String(),
       'base_currency': 'MYR',
@@ -217,7 +218,7 @@ abstract final class BackupValidator {
         root['format_version'] is! int ||
         root['format_version'] != 1 ||
         root['schema_version'] is! int ||
-        !{1, 2, 3}.contains(root['schema_version'])) {
+        !{1, 2, 3, 4}.contains(root['schema_version'])) {
       throw const LedgerException(
         'This backup format or schema version is not supported.',
       );
@@ -239,6 +240,7 @@ abstract final class BackupValidator {
     final legacy = schema == 1;
     final names = backupColumns.keys.toSet();
     if (legacy) names.removeAll({'trips', 'trip_rates'});
+    if (schema != 4) names.remove('currency_rates');
     final data = _object(root['data'], names);
     final counts = _object(root['counts'], names);
     final tables = <String, List<Map<String, Object?>>>{};
@@ -259,6 +261,7 @@ abstract final class BackupValidator {
                   .where(
                     (column) =>
                         (!legacy || column != 'trip_id') &&
+                        (schema == 4 || column != 'rate_id') &&
                         (schema != 2 ||
                             name != 'trip_rates' ||
                             column != 'name'),
@@ -334,6 +337,35 @@ abstract final class BackupValidator {
       _invalid('The MYR currency is missing.');
     }
 
+    if (schema != 4) {
+      tables['currency_rates'] = [];
+      for (final row in tables['trip_rates']!) {
+        final id = 'trip:${row['trip_id']}:${row['currency_code']}';
+        row['rate_id'] = id;
+        tables['currency_rates']!.add({
+          'id': id,
+          'currency_code': row['currency_code'],
+          'name': row['name'] ?? currencies[row['currency_code']]?['name'],
+          'rate_to_myr': row['rate_to_myr'],
+          'is_active': true,
+        });
+      }
+    }
+    final records = <String, Map<String, Object?>>{};
+    for (final row in tables['currency_rates']!) {
+      final id = _text(row, 'id', 80);
+      final code = _text(row, 'currency_code', 3);
+      if (records.containsKey(id) ||
+          !currencies.containsKey(code) ||
+          code == 'MYR') {
+        _invalid('Currency records are duplicated or invalid.');
+      }
+      _text(row, 'name', 80);
+      _rate(row, 'rate_to_myr');
+      row['is_active'] = _flag(row, 'is_active');
+      records[id] = row;
+    }
+
     final rateKeys = <(String, String)>{};
     for (final row in tables['trip_rates']!) {
       if (schema == 2) row['name'] = null;
@@ -349,6 +381,11 @@ abstract final class BackupValidator {
         );
       }
       _rate(row, 'rate_to_myr');
+      final rateId = row['rate_id'];
+      if (rateId != null &&
+          (rateId is! String || records[rateId]?['currency_code'] != code)) {
+        _invalid('A trip references an invalid currency record.');
+      }
     }
 
     final transactionIds = <String>{};
@@ -403,6 +440,7 @@ abstract final class BackupValidator {
       final key = _text(row, 'key', 80);
       final value = row['value'];
       final valid = switch (key) {
+        'default_rate' => records.containsKey(value),
         'active_trip' => trips.contains(value),
         'theme_mode' => {'system', 'light', 'dark'}.contains(value),
         'default_currency' =>

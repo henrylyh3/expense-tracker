@@ -17,6 +17,22 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  testWidgets(
+    'named rate record is selected independently of its currency code',
+    (tester) async {
+      await tester.pumpWidget(
+        _app(
+          display: const DisplayCurrency('USD', 2, '4.5', recordId: 'usd-2025'),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('USD · Dollar 2025'), findsOneWidget);
+      await tester.ensureVisible(_field('Amount'));
+      await tester.enterText(_field('Amount'), '12.50');
+      await tester.pumpAndSettle();
+      expect(find.text('USD equivalent: USD 12.50'), findsOneWidget);
+    },
+  );
   testWidgets('new expense starts in the saved default currency', (
     tester,
   ) async {
@@ -150,6 +166,16 @@ Widget _app({
           symbol: '¥',
           decimalPlaces: 0,
           rateToMyr: '0.03',
+          isActive: true,
+          usageCount: 0,
+        ),
+        const ConfiguredCurrency(
+          recordId: 'usd-2025',
+          code: 'USD',
+          name: 'Dollar 2025',
+          symbol: r'$',
+          decimalPlaces: 2,
+          rateToMyr: '4.5',
           isActive: true,
           usageCount: 0,
         ),

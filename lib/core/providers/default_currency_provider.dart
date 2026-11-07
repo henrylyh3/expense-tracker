@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/ledger_types.dart';
 import '../money/display_currency.dart';
 import 'database_providers.dart';
+import '../../features/currencies/data/currency_repository.dart';
 
 final globalDefaultCurrencyProvider = StreamProvider<DisplayCurrency>(
   (ref) => watchDefaultCurrency(ref, tripDefaults: false),
@@ -30,22 +31,35 @@ Stream<DisplayCurrency> watchDefaultCurrency(
   final db = ref.watch(databaseProvider);
   return db
       .customSelect(
-        """SELECT c.code, c.decimal_places, COALESCE(r.rate_to_myr, c.rate_to_myr) AS rate_to_myr
-       FROM currencies c
-       LEFT JOIN trip_rates r ON r.currency_code = c.code
-         AND r.trip_id = COALESCE(?, (SELECT value FROM app_settings WHERE key = 'active_trip'), 'personal')
-       WHERE c.code = COALESCE(
-         CASE WHEN ? = 1 THEN (SELECT ts.value FROM app_settings ts
-           JOIN currencies tc ON tc.code = ts.value AND tc.is_active = 1
-           WHERE ts.key = 'trip_currency:' || COALESCE(?, (SELECT value FROM app_settings WHERE key = 'active_trip'), 'personal')) END,
-         (SELECT gs.value FROM app_settings gs JOIN currencies gc ON gc.code = gs.value AND gc.is_active = 1
-          WHERE gs.key = 'default_currency'), 'MYR') AND c.is_active = 1""",
+        '''WITH records AS (
+      SELECT c.code, c.code AS record_key, NULL AS record_id, c.decimal_places, c.rate_to_myr, c.is_active
+      FROM currencies c
+      UNION ALL SELECT c.code, r.id, r.id, c.decimal_places, r.rate_to_myr,
+        CASE WHEN c.is_active = 1 THEN r.is_active ELSE 0 END
+      FROM currency_rates r JOIN currencies c ON c.code = r.currency_code
+    ), context AS (SELECT COALESCE(?, (SELECT value FROM app_settings WHERE key = 'active_trip'), 'personal') AS trip),
+    preference AS (
+      SELECT COALESCE(
+        CASE WHEN ? = 1 THEN (SELECT COALESCE(r.rate_id, s.value) FROM app_settings s
+          LEFT JOIN trip_rates r ON r.trip_id = context.trip AND r.currency_code = s.value
+          JOIN records rc ON rc.record_key = COALESCE(r.rate_id, s.value) AND rc.is_active = 1
+          WHERE s.key = 'trip_currency:' || context.trip) END,
+        (SELECT rc.record_key FROM records rc WHERE rc.is_active = 1 AND rc.record_key =
+          COALESCE((SELECT value FROM app_settings WHERE key = 'default_rate'),
+          (SELECT value FROM app_settings WHERE key = 'default_currency'))),
+        'MYR') AS selected FROM context
+    )
+    SELECT rc.* FROM records rc JOIN preference p ON rc.record_key = p.selected''',
         variables: [
           Variable<String>(tripId),
           Variable.withInt(tripDefaults ? 1 : 0),
-          Variable<String>(tripId),
         ],
-        readsFrom: {db.appSettings, db.currencies, db.tripRates},
+        readsFrom: {
+          db.appSettings,
+          db.currencies,
+          db.tripRates,
+          db.currencyRates,
+        },
       )
       .watchSingleOrNull()
       .map(
@@ -55,6 +69,7 @@ Stream<DisplayCurrency> watchDefaultCurrency(
                 row.read<String>('code'),
                 row.read<int>('decimal_places'),
                 row.read<String>('rate_to_myr'),
+                recordId: row.readNullable<String>('record_id'),
               ),
       );
 }
@@ -74,10 +89,14 @@ class DefaultCurrencyActions extends AsyncNotifier<void> {
     final db = ref.read(databaseProvider);
     final result = await AsyncValue.guard<void>(
       () => db.writeTransaction(() async {
+        final currency = await CurrencyRepository(db).getByCode(code);
+        if (!currency.isActive) {
+          throw const LedgerException('Choose an active currency.');
+        }
         final active = await db
             .customSelect(
               'SELECT 1 FROM currencies WHERE code = ? AND is_active = 1',
-              variables: [Variable.withString(code)],
+              variables: [Variable.withString(currency.code)],
             )
             .getSingleOrNull();
         if (active == null) {
@@ -86,9 +105,20 @@ class DefaultCurrencyActions extends AsyncNotifier<void> {
         await db.customUpdate(
           """INSERT INTO app_settings (key, value) VALUES ('default_currency', ?)
            ON CONFLICT(key) DO UPDATE SET value = excluded.value""",
-          variables: [Variable.withString(code)],
+          variables: [Variable.withString(currency.code)],
           updates: {db.appSettings},
         );
+        await db.customUpdate(
+          "DELETE FROM app_settings WHERE key = 'default_rate'",
+          updates: {db.appSettings},
+        );
+        if (currency.recordId != null) {
+          await db.customUpdate(
+            "INSERT INTO app_settings (key, value) VALUES ('default_rate', ?)",
+            variables: [Variable.withString(currency.key)],
+            updates: {db.appSettings},
+          );
+        }
       }),
     );
     if (ref.mounted) state = result;

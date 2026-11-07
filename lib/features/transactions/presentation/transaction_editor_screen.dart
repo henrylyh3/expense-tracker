@@ -127,7 +127,7 @@ class _TransactionFormState extends ConsumerState<_TransactionForm> {
     _note = TextEditingController(text: _original?.note ?? '');
     _rate = TextEditingController();
     _currencyCode =
-        _original?.conversion.original.currencyCode ?? widget.display.code;
+        _original?.conversion.original.currencyCode ?? widget.display.key;
     _categoryId =
         _original?.categoryId ??
         widget.categories
@@ -148,8 +148,8 @@ class _TransactionFormState extends ConsumerState<_TransactionForm> {
     super.didUpdateWidget(oldWidget);
     if (_original == null &&
         !_changedSelection &&
-        oldWidget.display.code != widget.display.code) {
-      _currencyCode = widget.display.code;
+        oldWidget.display.key != widget.display.key) {
+      _currencyCode = widget.display.key;
     }
   }
 
@@ -163,7 +163,7 @@ class _TransactionFormState extends ConsumerState<_TransactionForm> {
 
   ConfiguredCurrency? get _currency {
     for (final currency in widget.currencies) {
-      if (currency.code == _currencyCode &&
+      if (currency.key == _currencyCode &&
           (currency.isActive ||
               currency.code == _original?.conversion.original.currencyCode)) {
         return currency;
@@ -174,12 +174,14 @@ class _TransactionFormState extends ConsumerState<_TransactionForm> {
 
   bool get _changedCurrency =>
       _original != null &&
-      _currencyCode != _original.conversion.original.currencyCode;
+      _currency?.code != _original.conversion.original.currencyCode;
 
   String _defaultRate(ConfiguredCurrency currency) =>
-      currency.code == _original?.conversion.original.currencyCode
+      currency.recordId != null && (_original == null || _changedSelection)
+      ? currency.rateToMyr
+      : currency.code == _original?.conversion.original.currencyCode
       ? _original!.conversion.exchangeRate
-      : widget.tripRates[currency.code]?.rate ?? currency.rateToMyr;
+      : currency.rateToMyr;
   String _effectiveRate(ConfiguredCurrency currency) =>
       _customRate ? _rate.text : _defaultRate(currency);
 
@@ -198,7 +200,11 @@ class _TransactionFormState extends ConsumerState<_TransactionForm> {
         defaultRate: currency.rateToMyr,
         previous: _original?.conversion,
         currencyChangeConfirmed: true,
-        rateOverride: _customRate || _changedCurrency
+        rateOverride:
+            _original == null ||
+                _customRate ||
+                _changedCurrency ||
+                (_changedSelection && currency.recordId != null)
             ? _effectiveRate(currency)
             : null,
       );
@@ -240,7 +246,11 @@ class _TransactionFormState extends ConsumerState<_TransactionForm> {
         amountText: _amount.text,
         date: _date,
         note: _note.text,
-        rateOverride: _customRate || _changedCurrency
+        rateOverride:
+            _original == null ||
+                _customRate ||
+                _changedCurrency ||
+                (_changedSelection && currency.recordId != null)
             ? _effectiveRate(currency)
             : null,
         currencyChangeConfirmed: _currencyConfirmed,
@@ -353,17 +363,17 @@ class _TransactionFormState extends ConsumerState<_TransactionForm> {
             child: const Text('Create a category in Settings'),
           ),
         DropdownButtonFormField<String>(
-          key: ValueKey('currency:${currency?.code}'),
-          initialValue: currency?.code,
+          key: ValueKey('currency:${currency?.key}'),
+          initialValue: currency?.key,
           decoration: const InputDecoration(labelText: 'Currency'),
           isExpanded: true,
           itemHeight: null,
           items: [
             for (final item in currencies)
               DropdownMenuItem(
-                value: item.code,
+                value: item.key,
                 child: Text(
-                  '${item.code} · ${widget.tripRates[item.code]?.name ?? item.name}${!item.isActive ? ' (archived)' : ''}',
+                  '${item.code} · ${item.name}${!item.isActive ? ' (archived)' : ''}',
                 ),
               ),
           ],
@@ -432,8 +442,10 @@ class _TransactionFormState extends ConsumerState<_TransactionForm> {
             TextButton(
               onPressed: () => setState(() {
                 _customRate = true;
-                _rate.text =
-                    widget.tripRates[currency.code]?.rate ?? currency.rateToMyr;
+                _rate.text = currency.recordId != null
+                    ? currency.rateToMyr
+                    : widget.tripRates[currency.code]?.rate ??
+                          currency.rateToMyr;
               }),
               child: const Text('Use current configured rate'),
             ),

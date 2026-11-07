@@ -1,4 +1,4 @@
--- Source of truth for schema v3; also executable by SQLite for independent QA.
+-- Source of truth for schema v4; also executable by SQLite for independent QA.
 CREATE TABLE categories (
   id TEXT NOT NULL PRIMARY KEY CHECK (length(id) BETWEEN 1 AND 64),
   name TEXT NOT NULL CHECK (length(trim(name)) BETWEEN 1 AND 80),
@@ -44,6 +44,27 @@ CREATE TABLE trips (
   name TEXT NOT NULL CHECK (length(trim(name)) BETWEEN 1 AND 80)
 );
 
+CREATE TABLE currency_rates (
+  id TEXT NOT NULL PRIMARY KEY CHECK (length(id) BETWEEN 1 AND 80),
+  currency_code TEXT NOT NULL REFERENCES currencies(code) ON DELETE RESTRICT ON UPDATE CASCADE,
+  name TEXT NOT NULL CHECK (length(trim(name)) BETWEEN 1 AND 80),
+  rate_to_myr TEXT NOT NULL CHECK (
+    length(rate_to_myr) BETWEEN 1 AND 25
+    AND rate_to_myr NOT GLOB '*[^0-9.]*'
+    AND rate_to_myr GLOB '*[1-9]*'
+    AND substr(rate_to_myr, 1, 1) <> '.'
+    AND substr(rate_to_myr, -1) <> '.'
+    AND (length(rate_to_myr) = 1 OR substr(rate_to_myr, 1, 1) <> '0'
+         OR substr(rate_to_myr, 2, 1) = '.')
+    AND (instr(rate_to_myr, '.') = 0 AND length(rate_to_myr) <= 12
+      OR instr(rate_to_myr, '.') BETWEEN 2 AND 13
+         AND length(rate_to_myr) - instr(rate_to_myr, '.') BETWEEN 1 AND 12
+         AND substr(rate_to_myr, instr(rate_to_myr, '.') + 1) NOT GLOB '*.*')
+  ),
+  is_active BOOLEAN NOT NULL DEFAULT TRUE CHECK (is_active IN (0, 1)),
+  CHECK (currency_code <> 'MYR')
+);
+
 CREATE TABLE trip_rates (
   trip_id TEXT NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
   currency_code TEXT NOT NULL REFERENCES currencies(code) ON DELETE CASCADE ON UPDATE CASCADE,
@@ -61,6 +82,7 @@ CREATE TABLE trip_rates (
          AND substr(rate_to_myr, instr(rate_to_myr, '.') + 1) NOT GLOB '*.*')
   ),
   name TEXT CHECK (name IS NULL OR length(trim(name)) BETWEEN 1 AND 80),
+  rate_id TEXT REFERENCES currency_rates(id) ON DELETE RESTRICT,
   PRIMARY KEY (trip_id, currency_code),
   CHECK (currency_code <> 'MYR')
 );

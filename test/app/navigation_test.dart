@@ -38,7 +38,7 @@ void main() {
     );
     await tester.tap(dropdown);
     await tester.pumpAndSettle();
-    await tester.tap(find.text('USD').last);
+    await tester.tap(find.text('USD · US Dollar').last);
     await tester.pumpAndSettle();
     final container = ProviderScope.containerOf(tester.element(dropdown));
     expect(container.read(reportDisplayCurrencyProvider).code, 'USD');

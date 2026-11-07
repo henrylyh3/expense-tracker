@@ -59,13 +59,17 @@ final reportDisplayCurrencyProvider = Provider<DisplayCurrency>((ref) {
   final code = ref.watch(reportCurrencyChoiceProvider);
   if (code == null) return fallback;
   final currencies = ref.watch(currenciesProvider).asData?.value ?? [];
-  final item = currencies
-      .where((currency) => currency.code == code)
-      .firstOrNull;
+  final item = currencies.where((currency) => currency.key == code).firstOrNull;
   if (item == null) return fallback;
   final trip = ref.watch(activeTripProvider).asData?.value ?? personalTripId;
-  final rate =
-      ref.watch(tripRatesProvider(trip)).asData?.value[code]?.rate ??
-      item.rateToMyr;
-  return DisplayCurrency(code, item.decimalPlaces, rate);
+  final rate = item.recordId != null
+      ? item.rateToMyr
+      : ref.watch(tripRatesProvider(trip)).asData?.value[item.code]?.rate ??
+            item.rateToMyr;
+  return DisplayCurrency(
+    item.code,
+    item.decimalPlaces,
+    rate,
+    recordId: item.recordId,
+  );
 });

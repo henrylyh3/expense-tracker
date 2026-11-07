@@ -4,6 +4,7 @@ import '../../../core/validation/input_validation.dart';
 
 class ConfiguredCurrency {
   const ConfiguredCurrency({
+    this.recordId,
     required this.code,
     required this.name,
     required this.symbol,
@@ -13,6 +14,8 @@ class ConfiguredCurrency {
     required this.usageCount,
   });
 
+  final String? recordId;
+  String get key => recordId ?? code;
   final String code;
   final String name;
   final String symbol;

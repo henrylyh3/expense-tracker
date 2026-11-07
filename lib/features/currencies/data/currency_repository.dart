@@ -1,4 +1,5 @@
 import 'package:drift/drift.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../../core/database/app_database.dart';
 import '../../../core/models/ledger_types.dart';
@@ -8,14 +9,25 @@ class CurrencyRepository {
   CurrencyRepository(this._database);
   final AppDatabase _database;
 
-  static const _projection = '''SELECT c.*,
-    (SELECT count(*) FROM transactions t WHERE t.currency_code = c.code) AS usage_count
-    FROM currencies c''';
+  static const _projection = '''SELECT c.*, NULL AS record_id,
+    (SELECT count(*) FROM transactions t WHERE t.currency_code = c.code) +
+    (SELECT count(*) FROM currency_rates r WHERE r.currency_code = c.code) AS usage_count
+    FROM currencies c
+    UNION ALL SELECT c.code, r.name, c.symbol, c.decimal_places, r.rate_to_myr,
+      r.is_active, c.created_at_utc, c.updated_at_utc, r.id AS record_id,
+      (SELECT count(*) FROM trip_rates t WHERE t.rate_id = r.id) +
+      (SELECT count(*) FROM transactions t WHERE t.currency_code = c.code) AS usage_count
+    FROM currency_rates r JOIN currencies c ON c.code = r.currency_code''';
 
   Stream<List<ConfiguredCurrency>> watchAll() => _database
       .customSelect(
-        "$_projection ORDER BY (c.code = 'MYR') DESC, c.is_active DESC, c.code",
-        readsFrom: {_database.currencies, _database.transactions},
+        "SELECT * FROM ($_projection) ORDER BY (code = 'MYR') DESC, is_active DESC, code, name",
+        readsFrom: {
+          _database.currencies,
+          _database.transactions,
+          _database.currencyRates,
+          _database.tripRates,
+        },
       )
       .watch()
       .map((rows) => rows.map(_fromRow).toList(growable: false));
@@ -23,7 +35,7 @@ class CurrencyRepository {
   Future<ConfiguredCurrency> getByCode(String code) async {
     final row = await _database
         .customSelect(
-          '$_projection WHERE c.code = ?',
+          'SELECT * FROM ($_projection) WHERE COALESCE(record_id, code) = ?',
           variables: [Variable<String>(code)],
         )
         .getSingleOrNull();
@@ -52,6 +64,33 @@ class CurrencyRepository {
         );
       }
     }
+    if (existing?.recordId != null) {
+      if (draft.code != existing!.code ||
+          draft.decimalPlaces != existing.decimalPlaces) {
+        throw const LedgerException(
+          'A named currency record keeps its currency code and precision.',
+        );
+      }
+      await _database.customUpdate(
+        'UPDATE currency_rates SET name = ?, rate_to_myr = ? WHERE id = ?',
+        variables: [
+          Variable.withString(draft.name),
+          Variable.withString(draft.rateToMyr),
+          Variable.withString(existing.key),
+        ],
+        updates: {_database.currencyRates},
+      );
+      await _database.customUpdate(
+        'UPDATE trip_rates SET name = ?, rate_to_myr = ? WHERE rate_id = ?',
+        variables: [
+          Variable.withString(draft.name),
+          Variable.withString(draft.rateToMyr),
+          Variable.withString(existing.key),
+        ],
+        updates: {_database.tripRates},
+      );
+      return;
+    }
     final duplicate = await _database
         .customSelect(
           'SELECT code FROM currencies WHERE code = ?',
@@ -59,9 +98,26 @@ class CurrencyRepository {
         )
         .getSingleOrNull();
     if (duplicate != null && existing?.code != draft.code) {
-      throw const LedgerException(
-        'This currency code already exists, possibly archived.',
+      if (draft.code == 'MYR') {
+        throw const LedgerException('MYR is the fixed base currency.');
+      }
+      final base = await getByCode(draft.code);
+      if (base.decimalPlaces != draft.decimalPlaces) {
+        throw const LedgerException(
+          'Use the configured decimal precision for this currency.',
+        );
+      }
+      await _database.customInsert(
+        'INSERT INTO currency_rates (id, currency_code, name, rate_to_myr) VALUES (?, ?, ?, ?)',
+        variables: [
+          Variable.withString(const Uuid().v4()),
+          Variable.withString(draft.code),
+          Variable.withString(draft.name),
+          Variable.withString(draft.rateToMyr),
+        ],
+        updates: {_database.currencyRates},
       );
+      return;
     }
     final now = DateTime.now().toUtc().millisecondsSinceEpoch;
     if (existing == null) {
@@ -101,24 +157,46 @@ class CurrencyRepository {
     }
   });
 
-  Future<RemovalOutcome> remove(String code) =>
-      _database.writeTransaction(() async {
-        final currency = await getByCode(code);
-        if (currency.isBase) {
-          throw const LedgerException('MYR cannot be deleted or archived.');
-        }
-        if (currency.isUsed) {
-          await _setActive(code, false);
-          return RemovalOutcome.archived;
+  Future<RemovalOutcome> remove(String code) => _database.writeTransaction(
+    () async {
+      final currency = await getByCode(code);
+      if (currency.recordId != null) {
+        if (!currency.isUsed) {
+          await _database.customUpdate(
+            'DELETE FROM currency_rates WHERE id = ?',
+            variables: [Variable.withString(currency.key)],
+            updates: {_database.currencyRates},
+          );
+          await _database.customUpdate(
+            "DELETE FROM app_settings WHERE key = 'default_rate' AND value = ?",
+            variables: [Variable.withString(currency.key)],
+            updates: {_database.appSettings},
+          );
+          return RemovalOutcome.deleted;
         }
         await _database.customUpdate(
-          'DELETE FROM currencies WHERE code = ?',
-          variables: [Variable<String>(code)],
-          updates: {_database.currencies},
-          updateKind: UpdateKind.delete,
+          'UPDATE currency_rates SET is_active = 0 WHERE id = ?',
+          variables: [Variable.withString(currency.key)],
+          updates: {_database.currencyRates},
         );
-        return RemovalOutcome.deleted;
-      });
+        return RemovalOutcome.archived;
+      }
+      if (currency.isBase) {
+        throw const LedgerException('MYR cannot be deleted or archived.');
+      }
+      if (currency.isUsed) {
+        await _setActive(code, false);
+        return RemovalOutcome.archived;
+      }
+      await _database.customUpdate(
+        'DELETE FROM currencies WHERE code = ?',
+        variables: [Variable<String>(code)],
+        updates: {_database.currencies},
+        updateKind: UpdateKind.delete,
+      );
+      return RemovalOutcome.deleted;
+    },
+  );
 
   Future<void> restore(String code) => _database.writeTransaction(() async {
     await getByCode(code);
@@ -126,6 +204,18 @@ class CurrencyRepository {
   });
 
   Future<void> _setActive(String code, bool active) async {
+    final record = await getByCode(code);
+    if (record.recordId != null) {
+      await _database.customUpdate(
+        'UPDATE currency_rates SET is_active = ? WHERE id = ?',
+        variables: [
+          Variable.withInt(active ? 1 : 0),
+          Variable.withString(code),
+        ],
+        updates: {_database.currencyRates},
+      );
+      return;
+    }
     await _database.customUpdate(
       'UPDATE currencies SET is_active = ?, updated_at_utc = MAX(updated_at_utc, ?) WHERE code = ?',
       variables: [
@@ -139,6 +229,7 @@ class CurrencyRepository {
   }
 
   static ConfiguredCurrency _fromRow(QueryRow row) => ConfiguredCurrency(
+    recordId: row.readNullable<String>('record_id'),
     code: row.read<String>('code'),
     name: row.read<String>('name'),
     symbol: row.read<String>('symbol'),

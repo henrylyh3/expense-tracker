@@ -131,7 +131,9 @@ class _TransactionFilterSheetState
                 decoration: const InputDecoration(labelText: 'Currency'),
                 items: [
                   const DropdownMenuItem<String>(child: Text('All currencies')),
-                  for (final item in allCurrencies)
+                  for (final item in allCurrencies.where(
+                    (item) => item.recordId == null,
+                  ))
                     DropdownMenuItem(
                       value: item.code,
                       child: Text(

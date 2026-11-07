@@ -11,13 +11,13 @@ void main() {
   final verifier = SchemaVerifier(GeneratedHelper());
 
   test(
-    'fresh schema matches the exported v3 tables, indexes and triggers',
+    'fresh schema matches the exported v4 tables, indexes and triggers',
     () async {
       final db = AppDatabase.forTesting(NativeDatabase.memory());
       addTearDown(db.close);
       await verifier.migrateAndValidate(
         db,
-        3,
+        4,
         options: const ValidationOptions(validateDropped: true),
       );
       await db.initialize();
@@ -43,7 +43,7 @@ void main() {
     final db = AppDatabase.forTesting(schema.newConnection());
     addTearDown(db.close);
     await db.initialize();
-    await verifier.migrateAndValidate(db, 3);
+    await verifier.migrateAndValidate(db, 4);
     expect(
       (await db
               .customSelect('SELECT count(*) AS n FROM categories')
@@ -96,7 +96,7 @@ void main() {
     final db = AppDatabase.forTesting(schema.newConnection());
     addTearDown(db.close);
     await db.initialize();
-    await verifier.migrateAndValidate(db, 3);
+    await verifier.migrateAndValidate(db, 4);
     final row = await db
         .customSelect(
           "SELECT rate_to_myr, name FROM trip_rates WHERE trip_id = 'thailand'",
@@ -139,7 +139,7 @@ void main() {
         expect(
           (await reopened.customSelect('PRAGMA user_version').getSingle())
               .read<int>('user_version'),
-          4,
+          5,
         );
         expect(
           (await reopened
@@ -162,9 +162,9 @@ void main() {
   );
 }
 
-// Synthetic future file only. This does not introduce a production v4 migration.
+// Synthetic future file only. This does not introduce a production v5 migration.
 class _FutureDatabase extends AppDatabase {
   _FutureDatabase(super.executor) : super.forTesting();
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 5;
 }

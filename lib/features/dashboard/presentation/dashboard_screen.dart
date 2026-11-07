@@ -29,15 +29,15 @@ class DashboardScreen extends ConsumerWidget {
     final used =
         ref.watch(tripUsedCurrenciesProvider(active)).asData?.value ??
         const <String>{};
-    final codes =
+    final options =
         ref
             .watch(currenciesProvider)
             .asData
             ?.value
             .where((item) => used.contains(item.code))
-            .map((item) => item.code)
             .toList() ??
         [];
+    final codes = options.map((item) => item.key).toList();
     final period = ReportPeriod.trip();
     final report = ref.watch(financialReportProvider(period));
     final recent = ref.watch(dashboardRecentProvider(period));
@@ -69,11 +69,25 @@ class DashboardScreen extends ConsumerWidget {
               width: 88,
               child: DropdownButton<String>(
                 isExpanded: true,
-                value: codes.contains(display.code) ? display.code : null,
+                value: codes.contains(display.key) ? display.key : null,
                 hint: Text(display.code),
+                menuWidth: 260,
+                selectedItemBuilder: (context) => [
+                  for (final item in options)
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(item.code),
+                    ),
+                ],
                 items: [
-                  for (final code in codes)
-                    DropdownMenuItem(value: code, child: Text(code)),
+                  for (final item in options)
+                    DropdownMenuItem(
+                      value: item.key,
+                      child: Text(
+                        '${item.code} · ${item.name}',
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
                 ],
                 onChanged: codes.isEmpty
                     ? null
@@ -153,7 +167,7 @@ class DashboardScreen extends ConsumerWidget {
                         child: ListTile(
                           title: Text(item.categoryName),
                           subtitle: Text(
-                            '${item.date} · ${item.type.name}\n${display.format(item.conversion.myr.minorUnits)}',
+                            '${item.date} Â· ${item.type.name}\n${display.format(item.conversion.myr.minorUnits)}',
                           ),
                           trailing: const Icon(Icons.chevron_right),
                           onTap: () => context.push('/transactions/${item.id}'),

@@ -3,9 +3,16 @@ import 'package:decimal/intl.dart';
 import 'package:intl/intl.dart';
 
 class DisplayCurrency {
-  const DisplayCurrency(this.code, this.decimalPlaces, this.rateToMyr);
+  const DisplayCurrency(
+    this.code,
+    this.decimalPlaces,
+    this.rateToMyr, {
+    this.recordId,
+  });
   static const myr = DisplayCurrency('MYR', 2, '1');
 
+  final String? recordId;
+  String get key => recordId ?? code;
   final String code;
   final int decimalPlaces;
   final String rateToMyr;

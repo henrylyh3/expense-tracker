@@ -1,5 +1,7 @@
 import 'package:drift/drift.dart' show Variable;
 import 'package:drift/native.dart';
+import 'package:expense_tracker/features/currencies/data/currency_repository.dart';
+import 'package:expense_tracker/features/currencies/domain/configured_currency.dart';
 import 'package:expense_tracker/core/backup/backup_service.dart';
 import 'package:expense_tracker/core/backup/backup_validator.dart';
 import 'package:expense_tracker/core/database/app_database.dart';
@@ -42,8 +44,24 @@ void main() {
               .read<String>('id');
       final december = await tripId('Thailand December');
       final april = await tripId('Thailand April');
-      await trips.setRate(december, 'THB', '0.12', name: 'THB 2025');
-      await trips.setRate(april, 'THB', '0.14', name: 'THB 2026');
+      final currencies = CurrencyRepository(db);
+      for (final entry in [('THB 2025', '0.12'), ('THB 2026', '0.14')]) {
+        await currencies.save(
+          CurrencyDraft(
+            code: 'THB',
+            name: entry.$1,
+            symbol: 'THB',
+            decimalPlaces: 2,
+            rateToMyr: entry.$2,
+          ),
+        );
+      }
+      final records = await currencies.watchAll().first;
+      final decemberRate = records.firstWhere(
+        (item) => item.name == 'THB 2025',
+      );
+      final aprilRate = records.firstWhere((item) => item.name == 'THB 2026');
+      await trips.setDefaultCurrency(december, decemberRate.key);
 
       final transactions = TransactionRepository(db);
       Future<String> add(String date) => transactions.save(
@@ -60,7 +78,7 @@ void main() {
       await add('2026-01-02');
       await trips.activate(april);
       await container.read(defaultCurrencyActionsProvider.notifier).set('MYR');
-      await trips.setDefaultCurrency(april, 'THB');
+      await trips.setDefaultCurrency(april, aprilRate.key);
       final selected = container.listen(defaultCurrencyProvider, (_, _) {});
       final global = container.listen(globalDefaultCurrencyProvider, (_, _) {});
       expect(
@@ -106,8 +124,42 @@ void main() {
         '2026-01-02',
       ]);
 
+      await trips.setRate(april, 'THB', '0.15', name: 'THB 2026');
+      expect((await currencies.getByCode(aprilRate.key)).rateToMyr, '0.15');
+      await currencies.save(
+        CurrencyDraft(
+          code: 'THB',
+          name: 'THB 2026',
+          symbol: 'THB',
+          decimalPlaces: 2,
+          rateToMyr: '0.16',
+        ),
+        originalCode: aprilRate.key,
+      );
+      final linkedRates = container.listen(tripRatesProvider(april), (_, _) {});
+      expect(
+        (await container.read(tripRatesProvider(april).future))['THB']!.rate,
+        '0.16',
+      );
+      linkedRates.close();
+      expect((await currencies.getByCode(decemberRate.key)).rateToMyr, '0.12');
+      expect(
+        (await transactions.getById(second)).conversion.exchangeRate,
+        '0.14',
+      );
       final bytes = await BackupService(db).exportBytes();
       final backup = BackupValidator.decode(bytes);
+      final legacy = backup.toDocument();
+      legacy['schema_version'] = 3;
+      final legacyData = legacy['data'] as Map<String, Object?>;
+      final legacyCounts = legacy['counts'] as Map<String, Object?>;
+      legacyData.remove('currency_rates');
+      legacyCounts.remove('currency_rates');
+      for (final row in legacyData['trip_rates']! as List) {
+        (row as Map).remove('rate_id');
+      }
+      final upgradedBackup = BackupValidator.fromDocument(legacy);
+      expect(upgradedBackup.tables['currency_rates']!.length, 2);
       expect(
         backup.tables['settings']!.any(
           (row) =>
@@ -143,7 +195,7 @@ void main() {
       );
       expect(
         (await restoredRepo.getById(newExpense)).conversion.myr.minorUnits,
-        700,
+        800,
       );
       await trips.delete(april);
       expect(await transactions.watchHistory(tripId: april).first, isEmpty);

@@ -12,6 +12,7 @@ class BackupSqlWrite {
 Iterable<BackupSqlWrite> replacementStatements(ValidatedBackup backup) sync* {
   yield BackupSqlWrite('DELETE FROM transactions', const []);
   yield BackupSqlWrite('DELETE FROM trip_rates', const []);
+  yield BackupSqlWrite('DELETE FROM currency_rates', const []);
   yield BackupSqlWrite('DELETE FROM trips', const []);
   yield BackupSqlWrite('DELETE FROM categories', const []);
   yield BackupSqlWrite("DELETE FROM currencies WHERE code <> 'MYR'", const []);
@@ -21,6 +22,7 @@ Iterable<BackupSqlWrite> replacementStatements(ValidatedBackup backup) sync* {
     'categories': 'categories',
     'settings': 'app_settings',
     'trips': 'trips',
+    'currency_rates': 'currency_rates',
     'trip_rates': 'trip_rates',
     'transactions': 'transactions',
   };

@@ -91,17 +91,17 @@ void main() {
     expect(await currencies.remove('USX'), RemovalOutcome.deleted);
   });
 
-  test(
-    'duplicate currency codes are rejected without modifying existing metadata',
-    () async {
-      await currencies.save(_currency());
-      await expectLater(
-        currencies.save(_currency(rate: '9')),
-        throwsA(isA<LedgerException>()),
-      );
-      expect((await currencies.getByCode('USD')).rateToMyr, '4.5');
-    },
-  );
+  test('same currency code supports independent named rate records', () async {
+    await currencies.save(_currency());
+    await currencies.save(_currency(rate: '9'));
+    final records = await currencies.watchAll().first;
+    expect(records.where((record) => record.code == 'USD').length, 2);
+    expect(
+      records.firstWhere((record) => record.recordId != null).rateToMyr,
+      '9',
+    );
+    expect((await currencies.getByCode('USD')).rateToMyr, '4.5');
+  });
 
   test(
     'used currencies archive and retain identity while default rates remain editable',

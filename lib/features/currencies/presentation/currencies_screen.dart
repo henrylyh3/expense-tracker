@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/models/ledger_types.dart';
 import '../../../core/providers/default_currency_provider.dart';
+import '../../../core/providers/trip_provider.dart';
 import '../../../shared/widgets/management_widgets.dart';
 import '../domain/configured_currency.dart';
 import 'currency_editor.dart';
@@ -47,7 +48,7 @@ class _CurrenciesScreenState extends ConsumerState<CurrenciesScreen> {
     }
     final result = await ref
         .read(currencyActionsProvider.notifier)
-        .remove(currency.code);
+        .remove(currency.key);
     if (!mounted) return;
     showManagementMessage(
       context,
@@ -62,7 +63,7 @@ class _CurrenciesScreenState extends ConsumerState<CurrenciesScreen> {
   Future<void> _restore(ConfiguredCurrency currency) async {
     final restored = await ref
         .read(currencyActionsProvider.notifier)
-        .restore(currency.code);
+        .restore(currency.key);
     if (mounted) {
       showManagementMessage(
         context,
@@ -130,10 +131,24 @@ class _CurrenciesScreenState extends ConsumerState<CurrenciesScreen> {
                   tooltip: 'Actions for ${currency.code}',
                   onSelected: (action) async {
                     switch (action) {
+                      case 'trip-default':
+                        try {
+                          final trip =
+                              ref.read(activeTripProvider).asData?.value ??
+                              personalTripId;
+                          await ref
+                              .read(tripActionsProvider)
+                              .setDefaultCurrency(trip, currency.key);
+                        } catch (error) {
+                          if (!context.mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text(ledgerErrorMessage(error))),
+                          );
+                        }
                       case 'default':
                         await ref
                             .read(defaultCurrencyActionsProvider.notifier)
-                            .set(currency.code);
+                            .set(currency.key);
                         if (!context.mounted) return;
                         final error = ref
                             .read(defaultCurrencyActionsProvider)
@@ -152,6 +167,11 @@ class _CurrenciesScreenState extends ConsumerState<CurrenciesScreen> {
                     }
                   },
                   itemBuilder: (context) => [
+                    if (currency.isActive)
+                      const PopupMenuItem(
+                        value: 'trip-default',
+                        child: Text('Make default for current trip'),
+                      ),
                     if (currency.isActive)
                       const PopupMenuItem(
                         value: 'default',

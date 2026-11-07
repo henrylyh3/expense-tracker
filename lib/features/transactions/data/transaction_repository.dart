@@ -115,8 +115,9 @@ class TransactionRepository {
     final tripId = trip.read<String>('trip_id');
     final currency = await _database
         .customSelect(
-          '''SELECT c.decimal_places, COALESCE(r.rate_to_myr, c.rate_to_myr) AS rate_to_myr, c.is_active
+          '''SELECT c.decimal_places, COALESCE(n.rate_to_myr, r.rate_to_myr, c.rate_to_myr) AS rate_to_myr, c.is_active
           FROM currencies c LEFT JOIN trip_rates r ON r.currency_code = c.code AND r.trip_id = ?
+          LEFT JOIN currency_rates n ON n.id = r.rate_id
           WHERE c.code = ?''',
           variables: [
             Variable.withString(tripId),

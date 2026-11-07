@@ -27,6 +27,7 @@ class BackupService {
       'transactions': 'transactions',
       'trips': 'trips',
       'trip_rates': 'trip_rates',
+      'currency_rates': 'currency_rates',
       'settings': 'app_settings',
     };
     const primaryKeys = {
@@ -35,6 +36,7 @@ class BackupService {
       'transactions': 'id',
       'trips': 'id',
       'trip_rates': 'trip_id, currency_code',
+      'currency_rates': 'id',
       'settings': 'key',
     };
     var payload = 0;
@@ -125,6 +127,7 @@ class BackupService {
         'transactions',
         'trips',
         'trip_rates',
+        'currency_rates',
         'app_settings',
       ])
         TableUpdate(table),
