@@ -22,7 +22,9 @@ class AppShell extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final busy = ref.watch(ledgerTransferBusyProvider);
     const titles = ['Home', 'History', 'Reports', 'Settings'];
-    final title = location.endsWith('/currencies') && tripId != null
+    final title = location.startsWith('/settings/sharing')
+        ? 'Shared trips'
+        : location.endsWith('/currencies') && tripId != null
         ? 'Trip currencies'
         : tripId != null
         ? ref

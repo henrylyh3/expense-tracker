@@ -128,6 +128,9 @@ class BackupService {
         'trips',
         'trip_rates',
         'currency_rates',
+        'shared_sessions',
+        'shared_pending',
+        'shared_receipts',
         'app_settings',
       ])
         TableUpdate(table),

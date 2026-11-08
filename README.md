@@ -1,13 +1,10 @@
 # Expense Tracker
 
-A personal, offline Flutter ledger for Android and iOS. No backend, authentication,
-cloud sync or exchange-rate API. Data stays on the device unless you explicitly
-export it. One income/expense ledger; configurable currencies and fixed MYR reports.
+A Flutter expense ledger with trip profiles, named manual currency rates and MYR accounting. Personal tracking works offline. Optional shared trips use local Wi-Fi or hotspot connections, with the host phone owning the ledger and guests keeping cached views and offline expense queues. No cloud database or exchange-rate API is required.
 
-**Current stage: Phase 6 host verification and release-preparation source are
-implemented.** The real dependency lockfile, generated Drift database and v1
-schema snapshot are present. Analysis and all 194 Flutter tests pass. Android/iOS
-builds, physical-device QA, final identifiers/signing and a stable-SDK run remain.
+The current source passes 249 Flutter tests. Android builds and emulator checks are available. Physical two-phone Wi-Fi testing and iOS device validation remain separate checks.
+
+See [Shared trips](docs/SHARING.md) for hosting, invitations, guest sync and data handling. Settings also provides JSON import/export and a confirmed reset to initial defaults.
 
 ## Project documentation
 
@@ -50,7 +47,7 @@ flutter devices
 flutter run -d <device-id>
 ```
 
-Development tools/packages require network access initially; app operation is offline.
+Development tools/packages require network access initially; personal tracking works offline; shared-trip sync requires reaching the host.
 The Android/iOS scaffold already exists. Do not run `flutter create` over it for
 normal setup. Android/iOS still use template `com.example` identifiers; choose
 permanent identifiers before release. Android release builds require a private
@@ -189,8 +186,7 @@ See [progress](docs/PROGRESS.md) and [Phase 6](docs/PHASE_6_RELEASE.md).
 Android stores the ledger under private `noBackupFilesDir`; manifest/XML rules also
 exclude automatic cloud backup and device transfer. iOS uses private Application
 Support with backup exclusion and file protection. Native configuration still needs
-physical-device validation. Release declares no internet or broad storage permission;
-debug/profile manifests retain Flutter's development-network permission.
+physical-device validation. Release requests INTERNET for encrypted local peer sharing. Broad storage permissions remain excluded.
 
 SQLite is not separately encrypted; protection relies on the OS sandbox and device
 security. Settings → Backup and restore can save/share versioned JSON, validate and

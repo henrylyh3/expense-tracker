@@ -1,8 +1,7 @@
 # Privacy and local data
 
-Expense Tracker has no account, authentication, backend, exchange-rate API,
-advertising, analytics or crash-reporting service. The app's own financial
-operations require no internet connection. Exchange rates are entered manually.
+Expense Tracker has no online account, external backend, exchange-rate API,
+advertising, analytics or crash-reporting service. Shared-trip access uses private invitation keys. Personal ledger operations require no internet connection. Optional shared trips use local Wi-Fi or hotspot networking. Exchange rates are entered manually.
 
 Transactions, notes, categories, currencies, saved rates and appearance settings
 are stored in private SQLite storage on the device. All reports use saved MYR
@@ -15,7 +14,7 @@ settings require physical-device verification; they are not a promise of
 protection on a compromised device or against every manufacturer/OS behavior.
 Uninstalling the app or losing the device can lose the ledger without a backup.
 
-The app exports or shares data only when you choose a backup action. JSON backups
+The app exports files only when you choose a backup action. When you enable shared-trip hosting, invited guests can read that trip and submit expenses while the host is reachable. Peer messages are encrypted using AES-GCM with a separate invitation key per guest. Invitations grant access and must be shared privately. No cloud ledger or relay is used. JSON backups
 contain the full ledger and notes in readable, unencrypted form. Choose a private
 destination and protect copies. The operating system's file/share interface may
 include other apps or cloud providers; their handling of a selected backup is
@@ -26,6 +25,8 @@ them after the share dialog closes. On a subsequent share, owned files older tha
 24 hours are removed; the OS may also remove cache. This is not a guaranteed
 24-hour deletion or secure erase. A share completion signal does not prove that
 a recoverable backup was saved.
+
+Sharing keys and cached guest views are stored in private local SQLite. Invitations, cached views and unsent guest expenses are excluded from ledger exports. Reset and import remove these local sharing records. Guests may retain data already received after access is revoked.
 
 Restoring replaces the ledger and settings after validation and explicit
 confirmation. A safety backup is offered by default. Cancelling or failing that

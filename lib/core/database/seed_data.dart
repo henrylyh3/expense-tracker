@@ -1,13 +1,16 @@
 import 'package:drift/drift.dart';
 
-/// Called only during first creation, never on a normal reopen.
+/// Initial defaults for first creation and an explicitly confirmed reset.
 Future<void> seedDatabase(GeneratedDatabase database) async {
   final now = DateTime.now().toUtc().millisecondsSinceEpoch;
   await database.customStatement(
     '''INSERT INTO currencies
        (code, name, symbol, decimal_places, rate_to_myr, is_active,
         created_at_utc, updated_at_utc)
-       VALUES ('MYR', 'Malaysian Ringgit', 'RM', 2, '1', 1, ?, ?)''',
+       VALUES ('MYR', 'Malaysian Ringgit', 'RM', 2, '1', 1, ?, ?)
+       ON CONFLICT(code) DO UPDATE SET name = excluded.name, symbol = excluded.symbol,
+         decimal_places = 2, rate_to_myr = '1', is_active = 1,
+         created_at_utc = excluded.created_at_utc, updated_at_utc = excluded.updated_at_utc''',
     [now, now],
   );
   const categories = [

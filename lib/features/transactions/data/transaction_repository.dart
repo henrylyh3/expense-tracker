@@ -84,7 +84,38 @@ class TransactionRepository {
     TransactionInput input, {
     String? id,
     int? expectedUpdatedAtUtc,
+    String? sharedTripId,
+    String? sharedSessionId,
+    String? sharedRequestId,
   }) => _database.writeTransaction(() async {
+    if (sharedSessionId != null && sharedRequestId != null) {
+      final receipt = await _database
+          .customSelect(
+            'SELECT transaction_id FROM shared_receipts WHERE session_id = ? AND request_id = ?',
+            variables: [
+              Variable.withString(sharedSessionId),
+              Variable.withString(sharedRequestId),
+            ],
+          )
+          .getSingleOrNull();
+      if (receipt != null) return receipt.read<String>('transaction_id');
+      final session = await _database
+          .customSelect(
+            "SELECT 1 FROM shared_sessions WHERE id = ? AND role = 'host' AND trip_id = ?",
+            variables: [
+              Variable.withString(sharedSessionId),
+              Variable<String>(sharedTripId),
+            ],
+          )
+          .getSingleOrNull();
+      if (session == null ||
+          id != null ||
+          input.type != TransactionType.expense) {
+        throw const LedgerException(
+          'This shared trip invitation is no longer active.',
+        );
+      }
+    }
     final previous = id == null ? null : await getById(id);
     if (previous != null) _checkRevision(previous, expectedUpdatedAtUtc);
     final category = await _database
@@ -112,7 +143,7 @@ class TransactionRepository {
           variables: [if (id != null) Variable.withString(id)],
         )
         .getSingle();
-    final tripId = trip.read<String>('trip_id');
+    final tripId = sharedTripId ?? trip.read<String>('trip_id');
     final currency = await _database
         .customSelect(
           '''SELECT c.decimal_places, COALESCE(n.rate_to_myr, r.rate_to_myr, c.rate_to_myr) AS rate_to_myr, c.is_active
@@ -169,6 +200,17 @@ class TransactionRepository {
         ],
         updates: {_database.transactions},
       );
+      if (sharedSessionId != null && sharedRequestId != null) {
+        await _database.customInsert(
+          'INSERT INTO shared_receipts VALUES (?, ?, ?)',
+          variables: [
+            Variable.withString(sharedSessionId),
+            Variable.withString(sharedRequestId),
+            Variable.withString(newId),
+          ],
+          updates: {_database.sharedReceipts},
+        );
+      }
       return newId;
     }
     // The timestamp doubles as an optimistic revision and must increase even

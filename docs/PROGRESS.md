@@ -258,3 +258,17 @@ and workflow together after review. Follow [Phase 6](PHASE_6_RELEASE.md) for sig
 and release commands, permanent identities, branding/privacy and device QA.
 Release acceptance remains open; do not label the application production-released
 until those checks pass. Use a test installation for destructive restore tests.
+
+## 2026-11-08 — v0.4.0 local shared trips
+
+- Added host-owned trip sharing over local Wi-Fi/hotspot, separate guest invitations, encrypted sync, revocation, cached summaries and persistent offline expense queues.
+- Guest expenses are committed to the host ledger once, including retries after a lost acknowledgement or a host-side deletion. Guests cannot edit/delete existing host expenses.
+- Shared expense choices include the trip's selected named currency rate. Sharing is foreground-only; the host must stay open and awake.
+- Added confirmed reset of all local ledger/sharing data and completed the Settings import/export controls. JSON backups exclude invitation secrets, guest caches and unsent queues.
+- Upgraded local database schema from 4 to 5 with migration coverage. Release version is 0.4.0+9, retaining the package identity and signing key.
+- Validation: 249 Flutter tests, clean analysis, source configuration checks, and Android API 36 encrypted host/guest sync smoke test. Physical two-phone Wi-Fi/hotspot and iOS testing remain pending.
+- Signed ARM64 APK: release/expense-tracker-0.4.0-arm64-release.apk.
+- Usage and limitations: [SHARING.md](SHARING.md).
+- Release artifact verified: package com.example.expense_tracker, versionName 0.4.0, versionCode 2009 (previous 2007), arm64-v8a only, same signing certificate as v0.3.0.
+- Signed release installed as an update on the API 36 emulator. Home, Settings, Shared trips and Start hosting opened successfully, with no AndroidRuntime/Flutter error log entries.
+- APK SHA-256: FC7BC2006AE6D39E35DA88F8385F51A7028F6368D07F2073C608BD97B4DA8FE1.

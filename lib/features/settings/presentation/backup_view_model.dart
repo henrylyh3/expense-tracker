@@ -10,6 +10,7 @@ import '../../../core/models/ledger_types.dart';
 import '../../../core/providers/database_providers.dart';
 import '../../../core/providers/ledger_operation_providers.dart';
 import 'ledger_view_reset.dart';
+import '../../sharing/presentation/sharing_screen.dart';
 
 final backupFilesProvider = Provider<BackupFiles>((ref) => BackupFiles());
 final backupServiceProvider = Provider<BackupService>(
@@ -99,6 +100,7 @@ class BackupActions extends Notifier<BackupViewState> {
       throw const LedgerException('Choose and validate a backup first.');
     }
     final files = ref.read(backupFilesProvider);
+    await ref.read(sharingServiceProvider).stopHost();
     final outcome = await ref
         .read(backupServiceProvider)
         .restore(

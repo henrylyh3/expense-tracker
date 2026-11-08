@@ -15,6 +15,7 @@ import 'package:expense_tracker/features/transactions/domain/transaction_input.d
 import 'package:expense_tracker/features/settings/presentation/trips_screen.dart';
 import 'package:expense_tracker/features/reports/domain/financial_report.dart';
 import 'package:expense_tracker/features/reports/domain/report_period.dart';
+import 'package:expense_tracker/features/sharing/presentation/sharing_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -22,6 +23,25 @@ import 'package:flutter_test/flutter_test.dart';
 import '../support/report_overrides.dart';
 
 void main() {
+  testWidgets('shared trips opens in Settings and joining can be cancelled', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_navigationApp());
+    await tester.pumpAndSettle();
+    await tester.tap(find.byIcon(Icons.settings_outlined));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Shared trips'));
+    await tester.pumpAndSettle();
+    expect(find.widgetWithText(AppBar, 'Shared trips'), findsOneWidget);
+    expect(find.text('Start hosting'), findsOneWidget);
+    await tester.tap(find.text('Join using invitation'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('Paste invitation'), findsOneWidget);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(find.text('Start hosting'), findsOneWidget);
+  });
   testWidgets('Home report currency does not change the expense default', (
     tester,
   ) async {
@@ -171,6 +191,7 @@ void main() {
 Widget _navigationApp({double textScale = 1}) => ProviderScope(
   overrides: [
     databaseReadyProvider.overrideWith((ref) async {}),
+    sharedSessionsProvider.overrideWith((ref) => Stream.value(const [])),
     activeTripProvider.overrideWith((ref) => Stream.value(personalTripId)),
     tripsProvider.overrideWith(
       (ref) => Stream.value([(id: personalTripId, name: 'Personal')]),

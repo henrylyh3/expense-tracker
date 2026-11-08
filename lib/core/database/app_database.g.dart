@@ -2913,6 +2913,1059 @@ class AppSettingsCompanion extends UpdateCompanion<AppSetting> {
   }
 }
 
+class SharedSessions extends Table
+    with TableInfo<SharedSessions, SharedSession> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  SharedSessions(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL PRIMARY KEY',
+  );
+  static const VerificationMeta _roleMeta = const VerificationMeta('role');
+  late final GeneratedColumn<String> role = GeneratedColumn<String>(
+    'role',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL CHECK (role IN (\'host\', \'guest\'))',
+  );
+  static const VerificationMeta _tripIdMeta = const VerificationMeta('tripId');
+  late final GeneratedColumn<String> tripId = GeneratedColumn<String>(
+    'trip_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    $customConstraints: 'REFERENCES trips(id)ON DELETE CASCADE',
+  );
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+    'name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL',
+  );
+  static const VerificationMeta _secretMeta = const VerificationMeta('secret');
+  late final GeneratedColumn<String> secret = GeneratedColumn<String>(
+    'secret',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL',
+  );
+  static const VerificationMeta _endpointMeta = const VerificationMeta(
+    'endpoint',
+  );
+  late final GeneratedColumn<String> endpoint = GeneratedColumn<String>(
+    'endpoint',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL',
+  );
+  static const VerificationMeta _cacheMeta = const VerificationMeta('cache');
+  late final GeneratedColumn<String> cache = GeneratedColumn<String>(
+    'cache',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    $customConstraints: '',
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    role,
+    tripId,
+    name,
+    secret,
+    endpoint,
+    cache,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'shared_sessions';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<SharedSession> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('role')) {
+      context.handle(
+        _roleMeta,
+        role.isAcceptableOrUnknown(data['role']!, _roleMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_roleMeta);
+    }
+    if (data.containsKey('trip_id')) {
+      context.handle(
+        _tripIdMeta,
+        tripId.isAcceptableOrUnknown(data['trip_id']!, _tripIdMeta),
+      );
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+        _nameMeta,
+        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('secret')) {
+      context.handle(
+        _secretMeta,
+        secret.isAcceptableOrUnknown(data['secret']!, _secretMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_secretMeta);
+    }
+    if (data.containsKey('endpoint')) {
+      context.handle(
+        _endpointMeta,
+        endpoint.isAcceptableOrUnknown(data['endpoint']!, _endpointMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_endpointMeta);
+    }
+    if (data.containsKey('cache')) {
+      context.handle(
+        _cacheMeta,
+        cache.isAcceptableOrUnknown(data['cache']!, _cacheMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  SharedSession map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return SharedSession(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      role: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}role'],
+      )!,
+      tripId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}trip_id'],
+      ),
+      name: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}name'],
+      )!,
+      secret: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}secret'],
+      )!,
+      endpoint: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}endpoint'],
+      )!,
+      cache: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}cache'],
+      ),
+    );
+  }
+
+  @override
+  SharedSessions createAlias(String alias) {
+    return SharedSessions(attachedDatabase, alias);
+  }
+
+  @override
+  List<String> get customConstraints => const [
+    'CHECK((role = \'host\' AND trip_id IS NOT NULL)OR(role = \'guest\' AND trip_id IS NULL))',
+  ];
+  @override
+  bool get dontWriteConstraints => true;
+}
+
+class SharedSession extends DataClass implements Insertable<SharedSession> {
+  final String id;
+  final String role;
+  final String? tripId;
+  final String name;
+  final String secret;
+  final String endpoint;
+  final String? cache;
+  const SharedSession({
+    required this.id,
+    required this.role,
+    this.tripId,
+    required this.name,
+    required this.secret,
+    required this.endpoint,
+    this.cache,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['role'] = Variable<String>(role);
+    if (!nullToAbsent || tripId != null) {
+      map['trip_id'] = Variable<String>(tripId);
+    }
+    map['name'] = Variable<String>(name);
+    map['secret'] = Variable<String>(secret);
+    map['endpoint'] = Variable<String>(endpoint);
+    if (!nullToAbsent || cache != null) {
+      map['cache'] = Variable<String>(cache);
+    }
+    return map;
+  }
+
+  SharedSessionsCompanion toCompanion(bool nullToAbsent) {
+    return SharedSessionsCompanion(
+      id: Value(id),
+      role: Value(role),
+      tripId: tripId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(tripId),
+      name: Value(name),
+      secret: Value(secret),
+      endpoint: Value(endpoint),
+      cache: cache == null && nullToAbsent
+          ? const Value.absent()
+          : Value(cache),
+    );
+  }
+
+  factory SharedSession.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return SharedSession(
+      id: serializer.fromJson<String>(json['id']),
+      role: serializer.fromJson<String>(json['role']),
+      tripId: serializer.fromJson<String?>(json['trip_id']),
+      name: serializer.fromJson<String>(json['name']),
+      secret: serializer.fromJson<String>(json['secret']),
+      endpoint: serializer.fromJson<String>(json['endpoint']),
+      cache: serializer.fromJson<String?>(json['cache']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'role': serializer.toJson<String>(role),
+      'trip_id': serializer.toJson<String?>(tripId),
+      'name': serializer.toJson<String>(name),
+      'secret': serializer.toJson<String>(secret),
+      'endpoint': serializer.toJson<String>(endpoint),
+      'cache': serializer.toJson<String?>(cache),
+    };
+  }
+
+  SharedSession copyWith({
+    String? id,
+    String? role,
+    Value<String?> tripId = const Value.absent(),
+    String? name,
+    String? secret,
+    String? endpoint,
+    Value<String?> cache = const Value.absent(),
+  }) => SharedSession(
+    id: id ?? this.id,
+    role: role ?? this.role,
+    tripId: tripId.present ? tripId.value : this.tripId,
+    name: name ?? this.name,
+    secret: secret ?? this.secret,
+    endpoint: endpoint ?? this.endpoint,
+    cache: cache.present ? cache.value : this.cache,
+  );
+  SharedSession copyWithCompanion(SharedSessionsCompanion data) {
+    return SharedSession(
+      id: data.id.present ? data.id.value : this.id,
+      role: data.role.present ? data.role.value : this.role,
+      tripId: data.tripId.present ? data.tripId.value : this.tripId,
+      name: data.name.present ? data.name.value : this.name,
+      secret: data.secret.present ? data.secret.value : this.secret,
+      endpoint: data.endpoint.present ? data.endpoint.value : this.endpoint,
+      cache: data.cache.present ? data.cache.value : this.cache,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SharedSession(')
+          ..write('id: $id, ')
+          ..write('role: $role, ')
+          ..write('tripId: $tripId, ')
+          ..write('name: $name, ')
+          ..write('secret: $secret, ')
+          ..write('endpoint: $endpoint, ')
+          ..write('cache: $cache')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(id, role, tripId, name, secret, endpoint, cache);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is SharedSession &&
+          other.id == this.id &&
+          other.role == this.role &&
+          other.tripId == this.tripId &&
+          other.name == this.name &&
+          other.secret == this.secret &&
+          other.endpoint == this.endpoint &&
+          other.cache == this.cache);
+}
+
+class SharedSessionsCompanion extends UpdateCompanion<SharedSession> {
+  final Value<String> id;
+  final Value<String> role;
+  final Value<String?> tripId;
+  final Value<String> name;
+  final Value<String> secret;
+  final Value<String> endpoint;
+  final Value<String?> cache;
+  final Value<int> rowid;
+  const SharedSessionsCompanion({
+    this.id = const Value.absent(),
+    this.role = const Value.absent(),
+    this.tripId = const Value.absent(),
+    this.name = const Value.absent(),
+    this.secret = const Value.absent(),
+    this.endpoint = const Value.absent(),
+    this.cache = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  SharedSessionsCompanion.insert({
+    required String id,
+    required String role,
+    this.tripId = const Value.absent(),
+    required String name,
+    required String secret,
+    required String endpoint,
+    this.cache = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       role = Value(role),
+       name = Value(name),
+       secret = Value(secret),
+       endpoint = Value(endpoint);
+  static Insertable<SharedSession> custom({
+    Expression<String>? id,
+    Expression<String>? role,
+    Expression<String>? tripId,
+    Expression<String>? name,
+    Expression<String>? secret,
+    Expression<String>? endpoint,
+    Expression<String>? cache,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (role != null) 'role': role,
+      if (tripId != null) 'trip_id': tripId,
+      if (name != null) 'name': name,
+      if (secret != null) 'secret': secret,
+      if (endpoint != null) 'endpoint': endpoint,
+      if (cache != null) 'cache': cache,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  SharedSessionsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? role,
+    Value<String?>? tripId,
+    Value<String>? name,
+    Value<String>? secret,
+    Value<String>? endpoint,
+    Value<String?>? cache,
+    Value<int>? rowid,
+  }) {
+    return SharedSessionsCompanion(
+      id: id ?? this.id,
+      role: role ?? this.role,
+      tripId: tripId ?? this.tripId,
+      name: name ?? this.name,
+      secret: secret ?? this.secret,
+      endpoint: endpoint ?? this.endpoint,
+      cache: cache ?? this.cache,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (role.present) {
+      map['role'] = Variable<String>(role.value);
+    }
+    if (tripId.present) {
+      map['trip_id'] = Variable<String>(tripId.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (secret.present) {
+      map['secret'] = Variable<String>(secret.value);
+    }
+    if (endpoint.present) {
+      map['endpoint'] = Variable<String>(endpoint.value);
+    }
+    if (cache.present) {
+      map['cache'] = Variable<String>(cache.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SharedSessionsCompanion(')
+          ..write('id: $id, ')
+          ..write('role: $role, ')
+          ..write('tripId: $tripId, ')
+          ..write('name: $name, ')
+          ..write('secret: $secret, ')
+          ..write('endpoint: $endpoint, ')
+          ..write('cache: $cache, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class SharedPending extends Table
+    with TableInfo<SharedPending, SharedPendingData> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  SharedPending(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL PRIMARY KEY',
+  );
+  static const VerificationMeta _sessionIdMeta = const VerificationMeta(
+    'sessionId',
+  );
+  late final GeneratedColumn<String> sessionId = GeneratedColumn<String>(
+    'session_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    $customConstraints:
+        'NOT NULL REFERENCES shared_sessions(id)ON DELETE CASCADE',
+  );
+  static const VerificationMeta _payloadMeta = const VerificationMeta(
+    'payload',
+  );
+  late final GeneratedColumn<String> payload = GeneratedColumn<String>(
+    'payload',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL',
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL',
+  );
+  @override
+  List<GeneratedColumn> get $columns => [id, sessionId, payload, createdAt];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'shared_pending';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<SharedPendingData> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('session_id')) {
+      context.handle(
+        _sessionIdMeta,
+        sessionId.isAcceptableOrUnknown(data['session_id']!, _sessionIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_sessionIdMeta);
+    }
+    if (data.containsKey('payload')) {
+      context.handle(
+        _payloadMeta,
+        payload.isAcceptableOrUnknown(data['payload']!, _payloadMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_payloadMeta);
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  SharedPendingData map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return SharedPendingData(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      sessionId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}session_id'],
+      )!,
+      payload: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}payload'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}created_at'],
+      )!,
+    );
+  }
+
+  @override
+  SharedPending createAlias(String alias) {
+    return SharedPending(attachedDatabase, alias);
+  }
+
+  @override
+  bool get dontWriteConstraints => true;
+}
+
+class SharedPendingData extends DataClass
+    implements Insertable<SharedPendingData> {
+  final String id;
+  final String sessionId;
+  final String payload;
+  final int createdAt;
+  const SharedPendingData({
+    required this.id,
+    required this.sessionId,
+    required this.payload,
+    required this.createdAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['session_id'] = Variable<String>(sessionId);
+    map['payload'] = Variable<String>(payload);
+    map['created_at'] = Variable<int>(createdAt);
+    return map;
+  }
+
+  SharedPendingCompanion toCompanion(bool nullToAbsent) {
+    return SharedPendingCompanion(
+      id: Value(id),
+      sessionId: Value(sessionId),
+      payload: Value(payload),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory SharedPendingData.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return SharedPendingData(
+      id: serializer.fromJson<String>(json['id']),
+      sessionId: serializer.fromJson<String>(json['session_id']),
+      payload: serializer.fromJson<String>(json['payload']),
+      createdAt: serializer.fromJson<int>(json['created_at']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'session_id': serializer.toJson<String>(sessionId),
+      'payload': serializer.toJson<String>(payload),
+      'created_at': serializer.toJson<int>(createdAt),
+    };
+  }
+
+  SharedPendingData copyWith({
+    String? id,
+    String? sessionId,
+    String? payload,
+    int? createdAt,
+  }) => SharedPendingData(
+    id: id ?? this.id,
+    sessionId: sessionId ?? this.sessionId,
+    payload: payload ?? this.payload,
+    createdAt: createdAt ?? this.createdAt,
+  );
+  SharedPendingData copyWithCompanion(SharedPendingCompanion data) {
+    return SharedPendingData(
+      id: data.id.present ? data.id.value : this.id,
+      sessionId: data.sessionId.present ? data.sessionId.value : this.sessionId,
+      payload: data.payload.present ? data.payload.value : this.payload,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SharedPendingData(')
+          ..write('id: $id, ')
+          ..write('sessionId: $sessionId, ')
+          ..write('payload: $payload, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, sessionId, payload, createdAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is SharedPendingData &&
+          other.id == this.id &&
+          other.sessionId == this.sessionId &&
+          other.payload == this.payload &&
+          other.createdAt == this.createdAt);
+}
+
+class SharedPendingCompanion extends UpdateCompanion<SharedPendingData> {
+  final Value<String> id;
+  final Value<String> sessionId;
+  final Value<String> payload;
+  final Value<int> createdAt;
+  final Value<int> rowid;
+  const SharedPendingCompanion({
+    this.id = const Value.absent(),
+    this.sessionId = const Value.absent(),
+    this.payload = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  SharedPendingCompanion.insert({
+    required String id,
+    required String sessionId,
+    required String payload,
+    required int createdAt,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       sessionId = Value(sessionId),
+       payload = Value(payload),
+       createdAt = Value(createdAt);
+  static Insertable<SharedPendingData> custom({
+    Expression<String>? id,
+    Expression<String>? sessionId,
+    Expression<String>? payload,
+    Expression<int>? createdAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (sessionId != null) 'session_id': sessionId,
+      if (payload != null) 'payload': payload,
+      if (createdAt != null) 'created_at': createdAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  SharedPendingCompanion copyWith({
+    Value<String>? id,
+    Value<String>? sessionId,
+    Value<String>? payload,
+    Value<int>? createdAt,
+    Value<int>? rowid,
+  }) {
+    return SharedPendingCompanion(
+      id: id ?? this.id,
+      sessionId: sessionId ?? this.sessionId,
+      payload: payload ?? this.payload,
+      createdAt: createdAt ?? this.createdAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (sessionId.present) {
+      map['session_id'] = Variable<String>(sessionId.value);
+    }
+    if (payload.present) {
+      map['payload'] = Variable<String>(payload.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SharedPendingCompanion(')
+          ..write('id: $id, ')
+          ..write('sessionId: $sessionId, ')
+          ..write('payload: $payload, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class SharedReceipts extends Table
+    with TableInfo<SharedReceipts, SharedReceipt> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  SharedReceipts(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _sessionIdMeta = const VerificationMeta(
+    'sessionId',
+  );
+  late final GeneratedColumn<String> sessionId = GeneratedColumn<String>(
+    'session_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    $customConstraints:
+        'NOT NULL REFERENCES shared_sessions(id)ON DELETE CASCADE',
+  );
+  static const VerificationMeta _requestIdMeta = const VerificationMeta(
+    'requestId',
+  );
+  late final GeneratedColumn<String> requestId = GeneratedColumn<String>(
+    'request_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL',
+  );
+  static const VerificationMeta _transactionIdMeta = const VerificationMeta(
+    'transactionId',
+  );
+  late final GeneratedColumn<String> transactionId = GeneratedColumn<String>(
+    'transaction_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL',
+  );
+  @override
+  List<GeneratedColumn> get $columns => [sessionId, requestId, transactionId];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'shared_receipts';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<SharedReceipt> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('session_id')) {
+      context.handle(
+        _sessionIdMeta,
+        sessionId.isAcceptableOrUnknown(data['session_id']!, _sessionIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_sessionIdMeta);
+    }
+    if (data.containsKey('request_id')) {
+      context.handle(
+        _requestIdMeta,
+        requestId.isAcceptableOrUnknown(data['request_id']!, _requestIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_requestIdMeta);
+    }
+    if (data.containsKey('transaction_id')) {
+      context.handle(
+        _transactionIdMeta,
+        transactionId.isAcceptableOrUnknown(
+          data['transaction_id']!,
+          _transactionIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_transactionIdMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {sessionId, requestId};
+  @override
+  SharedReceipt map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return SharedReceipt(
+      sessionId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}session_id'],
+      )!,
+      requestId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}request_id'],
+      )!,
+      transactionId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}transaction_id'],
+      )!,
+    );
+  }
+
+  @override
+  SharedReceipts createAlias(String alias) {
+    return SharedReceipts(attachedDatabase, alias);
+  }
+
+  @override
+  List<String> get customConstraints => const [
+    'PRIMARY KEY(session_id, request_id)',
+  ];
+  @override
+  bool get dontWriteConstraints => true;
+}
+
+class SharedReceipt extends DataClass implements Insertable<SharedReceipt> {
+  final String sessionId;
+  final String requestId;
+  final String transactionId;
+  const SharedReceipt({
+    required this.sessionId,
+    required this.requestId,
+    required this.transactionId,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['session_id'] = Variable<String>(sessionId);
+    map['request_id'] = Variable<String>(requestId);
+    map['transaction_id'] = Variable<String>(transactionId);
+    return map;
+  }
+
+  SharedReceiptsCompanion toCompanion(bool nullToAbsent) {
+    return SharedReceiptsCompanion(
+      sessionId: Value(sessionId),
+      requestId: Value(requestId),
+      transactionId: Value(transactionId),
+    );
+  }
+
+  factory SharedReceipt.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return SharedReceipt(
+      sessionId: serializer.fromJson<String>(json['session_id']),
+      requestId: serializer.fromJson<String>(json['request_id']),
+      transactionId: serializer.fromJson<String>(json['transaction_id']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'session_id': serializer.toJson<String>(sessionId),
+      'request_id': serializer.toJson<String>(requestId),
+      'transaction_id': serializer.toJson<String>(transactionId),
+    };
+  }
+
+  SharedReceipt copyWith({
+    String? sessionId,
+    String? requestId,
+    String? transactionId,
+  }) => SharedReceipt(
+    sessionId: sessionId ?? this.sessionId,
+    requestId: requestId ?? this.requestId,
+    transactionId: transactionId ?? this.transactionId,
+  );
+  SharedReceipt copyWithCompanion(SharedReceiptsCompanion data) {
+    return SharedReceipt(
+      sessionId: data.sessionId.present ? data.sessionId.value : this.sessionId,
+      requestId: data.requestId.present ? data.requestId.value : this.requestId,
+      transactionId: data.transactionId.present
+          ? data.transactionId.value
+          : this.transactionId,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SharedReceipt(')
+          ..write('sessionId: $sessionId, ')
+          ..write('requestId: $requestId, ')
+          ..write('transactionId: $transactionId')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(sessionId, requestId, transactionId);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is SharedReceipt &&
+          other.sessionId == this.sessionId &&
+          other.requestId == this.requestId &&
+          other.transactionId == this.transactionId);
+}
+
+class SharedReceiptsCompanion extends UpdateCompanion<SharedReceipt> {
+  final Value<String> sessionId;
+  final Value<String> requestId;
+  final Value<String> transactionId;
+  final Value<int> rowid;
+  const SharedReceiptsCompanion({
+    this.sessionId = const Value.absent(),
+    this.requestId = const Value.absent(),
+    this.transactionId = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  SharedReceiptsCompanion.insert({
+    required String sessionId,
+    required String requestId,
+    required String transactionId,
+    this.rowid = const Value.absent(),
+  }) : sessionId = Value(sessionId),
+       requestId = Value(requestId),
+       transactionId = Value(transactionId);
+  static Insertable<SharedReceipt> custom({
+    Expression<String>? sessionId,
+    Expression<String>? requestId,
+    Expression<String>? transactionId,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (sessionId != null) 'session_id': sessionId,
+      if (requestId != null) 'request_id': requestId,
+      if (transactionId != null) 'transaction_id': transactionId,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  SharedReceiptsCompanion copyWith({
+    Value<String>? sessionId,
+    Value<String>? requestId,
+    Value<String>? transactionId,
+    Value<int>? rowid,
+  }) {
+    return SharedReceiptsCompanion(
+      sessionId: sessionId ?? this.sessionId,
+      requestId: requestId ?? this.requestId,
+      transactionId: transactionId ?? this.transactionId,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (sessionId.present) {
+      map['session_id'] = Variable<String>(sessionId.value);
+    }
+    if (requestId.present) {
+      map['request_id'] = Variable<String>(requestId.value);
+    }
+    if (transactionId.present) {
+      map['transaction_id'] = Variable<String>(transactionId.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SharedReceiptsCompanion(')
+          ..write('sessionId: $sessionId, ')
+          ..write('requestId: $requestId, ')
+          ..write('transactionId: $transactionId, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -2967,6 +4020,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     'CREATE TRIGGER validate_transaction_update BEFORE UPDATE OF category_id, type ON transactions WHEN NOT EXISTS (SELECT 1 FROM categories WHERE id = NEW.category_id AND type = NEW.type) BEGIN SELECT RAISE (ABORT, \'Transaction category must match its type\');END',
     'validate_transaction_update',
   );
+  late final SharedSessions sharedSessions = SharedSessions(this);
+  late final SharedPending sharedPending = SharedPending(this);
+  late final SharedReceipts sharedReceipts = SharedReceipts(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -2990,6 +4046,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     protectUsedCategoryType,
     validateTransactionInsert,
     validateTransactionUpdate,
+    sharedSessions,
+    sharedPending,
+    sharedReceipts,
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
@@ -3062,6 +4121,27 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         limitUpdateKind: UpdateKind.update,
       ),
       result: [],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'trips',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('shared_sessions', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'shared_sessions',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('shared_pending', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'shared_sessions',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('shared_receipts', kind: UpdateKind.delete)],
     ),
   ]);
 }
@@ -4006,6 +5086,24 @@ final class $TripsReferences
       manager.$state.copyWith(prefetchedData: cache),
     );
   }
+
+  static MultiTypedResultKey<SharedSessions, List<SharedSession>>
+  _sharedSessionsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.sharedSessions,
+    aliasName: 'trips__id__shared_sessions__trip_id',
+  );
+
+  $SharedSessionsProcessedTableManager get sharedSessionsRefs {
+    final manager = $SharedSessionsTableManager(
+      $_db,
+      $_db.sharedSessions,
+    ).filter((f) => f.tripId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_sharedSessionsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
 }
 
 class $TripsFilterComposer extends Composer<_$AppDatabase, Trips> {
@@ -4067,6 +5165,31 @@ class $TripsFilterComposer extends Composer<_$AppDatabase, Trips> {
           }) => $TransactionsFilterComposer(
             $db: $db,
             $table: $db.transactions,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> sharedSessionsRefs(
+    Expression<bool> Function($SharedSessionsFilterComposer f) f,
+  ) {
+    final $SharedSessionsFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.sharedSessions,
+      getReferencedColumn: (t) => t.tripId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $SharedSessionsFilterComposer(
+            $db: $db,
+            $table: $db.sharedSessions,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -4159,6 +5282,31 @@ class $TripsAnnotationComposer extends Composer<_$AppDatabase, Trips> {
     );
     return f(composer);
   }
+
+  Expression<T> sharedSessionsRefs<T extends Object>(
+    Expression<T> Function($SharedSessionsAnnotationComposer a) f,
+  ) {
+    final $SharedSessionsAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.sharedSessions,
+      getReferencedColumn: (t) => t.tripId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $SharedSessionsAnnotationComposer(
+            $db: $db,
+            $table: $db.sharedSessions,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $TripsTableManager
@@ -4174,7 +5322,11 @@ class $TripsTableManager
           $TripsUpdateCompanionBuilder,
           (Trip, $TripsReferences),
           Trip,
-          PrefetchHooks Function({bool tripRatesRefs, bool transactionsRefs})
+          PrefetchHooks Function({
+            bool tripRatesRefs,
+            bool transactionsRefs,
+            bool sharedSessionsRefs,
+          })
         > {
   $TripsTableManager(_$AppDatabase db, Trips table)
     : super(
@@ -4208,12 +5360,17 @@ class $TripsTableManager
               )
               .toList(),
           prefetchHooksCallback:
-              ({tripRatesRefs = false, transactionsRefs = false}) {
+              ({
+                tripRatesRefs = false,
+                transactionsRefs = false,
+                sharedSessionsRefs = false,
+              }) {
                 return PrefetchHooks(
                   db: db,
                   explicitlyWatchedTables: [
                     if (tripRatesRefs) db.tripRates,
                     if (transactionsRefs) db.transactions,
+                    if (sharedSessionsRefs) db.sharedSessions,
                   ],
                   addJoins: null,
                   getPrefetchedDataCallback: (items) async {
@@ -4251,6 +5408,25 @@ class $TripsTableManager
                           referencedColumn: 'trip_id',
                           typedResults: items,
                         ),
+                      if (sharedSessionsRefs)
+                        await $_getPrefetchedDataByColumns<
+                          Trip,
+                          Trips,
+                          SharedSession,
+                          SharedSessions
+                        >(
+                          currentTable: table,
+                          referencedTable: $TripsReferences
+                              ._sharedSessionsRefsTable(db),
+                          managerFromTypedResult: (p0) => $TripsReferences(
+                            db,
+                            table,
+                            p0,
+                          ).sharedSessionsRefs,
+                          currentColumn: 'id',
+                          referencedColumn: 'trip_id',
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -4271,7 +5447,11 @@ typedef $TripsProcessedTableManager =
       $TripsUpdateCompanionBuilder,
       (Trip, $TripsReferences),
       Trip,
-      PrefetchHooks Function({bool tripRatesRefs, bool transactionsRefs})
+      PrefetchHooks Function({
+        bool tripRatesRefs,
+        bool transactionsRefs,
+        bool sharedSessionsRefs,
+      })
     >;
 typedef $CurrencyRatesCreateCompanionBuilder =
     CurrencyRatesCompanion Function({
@@ -5948,6 +7128,1133 @@ typedef $AppSettingsProcessedTableManager =
       AppSetting,
       PrefetchHooks Function()
     >;
+typedef $SharedSessionsCreateCompanionBuilder =
+    SharedSessionsCompanion Function({
+      required String id,
+      required String role,
+      Value<String?> tripId,
+      required String name,
+      required String secret,
+      required String endpoint,
+      Value<String?> cache,
+      Value<int> rowid,
+    });
+typedef $SharedSessionsUpdateCompanionBuilder =
+    SharedSessionsCompanion Function({
+      Value<String> id,
+      Value<String> role,
+      Value<String?> tripId,
+      Value<String> name,
+      Value<String> secret,
+      Value<String> endpoint,
+      Value<String?> cache,
+      Value<int> rowid,
+    });
+
+final class $SharedSessionsReferences
+    extends BaseReferences<_$AppDatabase, SharedSessions, SharedSession> {
+  $SharedSessionsReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static Trips _tripIdTable(_$AppDatabase db) =>
+      db.trips.createAlias('shared_sessions__trip_id__trips__id');
+
+  $TripsProcessedTableManager? get tripId {
+    final $_column = $_itemColumn<String>('trip_id');
+    if ($_column == null) return null;
+    final manager = $TripsTableManager(
+      $_db,
+      $_db.trips,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_tripIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static MultiTypedResultKey<SharedPending, List<SharedPendingData>>
+  _sharedPendingRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.sharedPending,
+    aliasName: 'shared_sessions__id__shared_pending__session_id',
+  );
+
+  $SharedPendingProcessedTableManager get sharedPendingRefs {
+    final manager = $SharedPendingTableManager(
+      $_db,
+      $_db.sharedPending,
+    ).filter((f) => f.sessionId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_sharedPendingRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<SharedReceipts, List<SharedReceipt>>
+  _sharedReceiptsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.sharedReceipts,
+    aliasName: 'shared_sessions__id__shared_receipts__session_id',
+  );
+
+  $SharedReceiptsProcessedTableManager get sharedReceiptsRefs {
+    final manager = $SharedReceiptsTableManager(
+      $_db,
+      $_db.sharedReceipts,
+    ).filter((f) => f.sessionId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_sharedReceiptsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+}
+
+class $SharedSessionsFilterComposer
+    extends Composer<_$AppDatabase, SharedSessions> {
+  $SharedSessionsFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get role => $composableBuilder(
+    column: $table.role,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get secret => $composableBuilder(
+    column: $table.secret,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get endpoint => $composableBuilder(
+    column: $table.endpoint,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get cache => $composableBuilder(
+    column: $table.cache,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $TripsFilterComposer get tripId {
+    final $TripsFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.tripId,
+      referencedTable: $db.trips,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $TripsFilterComposer(
+            $db: $db,
+            $table: $db.trips,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  Expression<bool> sharedPendingRefs(
+    Expression<bool> Function($SharedPendingFilterComposer f) f,
+  ) {
+    final $SharedPendingFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.sharedPending,
+      getReferencedColumn: (t) => t.sessionId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $SharedPendingFilterComposer(
+            $db: $db,
+            $table: $db.sharedPending,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> sharedReceiptsRefs(
+    Expression<bool> Function($SharedReceiptsFilterComposer f) f,
+  ) {
+    final $SharedReceiptsFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.sharedReceipts,
+      getReferencedColumn: (t) => t.sessionId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $SharedReceiptsFilterComposer(
+            $db: $db,
+            $table: $db.sharedReceipts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+}
+
+class $SharedSessionsOrderingComposer
+    extends Composer<_$AppDatabase, SharedSessions> {
+  $SharedSessionsOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get role => $composableBuilder(
+    column: $table.role,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get secret => $composableBuilder(
+    column: $table.secret,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get endpoint => $composableBuilder(
+    column: $table.endpoint,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get cache => $composableBuilder(
+    column: $table.cache,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $TripsOrderingComposer get tripId {
+    final $TripsOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.tripId,
+      referencedTable: $db.trips,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $TripsOrderingComposer(
+            $db: $db,
+            $table: $db.trips,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $SharedSessionsAnnotationComposer
+    extends Composer<_$AppDatabase, SharedSessions> {
+  $SharedSessionsAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get role =>
+      $composableBuilder(column: $table.role, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<String> get secret =>
+      $composableBuilder(column: $table.secret, builder: (column) => column);
+
+  GeneratedColumn<String> get endpoint =>
+      $composableBuilder(column: $table.endpoint, builder: (column) => column);
+
+  GeneratedColumn<String> get cache =>
+      $composableBuilder(column: $table.cache, builder: (column) => column);
+
+  $TripsAnnotationComposer get tripId {
+    final $TripsAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.tripId,
+      referencedTable: $db.trips,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $TripsAnnotationComposer(
+            $db: $db,
+            $table: $db.trips,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  Expression<T> sharedPendingRefs<T extends Object>(
+    Expression<T> Function($SharedPendingAnnotationComposer a) f,
+  ) {
+    final $SharedPendingAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.sharedPending,
+      getReferencedColumn: (t) => t.sessionId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $SharedPendingAnnotationComposer(
+            $db: $db,
+            $table: $db.sharedPending,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<T> sharedReceiptsRefs<T extends Object>(
+    Expression<T> Function($SharedReceiptsAnnotationComposer a) f,
+  ) {
+    final $SharedReceiptsAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.sharedReceipts,
+      getReferencedColumn: (t) => t.sessionId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $SharedReceiptsAnnotationComposer(
+            $db: $db,
+            $table: $db.sharedReceipts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+}
+
+class $SharedSessionsTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          SharedSessions,
+          SharedSession,
+          $SharedSessionsFilterComposer,
+          $SharedSessionsOrderingComposer,
+          $SharedSessionsAnnotationComposer,
+          $SharedSessionsCreateCompanionBuilder,
+          $SharedSessionsUpdateCompanionBuilder,
+          (SharedSession, $SharedSessionsReferences),
+          SharedSession,
+          PrefetchHooks Function({
+            bool tripId,
+            bool sharedPendingRefs,
+            bool sharedReceiptsRefs,
+          })
+        > {
+  $SharedSessionsTableManager(_$AppDatabase db, SharedSessions table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $SharedSessionsFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $SharedSessionsOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $SharedSessionsAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> role = const Value.absent(),
+                Value<String?> tripId = const Value.absent(),
+                Value<String> name = const Value.absent(),
+                Value<String> secret = const Value.absent(),
+                Value<String> endpoint = const Value.absent(),
+                Value<String?> cache = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => SharedSessionsCompanion(
+                id: id,
+                role: role,
+                tripId: tripId,
+                name: name,
+                secret: secret,
+                endpoint: endpoint,
+                cache: cache,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String role,
+                Value<String?> tripId = const Value.absent(),
+                required String name,
+                required String secret,
+                required String endpoint,
+                Value<String?> cache = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => SharedSessionsCompanion.insert(
+                id: id,
+                role: role,
+                tripId: tripId,
+                name: name,
+                secret: secret,
+                endpoint: endpoint,
+                cache: cache,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<SharedSessions, SharedSession>(table),
+                  $SharedSessionsReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback:
+              ({
+                tripId = false,
+                sharedPendingRefs = false,
+                sharedReceiptsRefs = false,
+              }) {
+                return PrefetchHooks(
+                  db: db,
+                  explicitlyWatchedTables: [
+                    if (sharedPendingRefs) db.sharedPending,
+                    if (sharedReceiptsRefs) db.sharedReceipts,
+                  ],
+                  addJoins:
+                      <
+                        T extends TableManagerState<
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic
+                        >
+                      >(state) {
+                        if (tripId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.tripId,
+                                    referencedTable: $SharedSessionsReferences
+                                        ._tripIdTable(db),
+                                    referencedColumn: $SharedSessionsReferences
+                                        ._tripIdTable(db)
+                                        .id,
+                                  )
+                                  as T;
+                        }
+
+                        return state;
+                      },
+                  getPrefetchedDataCallback: (items) async {
+                    return [
+                      if (sharedPendingRefs)
+                        await $_getPrefetchedDataByColumns<
+                          SharedSession,
+                          SharedSessions,
+                          SharedPendingData,
+                          SharedPending
+                        >(
+                          currentTable: table,
+                          referencedTable: $SharedSessionsReferences
+                              ._sharedPendingRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $SharedSessionsReferences(
+                                db,
+                                table,
+                                p0,
+                              ).sharedPendingRefs,
+                          currentColumn: 'id',
+                          referencedColumn: 'session_id',
+                          typedResults: items,
+                        ),
+                      if (sharedReceiptsRefs)
+                        await $_getPrefetchedDataByColumns<
+                          SharedSession,
+                          SharedSessions,
+                          SharedReceipt,
+                          SharedReceipts
+                        >(
+                          currentTable: table,
+                          referencedTable: $SharedSessionsReferences
+                              ._sharedReceiptsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $SharedSessionsReferences(
+                                db,
+                                table,
+                                p0,
+                              ).sharedReceiptsRefs,
+                          currentColumn: 'id',
+                          referencedColumn: 'session_id',
+                          typedResults: items,
+                        ),
+                    ];
+                  },
+                );
+              },
+        ),
+      );
+}
+
+typedef $SharedSessionsProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      SharedSessions,
+      SharedSession,
+      $SharedSessionsFilterComposer,
+      $SharedSessionsOrderingComposer,
+      $SharedSessionsAnnotationComposer,
+      $SharedSessionsCreateCompanionBuilder,
+      $SharedSessionsUpdateCompanionBuilder,
+      (SharedSession, $SharedSessionsReferences),
+      SharedSession,
+      PrefetchHooks Function({
+        bool tripId,
+        bool sharedPendingRefs,
+        bool sharedReceiptsRefs,
+      })
+    >;
+typedef $SharedPendingCreateCompanionBuilder =
+    SharedPendingCompanion Function({
+      required String id,
+      required String sessionId,
+      required String payload,
+      required int createdAt,
+      Value<int> rowid,
+    });
+typedef $SharedPendingUpdateCompanionBuilder =
+    SharedPendingCompanion Function({
+      Value<String> id,
+      Value<String> sessionId,
+      Value<String> payload,
+      Value<int> createdAt,
+      Value<int> rowid,
+    });
+
+final class $SharedPendingReferences
+    extends BaseReferences<_$AppDatabase, SharedPending, SharedPendingData> {
+  $SharedPendingReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static SharedSessions _sessionIdTable(_$AppDatabase db) => db.sharedSessions
+      .createAlias('shared_pending__session_id__shared_sessions__id');
+
+  $SharedSessionsProcessedTableManager get sessionId {
+    final $_column = $_itemColumn<String>('session_id')!;
+
+    final manager = $SharedSessionsTableManager(
+      $_db,
+      $_db.sharedSessions,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_sessionIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $SharedPendingFilterComposer
+    extends Composer<_$AppDatabase, SharedPending> {
+  $SharedPendingFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get payload => $composableBuilder(
+    column: $table.payload,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $SharedSessionsFilterComposer get sessionId {
+    final $SharedSessionsFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.sessionId,
+      referencedTable: $db.sharedSessions,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $SharedSessionsFilterComposer(
+            $db: $db,
+            $table: $db.sharedSessions,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $SharedPendingOrderingComposer
+    extends Composer<_$AppDatabase, SharedPending> {
+  $SharedPendingOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get payload => $composableBuilder(
+    column: $table.payload,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $SharedSessionsOrderingComposer get sessionId {
+    final $SharedSessionsOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.sessionId,
+      referencedTable: $db.sharedSessions,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $SharedSessionsOrderingComposer(
+            $db: $db,
+            $table: $db.sharedSessions,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $SharedPendingAnnotationComposer
+    extends Composer<_$AppDatabase, SharedPending> {
+  $SharedPendingAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get payload =>
+      $composableBuilder(column: $table.payload, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  $SharedSessionsAnnotationComposer get sessionId {
+    final $SharedSessionsAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.sessionId,
+      referencedTable: $db.sharedSessions,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $SharedSessionsAnnotationComposer(
+            $db: $db,
+            $table: $db.sharedSessions,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $SharedPendingTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          SharedPending,
+          SharedPendingData,
+          $SharedPendingFilterComposer,
+          $SharedPendingOrderingComposer,
+          $SharedPendingAnnotationComposer,
+          $SharedPendingCreateCompanionBuilder,
+          $SharedPendingUpdateCompanionBuilder,
+          (SharedPendingData, $SharedPendingReferences),
+          SharedPendingData,
+          PrefetchHooks Function({bool sessionId})
+        > {
+  $SharedPendingTableManager(_$AppDatabase db, SharedPending table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $SharedPendingFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $SharedPendingOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $SharedPendingAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> sessionId = const Value.absent(),
+                Value<String> payload = const Value.absent(),
+                Value<int> createdAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => SharedPendingCompanion(
+                id: id,
+                sessionId: sessionId,
+                payload: payload,
+                createdAt: createdAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String sessionId,
+                required String payload,
+                required int createdAt,
+                Value<int> rowid = const Value.absent(),
+              }) => SharedPendingCompanion.insert(
+                id: id,
+                sessionId: sessionId,
+                payload: payload,
+                createdAt: createdAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<SharedPending, SharedPendingData>(table),
+                  $SharedPendingReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({sessionId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (sessionId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.sessionId,
+                                referencedTable: $SharedPendingReferences
+                                    ._sessionIdTable(db),
+                                referencedColumn: $SharedPendingReferences
+                                    ._sessionIdTable(db)
+                                    .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $SharedPendingProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      SharedPending,
+      SharedPendingData,
+      $SharedPendingFilterComposer,
+      $SharedPendingOrderingComposer,
+      $SharedPendingAnnotationComposer,
+      $SharedPendingCreateCompanionBuilder,
+      $SharedPendingUpdateCompanionBuilder,
+      (SharedPendingData, $SharedPendingReferences),
+      SharedPendingData,
+      PrefetchHooks Function({bool sessionId})
+    >;
+typedef $SharedReceiptsCreateCompanionBuilder =
+    SharedReceiptsCompanion Function({
+      required String sessionId,
+      required String requestId,
+      required String transactionId,
+      Value<int> rowid,
+    });
+typedef $SharedReceiptsUpdateCompanionBuilder =
+    SharedReceiptsCompanion Function({
+      Value<String> sessionId,
+      Value<String> requestId,
+      Value<String> transactionId,
+      Value<int> rowid,
+    });
+
+final class $SharedReceiptsReferences
+    extends BaseReferences<_$AppDatabase, SharedReceipts, SharedReceipt> {
+  $SharedReceiptsReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static SharedSessions _sessionIdTable(_$AppDatabase db) => db.sharedSessions
+      .createAlias('shared_receipts__session_id__shared_sessions__id');
+
+  $SharedSessionsProcessedTableManager get sessionId {
+    final $_column = $_itemColumn<String>('session_id')!;
+
+    final manager = $SharedSessionsTableManager(
+      $_db,
+      $_db.sharedSessions,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_sessionIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $SharedReceiptsFilterComposer
+    extends Composer<_$AppDatabase, SharedReceipts> {
+  $SharedReceiptsFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get requestId => $composableBuilder(
+    column: $table.requestId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get transactionId => $composableBuilder(
+    column: $table.transactionId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $SharedSessionsFilterComposer get sessionId {
+    final $SharedSessionsFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.sessionId,
+      referencedTable: $db.sharedSessions,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $SharedSessionsFilterComposer(
+            $db: $db,
+            $table: $db.sharedSessions,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $SharedReceiptsOrderingComposer
+    extends Composer<_$AppDatabase, SharedReceipts> {
+  $SharedReceiptsOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get requestId => $composableBuilder(
+    column: $table.requestId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get transactionId => $composableBuilder(
+    column: $table.transactionId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $SharedSessionsOrderingComposer get sessionId {
+    final $SharedSessionsOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.sessionId,
+      referencedTable: $db.sharedSessions,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $SharedSessionsOrderingComposer(
+            $db: $db,
+            $table: $db.sharedSessions,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $SharedReceiptsAnnotationComposer
+    extends Composer<_$AppDatabase, SharedReceipts> {
+  $SharedReceiptsAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get requestId =>
+      $composableBuilder(column: $table.requestId, builder: (column) => column);
+
+  GeneratedColumn<String> get transactionId => $composableBuilder(
+    column: $table.transactionId,
+    builder: (column) => column,
+  );
+
+  $SharedSessionsAnnotationComposer get sessionId {
+    final $SharedSessionsAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.sessionId,
+      referencedTable: $db.sharedSessions,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $SharedSessionsAnnotationComposer(
+            $db: $db,
+            $table: $db.sharedSessions,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $SharedReceiptsTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          SharedReceipts,
+          SharedReceipt,
+          $SharedReceiptsFilterComposer,
+          $SharedReceiptsOrderingComposer,
+          $SharedReceiptsAnnotationComposer,
+          $SharedReceiptsCreateCompanionBuilder,
+          $SharedReceiptsUpdateCompanionBuilder,
+          (SharedReceipt, $SharedReceiptsReferences),
+          SharedReceipt,
+          PrefetchHooks Function({bool sessionId})
+        > {
+  $SharedReceiptsTableManager(_$AppDatabase db, SharedReceipts table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $SharedReceiptsFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $SharedReceiptsOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $SharedReceiptsAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> sessionId = const Value.absent(),
+                Value<String> requestId = const Value.absent(),
+                Value<String> transactionId = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => SharedReceiptsCompanion(
+                sessionId: sessionId,
+                requestId: requestId,
+                transactionId: transactionId,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String sessionId,
+                required String requestId,
+                required String transactionId,
+                Value<int> rowid = const Value.absent(),
+              }) => SharedReceiptsCompanion.insert(
+                sessionId: sessionId,
+                requestId: requestId,
+                transactionId: transactionId,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<SharedReceipts, SharedReceipt>(table),
+                  $SharedReceiptsReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({sessionId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (sessionId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.sessionId,
+                                referencedTable: $SharedReceiptsReferences
+                                    ._sessionIdTable(db),
+                                referencedColumn: $SharedReceiptsReferences
+                                    ._sessionIdTable(db)
+                                    .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $SharedReceiptsProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      SharedReceipts,
+      SharedReceipt,
+      $SharedReceiptsFilterComposer,
+      $SharedReceiptsOrderingComposer,
+      $SharedReceiptsAnnotationComposer,
+      $SharedReceiptsCreateCompanionBuilder,
+      $SharedReceiptsUpdateCompanionBuilder,
+      (SharedReceipt, $SharedReceiptsReferences),
+      SharedReceipt,
+      PrefetchHooks Function({bool sessionId})
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -5965,4 +8272,10 @@ class $AppDatabaseManager {
       $TransactionsTableManager(_db, _db.transactions);
   $AppSettingsTableManager get appSettings =>
       $AppSettingsTableManager(_db, _db.appSettings);
+  $SharedSessionsTableManager get sharedSessions =>
+      $SharedSessionsTableManager(_db, _db.sharedSessions);
+  $SharedPendingTableManager get sharedPending =>
+      $SharedPendingTableManager(_db, _db.sharedPending);
+  $SharedReceiptsTableManager get sharedReceipts =>
+      $SharedReceiptsTableManager(_db, _db.sharedReceipts);
 }

@@ -25,8 +25,33 @@ class AppDatabase extends _$AppDatabase {
       _writeGate.exclusive(action);
   void markLedgerRestored() => _writeGate.restored();
 
+  Future<void> resetLedger() => exclusiveLedgerOperation(() async {
+    await transaction(() async {
+      for (final table in [
+        'shared_pending',
+        'shared_receipts',
+        'shared_sessions',
+        'transactions',
+        'trip_rates',
+        'currency_rates',
+        'trips',
+        'categories',
+        'app_settings',
+      ]) {
+        await customStatement('DELETE FROM $table');
+      }
+      await customStatement("DELETE FROM currencies WHERE code <> 'MYR'");
+      await seedDatabase(this);
+      await _seedPersonalTrip();
+    });
+    markLedgerRestored();
+    notifyUpdates({
+      for (final table in allTables) TableUpdate(table.actualTableName),
+    });
+  });
+
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 5;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -36,10 +61,14 @@ class AppDatabase extends _$AppDatabase {
       await _seedPersonalTrip();
     }),
     onUpgrade: (migrator, from, to) async {
-      if (from < 1 || from >= 4 || to != 4) {
+      if (from < 1 || from >= 5 || to != 5) {
         throw UnsupportedError('No migration from schema $from to $to.');
       }
       await transaction(() async {
+        await migrator.createTable(sharedSessions);
+        await migrator.createTable(sharedPending);
+        await migrator.createTable(sharedReceipts);
+        if (from == 4) return;
         await migrator.createTable(currencyRates);
         if (from >= 2) {
           if (from == 2) await migrator.addColumn(tripRates, tripRates.name);

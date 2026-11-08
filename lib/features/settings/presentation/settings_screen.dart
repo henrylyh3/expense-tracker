@@ -7,6 +7,7 @@ import '../../../core/providers/default_currency_provider.dart';
 import '../../../core/app_info.dart';
 import '../../../core/models/ledger_types.dart';
 import '../../currencies/presentation/currency_view_model.dart';
+import 'reset_ledger.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -18,6 +19,14 @@ class SettingsScreen extends ConsumerWidget {
       Card(
         child: Column(
           children: [
+            ListTile(
+              leading: const Icon(Icons.group_outlined),
+              title: const Text('Shared trips'),
+              subtitle: const Text(
+                'Invite guests or join over Wi-Fi / hotspot',
+              ),
+              onTap: () => context.push('/settings/sharing'),
+            ),
             ListTile(
               leading: const Icon(Icons.luggage_outlined),
               title: const Text('Trips and profiles'),
@@ -54,12 +63,14 @@ class SettingsScreen extends ConsumerWidget {
       Card(
         child: ListTile(
           leading: const Icon(Icons.save_alt),
-          title: const Text('Backup and restore'),
-          subtitle: const Text('Save, share or replace from a JSON backup'),
+          title: const Text('Import and export'),
+          subtitle: const Text('Export your ledger or import a JSON backup'),
           trailing: const Icon(Icons.chevron_right),
           onTap: () => context.push('/settings/backup'),
         ),
       ),
+      const SizedBox(height: 12),
+      const ResetLedgerTile(),
       const SizedBox(height: 12),
       Card(
         child: Column(

@@ -16,8 +16,9 @@ def main():
     assert version == default, 'Align core/app_info.dart backup/About version with pubspec.yaml.'
 
     manifest = ET.parse(ROOT / 'android/app/src/main/AndroidManifest.xml').getroot()
-    denied = {'android.permission.INTERNET', 'android.permission.MANAGE_EXTERNAL_STORAGE',
+    denied = {'android.permission.MANAGE_EXTERNAL_STORAGE',
               'android.permission.READ_EXTERNAL_STORAGE', 'android.permission.WRITE_EXTERNAL_STORAGE'}
+    assert any(item.attrib.get(ANDROID + 'name') == 'android.permission.INTERNET' for item in manifest.findall('uses-permission')), 'Peer sharing requires INTERNET permission.'
     permissions = {item.attrib.get(ANDROID + 'name') for item in manifest.findall('uses-permission')}
     assert not permissions & denied, 'Release source requests network or broad storage permission.'
     app = manifest.find('application')

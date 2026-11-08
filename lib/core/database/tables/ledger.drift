@@ -1,4 +1,4 @@
--- Source of truth for schema v4; also executable by SQLite for independent QA.
+-- Source of truth for schema v5; also executable by SQLite for independent QA.
 CREATE TABLE categories (
   id TEXT NOT NULL PRIMARY KEY CHECK (length(id) BETWEEN 1 AND 64),
   name TEXT NOT NULL CHECK (length(trim(name)) BETWEEN 1 AND 80),
@@ -184,3 +184,27 @@ WHEN NOT EXISTS (
 BEGIN
   SELECT RAISE(ABORT, 'Transaction category must match its type');
 END;
+
+
+CREATE TABLE shared_sessions (
+  id TEXT NOT NULL PRIMARY KEY,
+  role TEXT NOT NULL CHECK (role IN ('host','guest')),
+  trip_id TEXT REFERENCES trips(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  secret TEXT NOT NULL,
+  endpoint TEXT NOT NULL,
+  cache TEXT,
+  CHECK ((role = 'host' AND trip_id IS NOT NULL) OR (role = 'guest' AND trip_id IS NULL))
+);
+CREATE TABLE shared_pending (
+  id TEXT NOT NULL PRIMARY KEY,
+  session_id TEXT NOT NULL REFERENCES shared_sessions(id) ON DELETE CASCADE,
+  payload TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
+CREATE TABLE shared_receipts (
+  session_id TEXT NOT NULL REFERENCES shared_sessions(id) ON DELETE CASCADE,
+  request_id TEXT NOT NULL,
+  transaction_id TEXT NOT NULL,
+  PRIMARY KEY (session_id, request_id)
+);

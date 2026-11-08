@@ -7,6 +7,7 @@ import '../features/currencies/presentation/currencies_screen.dart';
 import '../features/dashboard/presentation/dashboard_screen.dart';
 import '../features/reports/presentation/reports_screen.dart';
 import '../features/settings/presentation/settings_screen.dart';
+import '../features/sharing/presentation/sharing_screen.dart';
 import '../features/settings/presentation/trips_screen.dart';
 import '../features/transactions/presentation/transaction_detail_screen.dart';
 import '../features/transactions/presentation/transaction_editor_screen.dart';
@@ -94,6 +95,18 @@ final routerProvider = Provider<GoRouter>((ref) {
                             ),
                           ),
                         ],
+                      ),
+                    ],
+                  ),
+                  GoRoute(
+                    path: 'sharing',
+                    builder: (context, state) => const SharingScreen(),
+                    routes: [
+                      GoRoute(
+                        path: ':sessionId',
+                        builder: (context, state) => SharingScreen(
+                          sessionId: state.pathParameters['sessionId']!,
+                        ),
                       ),
                     ],
                   ),

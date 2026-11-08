@@ -10,6 +10,9 @@ class BackupSqlWrite {
 /// A lazy, parameterized plan. Never uses REPLACE, drops tables, disables FKs,
 /// or deletes MYR. The service runs every statement in one SQLite transaction.
 Iterable<BackupSqlWrite> replacementStatements(ValidatedBackup backup) sync* {
+  yield BackupSqlWrite('DELETE FROM shared_pending', const []);
+  yield BackupSqlWrite('DELETE FROM shared_receipts', const []);
+  yield BackupSqlWrite('DELETE FROM shared_sessions', const []);
   yield BackupSqlWrite('DELETE FROM transactions', const []);
   yield BackupSqlWrite('DELETE FROM trip_rates', const []);
   yield BackupSqlWrite('DELETE FROM currency_rates', const []);

@@ -19,13 +19,14 @@ class BackupScreen extends ConsumerWidget {
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 112),
         children: [
           Text(
-            'Backup and restore',
+            'Import and export',
             style: Theme.of(context).textTheme.headlineSmall,
           ),
           const SizedBox(height: 12),
           const Text(
             'Backups contain your full financial history and notes as unencrypted JSON. '
-            'Choose a private destination. Files or sharing apps you select may store copies outside this device.',
+            'Choose a private destination. Files or sharing apps you select may store copies outside this device. '
+            'Invitations, shared-trip caches and unsent guest expenses are excluded from exports. Import removes them from this device.',
           ),
           const SizedBox(height: 16),
           Wrap(
@@ -35,7 +36,7 @@ class BackupScreen extends ConsumerWidget {
               FilledButton.icon(
                 onPressed: busy ? null : actions.save,
                 icon: const Icon(Icons.save_alt),
-                label: const Text('Save backup'),
+                label: const Text('Export JSON'),
               ),
               Builder(
                 builder: (buttonContext) => OutlinedButton.icon(
@@ -49,7 +50,7 @@ class BackupScreen extends ConsumerWidget {
                           );
                         },
                   icon: const Icon(Icons.share_outlined),
-                  label: const Text('Share backup'),
+                  label: const Text('Share JSON'),
                 ),
               ),
             ],
@@ -57,20 +58,17 @@ class BackupScreen extends ConsumerWidget {
           const SizedBox(height: 24),
           const Divider(),
           const SizedBox(height: 12),
-          Text(
-            'Replace from backup',
-            style: Theme.of(context).textTheme.titleLarge,
-          ),
+          Text('Import JSON', style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 8),
           const Text(
-            'Version 1 restores replace all transactions, categories, currencies and settings. '
+            'Import replaces all expenses, trips, categories, currency records and settings. '
             'There is no merge. Choose a JSON file to validate and preview it first.',
           ),
           const SizedBox(height: 12),
           OutlinedButton.icon(
             onPressed: busy ? null : actions.chooseBackup,
             icon: const Icon(Icons.file_open_outlined),
-            label: const Text('Choose backup'),
+            label: const Text('Choose JSON file'),
           ),
           if (busy)
             const Padding(
@@ -117,7 +115,7 @@ class BackupScreen extends ConsumerWidget {
                       '${preview.count('transactions')} transactions · ${preview.count('categories')} categories',
                     ),
                     Text(
-                      '${preview.count('currencies')} currencies · ${preview.count('settings')} settings',
+                      '${preview.count('currencies')} currencies · ${preview.count('currency_rates')} named rates · ${preview.count('trips')} trips',
                     ),
                     if (preview.firstTransactionDate != null)
                       Text(
@@ -134,7 +132,7 @@ class BackupScreen extends ConsumerWidget {
                               }
                             },
                       icon: const Icon(Icons.restore),
-                      label: const Text('Restore this backup'),
+                      label: const Text('Import this backup'),
                     ),
                   ],
                 ),

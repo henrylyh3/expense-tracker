@@ -30,6 +30,21 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  testWidgets('Export JSON opens the save flow with a valid backup', (
+    tester,
+  ) async {
+    final files = _Files();
+    await open(tester, files, _Service());
+    await tester.tap(find.text('Export JSON'));
+    await tester.pumpAndSettle();
+    expect(files.exportedBytes, isNotNull);
+    expect(
+      BackupValidator.decode(files.exportedBytes!).count('transactions'),
+      1,
+    );
+    expect(find.text('Save cancelled.'), findsOneWidget);
+  });
+
   testWidgets('preview is read-only and replacement requires acknowledgment', (
     tester,
   ) async {
@@ -44,9 +59,9 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Validated backup'), findsOneWidget);
     expect(service.restores, 0);
-    await tester.ensureVisible(find.text('Restore this backup'));
+    await tester.ensureVisible(find.text('Import this backup'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Restore this backup'));
+    await tester.tap(find.text('Import this backup'));
     await tester.pumpAndSettle();
     expect(
       tester
@@ -72,10 +87,10 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Validated backup'), findsOneWidget);
     files.fail = true;
-    await tester.tap(find.text('Choose backup'));
+    await tester.tap(find.text('Choose JSON file'));
     await tester.pumpAndSettle();
     expect(find.text('Validated backup'), findsNothing);
-    expect(find.text('Restore this backup'), findsNothing);
+    expect(find.text('Import this backup'), findsNothing);
   });
   testWidgets('cancelled safety save does not reset navigation', (
     tester,
@@ -107,6 +122,7 @@ void main() {
 }
 
 class _Files extends BackupFiles {
+  Uint8List? exportedBytes;
   bool fail = false;
   int safetySaves = 0;
   @override
@@ -117,6 +133,7 @@ class _Files extends BackupFiles {
 
   @override
   Future<bool> save(Uint8List bytes, {bool safety = false}) async {
+    if (!safety) exportedBytes = bytes;
     if (safety) safetySaves++;
     return false;
   }
