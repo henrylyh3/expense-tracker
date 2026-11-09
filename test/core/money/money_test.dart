@@ -237,16 +237,26 @@ void main() {
     );
   });
 
-  test('rejects reinterpretation of saved currency precision', () {
-    expect(
-      () => resolveConversion(
+  test(
+    'different entry scales retain exact values and saved conversion facts',
+    () {
+      final changed = resolveConversion(
         original: _parse('12', precision: 0),
         defaultRate: '4.5',
         previous: _saved(),
-      ),
-      throwsA(isA<LedgerException>()),
-    );
-  });
+      );
+      expect(changed.myr.minorUnits, 5400);
+      final previous = _saved();
+      expect(
+        resolveConversion(
+          original: _parse('12.500', precision: 3),
+          defaultRate: '9',
+          previous: previous,
+        ),
+        same(previous),
+      );
+    },
+  );
 
   test(
     'calendar dates validate leap years and boundaries without time-zone conversion',

@@ -50,6 +50,29 @@ class Money {
   }
 
   final int minorUnits;
+
+  /// Expense entry accepts fractional foreign amounts regardless of ISO units.
+  factory Money.parseExpense(
+    String input, {
+    required String currencyCode,
+    required int decimalPlaces,
+  }) {
+    final parts = input.trim().split('.');
+    final fraction = parts.length == 2 ? parts.last.length : 0;
+    final precision = currencyCode == 'MYR'
+        ? 2
+        : (fraction > decimalPlaces ? fraction : decimalPlaces);
+    if (precision > 6) {
+      throw const LedgerException(
+        'Use up to 6 decimal places for an expense amount.',
+      );
+    }
+    return Money.parsePositive(
+      input,
+      currencyCode: currencyCode,
+      decimalPlaces: precision,
+    );
+  }
   final String currencyCode;
   final int decimalPlaces;
 

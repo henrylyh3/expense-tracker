@@ -316,3 +316,15 @@ until those checks pass. Use a test installation for destructive restore tests.
 - Version: 0.4.4+13. Signed ARM64 APK: release/expense-tracker-0.4.4-arm64-release.apk. Guides: CURRENCY_RATES.md and UPDATES.md.
 - Signed artifact verified: com.example.expense_tracker, versionName 0.4.4, versionCode 2013 (previous 2012), arm64-v8a only, with the same signing certificate as v0.4.3.
 - Android API 36 release smoke test: installed over v0.4.3 with the RM 25.60 expense preserved; Settings update check completed visibly; selecting THB fetched Frankfurter rate 0.121 dated 2026-11-09; a manual override of 0.13 was saved and remained 0.13 on Edit currency without a new reference lookup. No app runtime errors were recorded.
+
+## 2026-11-09 — v0.4.5 searchable currencies and flexible amount entry
+
+- Expanded the offline hardcoded template list to 165 current ISO monetary codes with defined minor units. Search accepts code or name, case-insensitively; templates and configured records are sorted by currency code.
+- Removed the decimal-places control and its settings-row label. Foreign expense input accepts up to six decimal places regardless of conventional currency precision, including JPY; MYR entry/totals remain two decimals.
+- Added per-expense precision storage in database schema 6. Legacy rows retain a null fallback to their existing currency scale, preserving values without rescaling. Reports align mixed scales exactly; shared expense entry uses the same parsing rules.
+- Backup schema 5 preserves each expense precision and accepts legacy schemas 1–4. Added tests for fractional history/report totals, export/restore and v5-to-v6 data preservation.
+- Added unique currency-name validation in the form and inside the write transaction, comparing case and repeated whitespace across base/named/archived records. Distinct names may share a code; unchanged legacy names remain editable.
+- Validation: clean Flutter analysis, all 281 Flutter tests passed, 20 SQLite schema tests and 5 backup SQL checks passed, and project configuration checks passed.
+- Version 0.4.5+14. Signed ARM64 APK: release/expense-tracker-0.4.5-arm64-release.apk. Details and sources: CURRENCY_CATALOG.md.
+- Android API 36 release verification: v0.4.4 data upgraded without losing the RM 25.60 expense; typing jpy selected the JPY template with reference-rate prefill; decimal controls were absent; JPY 100.50 saved and remained exact in History after reinstalling the final APK (MYR equivalent RM 2.58). No app runtime errors were recorded.
+- Artifact verified: com.example.expense_tracker, versionName 0.4.5, versionCode 2014 (previous 2013), ARM64 only, same signing certificate as v0.4.4. Final compatibility tests also cover adding a named record for a legacy currency scale.

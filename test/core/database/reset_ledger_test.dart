@@ -18,7 +18,7 @@ void main() {
       "INSERT INTO trip_rates VALUES ('holiday','THB','0.12','THB 2025','thb25')",
     );
     await db.customStatement(
-      "INSERT INTO transactions VALUES ('12345678-1234-4234-8234-123456789abc','seed-food','expense',10000,'THB','0.12',1200,'2026-11-08',NULL,0,0,'holiday')",
+      "INSERT INTO transactions (id, category_id, type, amount_minor, currency_code, exchange_rate_snapshot, amount_myr_minor, transaction_date, note, created_at_utc, updated_at_utc, trip_id) VALUES ('12345678-1234-4234-8234-123456789abc','seed-food','expense',10000,'THB','0.12',1200,'2026-11-08',NULL,0,0,'holiday')",
     );
     await db.customStatement(
       "INSERT INTO app_settings VALUES ('active_trip','holiday'),('default_currency','THB'),('default_rate','thb25')",

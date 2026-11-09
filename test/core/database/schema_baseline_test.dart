@@ -11,13 +11,47 @@ void main() {
   final verifier = SchemaVerifier(GeneratedHelper());
 
   test(
-    'fresh schema matches the exported v5 tables, indexes and triggers',
+    'v5 upgrade preserves the exact units of existing zero-decimal expenses',
+    () async {
+      final schema = await verifier.schemaAt(5);
+      addTearDown(schema.rawDatabase.close);
+      schema.rawDatabase.execute(
+        "INSERT INTO currencies VALUES ('MYR','Ringgit','RM',2,'1',1,0,0), ('JPY','Yen','JPY',0,'0.03',1,0,0)",
+      );
+      schema.rawDatabase.execute(
+        "INSERT INTO categories VALUES ('food','Food','expense','restaurant','#123456',0,0)",
+      );
+      schema.rawDatabase.execute(
+        "INSERT INTO trips VALUES ('personal','Personal')",
+      );
+      schema.rawDatabase.execute(
+        "INSERT INTO app_settings VALUES ('theme_mode','system')",
+      );
+      schema.rawDatabase.execute(
+        "INSERT INTO transactions VALUES ('12345678-1234-4234-8234-123456789abc','food','expense',1000,'JPY','0.03',3000,'2026-11-09',NULL,0,0,'personal')",
+      );
+      final db = AppDatabase.forTesting(schema.newConnection());
+      addTearDown(db.close);
+      await db.initialize();
+      await verifier.migrateAndValidate(db, 6);
+      final row = await db
+          .customSelect(
+            'SELECT amount_minor, amount_decimal_places FROM transactions',
+          )
+          .getSingle();
+      expect(row.read<int>('amount_minor'), 1000);
+      expect(row.readNullable<int>('amount_decimal_places'), isNull);
+    },
+  );
+
+  test(
+    'fresh schema matches the exported v6 tables, indexes and triggers',
     () async {
       final db = AppDatabase.forTesting(NativeDatabase.memory());
       addTearDown(db.close);
       await verifier.migrateAndValidate(
         db,
-        5,
+        6,
         options: const ValidationOptions(validateDropped: true),
       );
       await db.initialize();
@@ -43,7 +77,7 @@ void main() {
     final db = AppDatabase.forTesting(schema.newConnection());
     addTearDown(db.close);
     await db.initialize();
-    await verifier.migrateAndValidate(db, 5);
+    await verifier.migrateAndValidate(db, 6);
     expect(
       (await db
               .customSelect('SELECT count(*) AS n FROM categories')
@@ -96,7 +130,7 @@ void main() {
     final db = AppDatabase.forTesting(schema.newConnection());
     addTearDown(db.close);
     await db.initialize();
-    await verifier.migrateAndValidate(db, 5);
+    await verifier.migrateAndValidate(db, 6);
     final row = await db
         .customSelect(
           "SELECT rate_to_myr, name FROM trip_rates WHERE trip_id = 'thailand'",
@@ -139,7 +173,7 @@ void main() {
         expect(
           (await reopened.customSelect('PRAGMA user_version').getSingle())
               .read<int>('user_version'),
-          6,
+          7,
         );
         expect(
           (await reopened
@@ -162,9 +196,9 @@ void main() {
   );
 }
 
-// Synthetic future file only. This does not introduce a production v6 migration.
+// Synthetic future file only. This does not introduce a production v7 migration.
 class _FutureDatabase extends AppDatabase {
   _FutureDatabase(super.executor) : super.forTesting();
   @override
-  int get schemaVersion => 6;
+  int get schemaVersion => 7;
 }

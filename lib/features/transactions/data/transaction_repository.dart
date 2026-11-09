@@ -17,7 +17,7 @@ class TransactionRepository {
 
   static const _projection = '''SELECT t.*, c.name AS category_name,
     c.icon_key AS category_icon_key, c.color_hex AS category_color_hex,
-    c.is_archived AS category_archived, u.decimal_places,
+    c.is_archived AS category_archived, COALESCE(t.amount_decimal_places, u.decimal_places) AS decimal_places,
     u.is_active AS currency_active
     FROM transactions t JOIN categories c ON c.id = t.category_id
     JOIN currencies u ON u.code = t.currency_code''';
@@ -165,7 +165,7 @@ class TransactionRepository {
         'Archived currencies cannot be selected for new transactions.',
       );
     }
-    final original = Money.parsePositive(
+    final original = Money.parseExpense(
       input.amountText,
       currencyCode: input.currencyCode,
       decimalPlaces: currency.read<int>('decimal_places'),
@@ -182,8 +182,8 @@ class TransactionRepository {
       final newId = const Uuid().v4();
       await _database.customInsert(
         '''INSERT INTO transactions (id, category_id, type, amount_minor, currency_code,
-          exchange_rate_snapshot, amount_myr_minor, transaction_date, note, created_at_utc, updated_at_utc, trip_id)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+          exchange_rate_snapshot, amount_myr_minor, transaction_date, note, created_at_utc, updated_at_utc, trip_id, amount_decimal_places)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
         variables: [
           Variable<String>(newId),
           Variable<String>(input.categoryId),
@@ -197,6 +197,7 @@ class TransactionRepository {
           Variable<int>(now),
           Variable<int>(now),
           Variable.withString(tripId),
+          Variable.withInt(conversion.original.decimalPlaces),
         ],
         updates: {_database.transactions},
       );
@@ -222,7 +223,7 @@ class TransactionRepository {
           );
     await _database.customUpdate(
       '''UPDATE transactions SET category_id = ?, type = ?, amount_minor = ?, currency_code = ?,
-         exchange_rate_snapshot = ?, amount_myr_minor = ?, transaction_date = ?, note = ?, updated_at_utc = ?
+         exchange_rate_snapshot = ?, amount_myr_minor = ?, transaction_date = ?, note = ?, updated_at_utc = ?, amount_decimal_places = ?
          WHERE id = ?''',
       variables: [
         Variable<String>(input.categoryId),
@@ -234,6 +235,7 @@ class TransactionRepository {
         Variable<String>(input.date.toString()),
         Variable<String>(input.note),
         Variable<int>(updatedAt),
+        Variable.withInt(conversion.original.decimalPlaces),
         Variable<String>(previous.id),
       ],
       updates: {_database.transactions},

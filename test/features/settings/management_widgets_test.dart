@@ -80,7 +80,20 @@ void main() {
           ),
         ),
       );
-      await tester.tap(find.text('Currency template (optional)'));
+      await tester.tap(
+        find.descendant(
+          of: find.byKey(const ValueKey('currency-template-search')),
+          matching: find.byType(TextField),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.descendant(
+          of: find.byKey(const ValueKey('currency-template-search')),
+          matching: find.byType(TextField),
+        ),
+        'jpy',
+      );
       await tester.pumpAndSettle();
       await tester.tap(find.text('JPY · Japanese Yen').last);
       await tester.pumpAndSettle();
@@ -88,14 +101,7 @@ void main() {
         tester.widget<TextField>(_field('Currency code')).controller!.text,
         'JPY',
       );
-      expect(
-        tester
-            .widget<DropdownButtonFormField<int>>(
-              find.byType(DropdownButtonFormField<int>),
-            )
-            .initialValue,
-        0,
-      );
+      expect(find.byType(DropdownButtonFormField<int>), findsNothing);
       expect(
         tester.widget<TextField>(_field('MYR for 1 JPY')).controller!.text,
         '0.03',
@@ -129,14 +135,7 @@ void main() {
     expect(tester.widget<TextField>(_field('Currency code')).readOnly, isTrue);
     expect(tester.widget<TextField>(_field('MYR for 1 MYR')).readOnly, isTrue);
     expect(tester.widget<TextField>(_field('Currency name')).readOnly, isFalse);
-    expect(
-      tester
-          .widget<DropdownButtonFormField<int>>(
-            find.byType(DropdownButtonFormField<int>),
-          )
-          .onChanged,
-      isNull,
-    );
+    expect(find.byType(DropdownButtonFormField<int>), findsNothing);
   });
 }
 

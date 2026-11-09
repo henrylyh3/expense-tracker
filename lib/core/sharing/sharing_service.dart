@@ -318,7 +318,7 @@ class SharingService {
     final currency = (data['currencies'] as List)
         .cast<Map<String, dynamic>>()
         .firstWhere((c) => c['id'] == expense['currency_id']);
-    Money.parsePositive(
+    Money.parseExpense(
       expense['amount'] as String,
       currencyCode: currency['code'] as String,
       decimalPlaces: currency['precision'] as int,

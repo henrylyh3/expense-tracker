@@ -25,7 +25,7 @@ class ReportRepository {
         .customSelect(
           '''SELECT t.type, t.amount_myr_minor, t.transaction_date, t.category_id,
         c.name AS category_name, c.color_hex, c.icon_key,
-        t.amount_minor, t.currency_code, currency.decimal_places, t.exchange_rate_snapshot
+        t.amount_minor, t.currency_code, COALESCE(t.amount_decimal_places, currency.decimal_places) AS decimal_places, t.exchange_rate_snapshot
         FROM transactions t JOIN categories c ON c.id = t.category_id
         JOIN currencies currency ON currency.code = t.currency_code
         WHERE t.transaction_date >= ?${end == null ? '' : ' AND t.transaction_date < ?'}${expensesOnly ? " AND t.type = 'expense'" : ''}${tripId == null ? '' : ' AND t.trip_id = ?'}''',

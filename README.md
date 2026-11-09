@@ -2,7 +2,7 @@
 
 A Flutter expense ledger with trip profiles, named manual currency rates and MYR accounting. Personal tracking works offline. Optional shared trips use local Wi-Fi or hotspot connections, with the host phone owning the ledger and guests keeping cached views and offline expense queues. No cloud database or exchange-rate API is required.
 
-The current source passes 274 Flutter tests. Android builds and emulator checks are available. Physical two-phone Wi-Fi testing and iOS device validation remain separate checks.
+The current source passes 281 Flutter tests. Android builds and emulator checks are available. Physical two-phone Wi-Fi testing and iOS device validation remain separate checks.
 
 See [Shared trips](docs/SHARING.md) for hosting, invitations, guest sync and data handling. Settings also provides JSON import/export and a confirmed reset to initial defaults.
 
@@ -101,10 +101,10 @@ re-seeded or reset after an open/migration error. Startup checks required schema
 objects/columns, SQLite integrity, existing references, MYR and theme settings
 before showing the ledger. Failed checks preserve the original data.
 
-- Always save original integer minor units **and currency code**.
+- Always save original integer units, currency code and per-expense precision.
 - Save a precise decimal rate snapshot and the rounded MYR equivalent per entry.
 - USD 12.50 at 4.50 MYR/USD stores `1250`, `USD`, `4.5`, `5625`.
-- JPY/KRW use zero decimal places. Rate edits affect new transactions only.
+- Foreign expense entry accepts up to six decimal places, including JPY/KRW. Each entry retains its own precision; rate edits affect new transactions only.
 - Round conversions half up once to MYR sen; never calculate money with doubles.
 - Transaction dates are `YYYY-MM-DD` calendar dates; audit timestamps are UTC
   Unix milliseconds. Archive referenced categories/currencies; never cascade-delete history.
@@ -169,7 +169,7 @@ or native builds. Device integration tests reconnect the database; manual force-
 airplane-mode, OS-backup and uninstall behavior must also be checked before release.
 Run integration tests only on a test installation.
 
-Current checks: **194 real Flutter tests, full analysis, schema comparison and
+Current checks: **281 real Flutter tests, full analysis, schema comparison and
 25 independent SQLite checks pass** through `bash tool/check.sh --offline`.
 Tests use the actual declared packages and generated database, including the
 export/restore service, historical schema baseline, real chart widget construction

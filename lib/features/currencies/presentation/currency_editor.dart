@@ -16,10 +16,14 @@ class CurrencyEditor extends ConsumerStatefulWidget {
   const CurrencyEditor({
     required this.configuredCodes,
     this.currency,
+    this.existingNames = const {},
+    this.configuredPrecisions = const {},
     super.key,
   });
   final Set<String> configuredCodes;
   final ConfiguredCurrency? currency;
+  final Map<String, String> existingNames;
+  final Map<String, int> configuredPrecisions;
 
   @override
   ConsumerState<CurrencyEditor> createState() => _CurrencyEditorState();
@@ -84,6 +88,13 @@ class _CurrencyEditorState extends ConsumerState<CurrencyEditor> {
     _lookupTimer?.cancel();
     final generation = ++_lookupGeneration;
     setState(() {
+      _precision =
+          widget.configuredPrecisions[code] ??
+          currencyCatalog
+              .where((item) => item.code == code)
+              .firstOrNull
+              ?.decimalPlaces ??
+          2;
       _rateEdited = false;
       _fetchingRate = false;
       _lookupFailed = false;
@@ -161,23 +172,40 @@ class _CurrencyEditorState extends ConsumerState<CurrencyEditor> {
       onSave: _save,
       fields: [
         if (widget.currency == null)
-          DropdownButtonFormField<String>(
-            itemHeight: null,
-            decoration: const InputDecoration(
-              labelText: 'Currency template (optional)',
-            ),
-            isExpanded: true,
-            items: [
+          DropdownMenu<String>(
+            key: const ValueKey('currency-template-search'),
+            label: const Text('Currency template (optional)'),
+            hintText: 'Search currency code or name',
+            leadingIcon: const Icon(Icons.search),
+            expandedInsets: EdgeInsets.zero,
+            menuHeight: 300,
+            enableFilter: true,
+            requestFocusOnTap: true,
+            filterCallback: (entries, query) => entries
+                .where(
+                  (entry) => entry.label.toLowerCase().contains(
+                    query.trim().toLowerCase(),
+                  ),
+                )
+                .toList(),
+            dropdownMenuEntries: [
               for (final suggestion in currencyCatalog)
-                DropdownMenuItem(
+                DropdownMenuEntry(
                   value: suggestion.code,
                   enabled:
                       suggestion.code != 'MYR' ||
                       !widget.configuredCodes.contains('MYR'),
-                  child: Text('${suggestion.code} · ${suggestion.name}'),
+                  label: '${suggestion.code} · ${suggestion.name}',
+                  labelWidget: Text(
+                    '${suggestion.code} · ${suggestion.name}',
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
             ],
-            onChanged: _chooseTemplate,
+            onSelected: (code) {
+              FocusScope.of(context).unfocus();
+              _chooseTemplate(code);
+            },
           ),
         TextFormField(
           controller: _code,
@@ -186,7 +214,7 @@ class _CurrencyEditorState extends ConsumerState<CurrencyEditor> {
           decoration: InputDecoration(
             labelText: 'Currency code',
             helperText: locked
-                ? 'Code and precision are fixed for MYR and used currencies.'
+                ? 'Code is fixed for MYR and used currencies.'
                 : 'Three letters, such as USD, JPY or KRW',
           ),
           validator: (value) =>
@@ -200,13 +228,27 @@ class _CurrencyEditorState extends ConsumerState<CurrencyEditor> {
           controller: _name,
           textCapitalization: TextCapitalization.words,
           decoration: const InputDecoration(labelText: 'Currency name'),
-          validator: (value) => fieldError(
-            () => requiredText(
+          validator: (value) => fieldError(() {
+            final name = requiredText(
               value ?? '',
               label: 'Currency name',
               maxLength: 80,
-            ),
-          ),
+            );
+            final key = CurrencyDraft.nameKey(name);
+            if (widget.currency != null &&
+                key == CurrencyDraft.nameKey(widget.currency!.name)) {
+              return;
+            }
+            if (widget.existingNames.entries.any(
+              (entry) =>
+                  entry.key != widget.currency?.key &&
+                  CurrencyDraft.nameKey(entry.value) == key,
+            )) {
+              throw const LedgerException(
+                'This currency name is already used. Choose another name.',
+              );
+            }
+          }),
         ),
         TextFormField(
           controller: _symbol,
@@ -214,19 +256,6 @@ class _CurrencyEditorState extends ConsumerState<CurrencyEditor> {
           validator: (value) => fieldError(
             () => requiredText(value ?? '', label: 'Symbol', maxLength: 12),
           ),
-        ),
-        // Template selection changes precision after the field is mounted.
-        DropdownButtonFormField<int>(
-          key: ValueKey(_precision),
-          initialValue: _precision,
-          decoration: const InputDecoration(labelText: 'Decimal places'),
-          items: [
-            for (var value = 0; value <= 6; value++)
-              DropdownMenuItem(value: value, child: Text('$value')),
-          ],
-          onChanged: locked
-              ? null
-              : (value) => setState(() => _precision = value!),
         ),
         TextFormField(
           controller: _rate,

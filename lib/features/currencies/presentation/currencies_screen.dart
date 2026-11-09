@@ -30,6 +30,10 @@ class _CurrenciesScreenState extends ConsumerState<CurrenciesScreen> {
       builder: (context) => CurrencyEditor(
         currency: currency,
         configuredCodes: all.map((item) => item.code).toSet(),
+        existingNames: {for (final item in all) item.key: item.name},
+        configuredPrecisions: {
+          for (final item in all) item.code: item.decimalPlaces,
+        },
       ),
     );
     if (mounted && saved == true) {
@@ -130,7 +134,7 @@ class _CurrenciesScreenState extends ConsumerState<CurrenciesScreen> {
                 title: Text('${currency.name} (${currency.symbol})'),
                 subtitle: Text(
                   '1 ${currency.code} = ${currency.rateToMyr} MYR\n'
-                  '${currency.decimalPlaces} decimal places · ${currency.usageCount} transactions'
+                  '${currency.usageCount} transactions'
                   '${currency.isBase
                       ? ' · Base currency'
                       : !currency.isActive

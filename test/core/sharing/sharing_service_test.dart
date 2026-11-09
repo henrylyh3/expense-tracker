@@ -209,7 +209,7 @@ void main() {
         "INSERT INTO trips VALUES ('private','Private trip')",
       );
       await hostDb.customStatement(
-        "INSERT INTO transactions VALUES ('12345678-1234-4234-8234-123456789abc','seed-food','expense',900,'MYR','1',900,'2026-11-08','private note',0,0,'private')",
+        "INSERT INTO transactions (id, category_id, type, amount_minor, currency_code, exchange_rate_snapshot, amount_myr_minor, transaction_date, note, created_at_utc, updated_at_utc, trip_id) VALUES ('12345678-1234-4234-8234-123456789abc','seed-food','expense',900,'MYR','1',900,'2026-11-08','private note',0,0,'private')",
       );
       await guest.sync(invitation['id'] as String);
       final cache =

@@ -21,7 +21,7 @@ class CurrencyRepository {
 
   Stream<List<ConfiguredCurrency>> watchAll() => _database
       .customSelect(
-        "SELECT * FROM ($_projection) ORDER BY (code = 'MYR') DESC, is_active DESC, code, name",
+        "SELECT * FROM ($_projection) ORDER BY code, name COLLATE NOCASE, record_id",
         readsFrom: {
           _database.currencies,
           _database.transactions,
@@ -52,6 +52,25 @@ class CurrencyRepository {
     final existing = originalCode == null
         ? null
         : await getByCode(originalCode);
+    if (existing == null ||
+        CurrencyDraft.nameKey(existing.name) !=
+            CurrencyDraft.nameKey(draft.name)) {
+      final names = await _database
+          .customSelect(
+            'SELECT code AS record_key, name FROM currencies UNION ALL SELECT id AS record_key, name FROM currency_rates',
+          )
+          .get();
+      if (names.any(
+        (row) =>
+            row.read<String>('record_key') != existing?.key &&
+            CurrencyDraft.nameKey(row.read<String>('name')) ==
+                CurrencyDraft.nameKey(draft.name),
+      )) {
+        throw const LedgerException(
+          'This currency name is already used. Choose another name.',
+        );
+      }
+    }
     if (existing != null) {
       if (existing.isBase && draft.code != 'MYR') {
         throw const LedgerException('MYR is the fixed base currency.');

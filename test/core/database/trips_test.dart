@@ -158,6 +158,9 @@ void main() {
       for (final row in legacyData['trip_rates']! as List) {
         (row as Map).remove('rate_id');
       }
+      for (final row in legacyData['transactions']! as List) {
+        (row as Map).remove('amount_decimal_places');
+      }
       final upgradedBackup = BackupValidator.fromDocument(legacy);
       expect(upgradedBackup.tables['currency_rates']!.length, 2);
       expect(

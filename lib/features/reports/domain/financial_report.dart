@@ -118,12 +118,18 @@ class FinancialReport {
         expenseCount++;
         final original = entry.original;
         if (original != null) {
-          originalTotals.update(
-            original.currencyCode,
-            (total) => total + BigInt.from(original.minorUnits),
-            ifAbsent: () => BigInt.from(original.minorUnits),
-          );
-          originalPrecision[original.currencyCode] = original.decimalPlaces;
+          final code = original.currencyCode;
+          final priorPrecision =
+              originalPrecision[code] ?? original.decimalPlaces;
+          final precision = priorPrecision > original.decimalPlaces
+              ? priorPrecision
+              : original.decimalPlaces;
+          originalTotals[code] =
+              (originalTotals[code] ?? BigInt.zero) *
+                  BigInt.from(10).pow(precision - priorPrecision) +
+              BigInt.from(original.minorUnits) *
+                  BigInt.from(10).pow(precision - original.decimalPlaces);
+          originalPrecision[code] = precision;
           if (entry.exchangeRate != null) {
             originalRates
                 .putIfAbsent(original.currencyCode, () => <String>{})

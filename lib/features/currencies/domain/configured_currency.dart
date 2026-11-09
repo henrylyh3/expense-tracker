@@ -54,6 +54,9 @@ class CurrencyDraft {
   final int decimalPlaces;
   final String rateToMyr;
 
+  static String nameKey(String name) =>
+      name.trim().replaceAll(RegExp(r'\s+'), ' ').toLowerCase();
+
   static String validateCode(String input) {
     final value = input.trim().toUpperCase();
     if (!RegExp(r'^[A-Z]{3}$').hasMatch(value)) {

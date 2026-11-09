@@ -24,7 +24,7 @@ class BackupRestoreChecks(unittest.TestCase):
         self.db.execute("INSERT INTO currencies VALUES ('MYR','Old Ringgit','RM',2,'1',1,0,0)")
         self.db.execute("INSERT INTO categories VALUES ('old','Old category','expense','restaurant','#123456',0,0)")
         self.db.execute("INSERT INTO app_settings VALUES ('theme_mode','system')")
-        self.db.execute("INSERT INTO transactions VALUES ('00000000-0000-4000-8000-000000000000','old','expense',100,'MYR','1',100,'2026-01-01','Old data',0,0, 'personal')")
+        self.db.execute("INSERT INTO transactions (id, category_id, type, amount_minor, currency_code, exchange_rate_snapshot, amount_myr_minor, transaction_date, note, created_at_utc, updated_at_utc, trip_id) VALUES ('00000000-0000-4000-8000-000000000000','old','expense',100,'MYR','1',100,'2026-01-01','Old data',0,0, 'personal')")
 
     def tearDown(self):
         self.db.close()

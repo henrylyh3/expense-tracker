@@ -51,7 +51,7 @@ class AppDatabase extends _$AppDatabase {
   });
 
   @override
-  int get schemaVersion => 5;
+  int get schemaVersion => 6;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -61,35 +61,42 @@ class AppDatabase extends _$AppDatabase {
       await _seedPersonalTrip();
     }),
     onUpgrade: (migrator, from, to) async {
-      if (from < 1 || from >= 5 || to != 5) {
+      if (from < 1 || from >= 6 || to != 6) {
         throw UnsupportedError('No migration from schema $from to $to.');
       }
       await transaction(() async {
-        await migrator.createTable(sharedSessions);
-        await migrator.createTable(sharedPending);
-        await migrator.createTable(sharedReceipts);
-        if (from == 4) return;
-        await migrator.createTable(currencyRates);
-        if (from >= 2) {
-          if (from == 2) await migrator.addColumn(tripRates, tripRates.name);
-          await migrator.addColumn(tripRates, tripRates.rateId);
-        } else {
-          await migrator.createTable(trips);
-          await migrator.createTable(tripRates);
-          await _seedPersonalTrip();
-          await migrator.addColumn(transactions, transactions.tripId);
-          await customStatement(
-            'CREATE INDEX transactions_trip_date_idx ON transactions(trip_id, transaction_date DESC, id)',
-          );
+        if (from < 5) {
+          await migrator.createTable(sharedSessions);
+          await migrator.createTable(sharedPending);
+          await migrator.createTable(sharedReceipts);
         }
-        await customStatement(
-          '''INSERT INTO currency_rates (id, currency_code, name, rate_to_myr)
+        if (from < 4) {
+          await migrator.createTable(currencyRates);
+          if (from >= 2) {
+            if (from == 2) await migrator.addColumn(tripRates, tripRates.name);
+            await migrator.addColumn(tripRates, tripRates.rateId);
+          } else {
+            await migrator.createTable(trips);
+            await migrator.createTable(tripRates);
+            await _seedPersonalTrip();
+            await migrator.addColumn(transactions, transactions.tripId);
+            await customStatement(
+              'CREATE INDEX transactions_trip_date_idx ON transactions(trip_id, transaction_date DESC, id)',
+            );
+          }
+          await customStatement(
+            '''INSERT INTO currency_rates (id, currency_code, name, rate_to_myr)
           SELECT 'trip:' || r.trip_id || ':' || r.currency_code, r.currency_code,
             COALESCE(r.name, c.name), r.rate_to_myr
           FROM trip_rates r JOIN currencies c ON c.code = r.currency_code''',
-        );
-        await customStatement(
-          "UPDATE trip_rates SET rate_id = 'trip:' || trip_id || ':' || currency_code",
+          );
+          await customStatement(
+            "UPDATE trip_rates SET rate_id = 'trip:' || trip_id || ':' || currency_code",
+          );
+        }
+        await migrator.addColumn(
+          transactions,
+          transactions.amountDecimalPlaces,
         );
       });
     },

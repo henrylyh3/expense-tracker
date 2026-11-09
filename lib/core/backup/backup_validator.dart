@@ -43,6 +43,7 @@ const backupColumns = <String, List<String>>{
     'created_at_utc',
     'updated_at_utc',
     'trip_id',
+    'amount_decimal_places',
   ],
   'trips': ['id', 'name'],
   'trip_rates': ['trip_id', 'currency_code', 'rate_to_myr', 'name', 'rate_id'],
@@ -94,7 +95,7 @@ final class ValidatedBackup {
   Map<String, Object?> toDocument() => {
     'format': 'expense-tracker',
     'format_version': 1,
-    'schema_version': 4,
+    'schema_version': 5,
     'app_version': appVersion,
     'exported_at_utc': exportedAtUtc.toIso8601String(),
     'base_currency': 'MYR',
@@ -187,7 +188,7 @@ abstract final class BackupValidator {
     return fromDocument({
       'format': 'expense-tracker',
       'format_version': 1,
-      'schema_version': 4,
+      'schema_version': 5,
       'app_version': appVersion,
       'exported_at_utc': exportedAtUtc.toUtc().toIso8601String(),
       'base_currency': 'MYR',
@@ -218,7 +219,7 @@ abstract final class BackupValidator {
         root['format_version'] is! int ||
         root['format_version'] != 1 ||
         root['schema_version'] is! int ||
-        !{1, 2, 3, 4}.contains(root['schema_version'])) {
+        !{1, 2, 3, 4, 5}.contains(root['schema_version'])) {
       throw const LedgerException(
         'This backup format or schema version is not supported.',
       );
@@ -240,7 +241,7 @@ abstract final class BackupValidator {
     final legacy = schema == 1;
     final names = backupColumns.keys.toSet();
     if (legacy) names.removeAll({'trips', 'trip_rates'});
-    if (schema != 4) names.remove('currency_rates');
+    if ((schema as int) < 4) names.remove('currency_rates');
     final data = _object(root['data'], names);
     final counts = _object(root['counts'], names);
     final tables = <String, List<Map<String, Object?>>>{};
@@ -261,7 +262,8 @@ abstract final class BackupValidator {
                   .where(
                     (column) =>
                         (!legacy || column != 'trip_id') &&
-                        (schema == 4 || column != 'rate_id') &&
+                        (schema >= 4 || column != 'rate_id') &&
+                        (schema >= 5 || column != 'amount_decimal_places') &&
                         (schema != 2 ||
                             name != 'trip_rates' ||
                             column != 'name'),
@@ -272,6 +274,11 @@ abstract final class BackupValidator {
       ];
     }
 
+    if (schema < 5) {
+      for (final row in tables['transactions']!) {
+        row['amount_decimal_places'] = null;
+      }
+    }
     if (legacy) {
       tables['trips'] = [
         {'id': 'personal', 'name': 'Personal'},
@@ -337,7 +344,7 @@ abstract final class BackupValidator {
       _invalid('The MYR currency is missing.');
     }
 
-    if (schema != 4) {
+    if (schema < 4) {
       tables['currency_rates'] = [];
       for (final row in tables['trip_rates']!) {
         final id = 'trip:${row['trip_id']}:${row['currency_code']}';
@@ -411,10 +418,18 @@ abstract final class BackupValidator {
       final amount = _integerString(row, 'amount_minor', minimum: 1);
       final myr = _integerString(row, 'amount_myr_minor');
       final rate = _rate(row, 'exchange_rate_snapshot');
+      final precision = row['amount_decimal_places'];
+      if (precision != null &&
+          (precision is! int ||
+              precision < 0 ||
+              precision > 6 ||
+              (currency['code'] == 'MYR' && precision != 2))) {
+        _invalid('Transaction amount precision is invalid.');
+      }
       final original = Money.fromMinor(
         minorUnits: amount,
         currencyCode: currency['code']! as String,
-        decimalPlaces: currency['decimal_places']! as int,
+        decimalPlaces: precision as int? ?? currency['decimal_places']! as int,
       );
       if (CurrencyConverter.toMyr(original, rate).minorUnits != myr ||
           (currency['code'] == 'MYR' && rate != '1')) {

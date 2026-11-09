@@ -30,14 +30,11 @@ ConversionSnapshot resolveConversion({
   }
   final sameCurrency = previous?.original.currencyCode == original.currencyCode;
   if (sameCurrency &&
-      previous!.original.decimalPlaces != original.decimalPlaces) {
-    throw const LedgerException(
-      'The saved currency precision has changed. Reload the transaction.',
-    );
-  }
-  if (sameCurrency &&
       rateOverride == null &&
-      previous!.original.minorUnits == original.minorUnits) {
+      BigInt.from(previous!.original.minorUnits) *
+              BigInt.from(10).pow(original.decimalPlaces) ==
+          BigInt.from(original.minorUnits) *
+              BigInt.from(10).pow(previous.original.decimalPlaces)) {
     // Notes/date/category edits must retain both stored conversion facts exactly.
     return previous;
   }

@@ -190,7 +190,7 @@ class _TransactionFormState extends ConsumerState<_TransactionForm> {
       return 'Enter an amount to preview the ${widget.display.code} equivalent.';
     }
     try {
-      final money = Money.parsePositive(
+      final money = Money.parseExpense(
         _amount.text,
         currencyCode: currency.code,
         decimalPlaces: currency.decimalPlaces,
@@ -267,7 +267,7 @@ class _TransactionFormState extends ConsumerState<_TransactionForm> {
         setState(() => _error = ref.read(transactionActionsProvider).error);
       } else {
         if (_original == null) {
-          final amount = Money.parsePositive(
+          final amount = Money.parseExpense(
             input.amountText,
             currencyCode: currency.code,
             decimalPlaces: currency.decimalPlaces,
@@ -391,14 +391,12 @@ class _TransactionFormState extends ConsumerState<_TransactionForm> {
             labelText: 'Amount',
             helperText: 'Use a decimal point; no grouping separators.',
           ),
-          keyboardType: TextInputType.numberWithOptions(
-            decimal: (currency?.decimalPlaces ?? 2) > 0,
-          ),
+          keyboardType: TextInputType.numberWithOptions(decimal: true),
           onChanged: (_) => setState(() {}),
           validator: (value) => currency == null
               ? 'Choose a currency.'
               : fieldError(
-                  () => Money.parsePositive(
+                  () => Money.parseExpense(
                     value ?? '',
                     currencyCode: currency.code,
                     decimalPlaces: currency.decimalPlaces,

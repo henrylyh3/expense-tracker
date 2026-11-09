@@ -224,7 +224,7 @@ void main() {
         throwsA(isA<LedgerException>()),
       );
       await expectLater(
-        transactions.save(_input(amount: '1.001')),
+        transactions.save(_input(amount: '1.0000001')),
         throwsA(isA<LedgerException>()),
       );
       await expectLater(

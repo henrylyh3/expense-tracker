@@ -1,4 +1,4 @@
--- Source of truth for schema v5; also executable by SQLite for independent QA.
+-- Source of truth for schema v6; also executable by SQLite for independent QA.
 CREATE TABLE categories (
   id TEXT NOT NULL PRIMARY KEY CHECK (length(id) BETWEEN 1 AND 64),
   name TEXT NOT NULL CHECK (length(trim(name)) BETWEEN 1 AND 80),
@@ -125,6 +125,11 @@ CREATE TABLE transactions (
   created_at_utc INTEGER NOT NULL CHECK (typeof(created_at_utc) = 'integer' AND created_at_utc >= 0),
   updated_at_utc INTEGER NOT NULL CHECK (typeof(updated_at_utc) = 'integer' AND updated_at_utc >= created_at_utc),
   trip_id TEXT NOT NULL DEFAULT 'personal' REFERENCES trips(id),
+  amount_decimal_places INTEGER CHECK (
+    amount_decimal_places IS NULL OR
+    (typeof(amount_decimal_places) = 'integer' AND amount_decimal_places BETWEEN 0 AND 6
+      AND (currency_code <> 'MYR' OR amount_decimal_places = 2))
+  ),
   CHECK (currency_code <> 'MYR' OR
     (exchange_rate_snapshot = '1' AND amount_myr_minor = amount_minor))
 );

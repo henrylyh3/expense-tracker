@@ -93,7 +93,7 @@ void main() {
 
   test('same currency code supports independent named rate records', () async {
     await currencies.save(_currency());
-    await currencies.save(_currency(rate: '9'));
+    await currencies.save(_currency(rate: '9', name: 'USD 2026'));
     final records = await currencies.watchAll().first;
     expect(records.where((record) => record.code == 'USD').length, 2);
     expect(
@@ -178,7 +178,7 @@ void main() {
         expect(await iterator.moveNext(), isTrue);
         expect(iterator.current.single.usageCount, 0);
         await database.customInsert(
-          '''INSERT INTO transactions VALUES
+          '''INSERT INTO transactions (id, category_id, type, amount_minor, currency_code, exchange_rate_snapshot, amount_myr_minor, transaction_date, note, created_at_utc, updated_at_utc, trip_id) VALUES
         ('123e4567-e89b-42d3-a456-426614174000', 'seed-food', 'expense', 1250, 'MYR', '1', 1250, '2026-11-05', NULL, 0, 0, 'personal')''',
           updates: {database.transactions},
         );
@@ -207,9 +207,10 @@ CurrencyDraft _currency({
   String code = 'USD',
   int precision = 2,
   String rate = '4.5',
+  String name = 'US Dollar',
 }) => CurrencyDraft(
   code: code,
-  name: 'US Dollar',
+  name: name,
   symbol: r'$',
   decimalPlaces: precision,
   rateToMyr: rate,
@@ -221,7 +222,7 @@ Future<void> _transaction(
   String rate = '1',
   int myr = 1250,
 }) => database.customStatement(
-  '''INSERT INTO transactions VALUES
+  '''INSERT INTO transactions (id, category_id, type, amount_minor, currency_code, exchange_rate_snapshot, amount_myr_minor, transaction_date, note, created_at_utc, updated_at_utc, trip_id) VALUES
   ('123e4567-e89b-42d3-a456-426614174000', 'seed-food', 'expense', 1250, ?, ?, ?, '2026-11-05', NULL, 0, 0, 'personal')''',
   [currency, rate, myr],
 );

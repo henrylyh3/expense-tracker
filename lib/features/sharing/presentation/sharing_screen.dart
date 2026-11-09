@@ -503,7 +503,7 @@ Future<Map<String, Object?>?> _expense(
                     final c = currencies.firstWhere(
                       (row) => row['id'] == currency,
                     );
-                    Money.parsePositive(
+                    Money.parseExpense(
                       value ?? '',
                       currencyCode: c['code'] as String,
                       decimalPlaces: c['precision'] as int,
