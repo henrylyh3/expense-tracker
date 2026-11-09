@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -8,6 +10,7 @@ import '../../../core/validation/input_validation.dart';
 import '../../../shared/widgets/management_widgets.dart';
 import '../domain/configured_currency.dart';
 import 'currency_view_model.dart';
+import '../data/frankfurter_service.dart';
 
 class CurrencyEditor extends ConsumerStatefulWidget {
   const CurrencyEditor({
@@ -30,6 +33,13 @@ class _CurrencyEditorState extends ConsumerState<CurrencyEditor> {
   late final TextEditingController _rate;
   late int _precision;
   Object? _inputError;
+  Timer? _lookupTimer;
+  int _lookupGeneration = 0;
+  String _lookupCode = '';
+  bool _rateEdited = false;
+  bool _fetchingRate = false;
+  bool _lookupFailed = false;
+  FrankfurterQuote? _quote;
 
   @override
   void initState() {
@@ -44,6 +54,8 @@ class _CurrencyEditorState extends ConsumerState<CurrencyEditor> {
 
   @override
   void dispose() {
+    _lookupTimer?.cancel();
+    _lookupGeneration++;
     _code.dispose();
     _name.dispose();
     _symbol.dispose();
@@ -59,8 +71,57 @@ class _CurrencyEditorState extends ConsumerState<CurrencyEditor> {
       _name.text = suggestion.name;
       _symbol.text = suggestion.symbol;
       _precision = suggestion.decimalPlaces;
-      _rate.clear();
+      if (code != _lookupCode) _rate.clear();
     });
+    _scheduleRateLookup(immediate: true);
+  }
+
+  void _scheduleRateLookup({bool immediate = false, bool retry = false}) {
+    if (widget.currency != null) return;
+    final code = _code.text.trim().toUpperCase();
+    if (!retry && code == _lookupCode) return;
+    _lookupCode = code;
+    _lookupTimer?.cancel();
+    final generation = ++_lookupGeneration;
+    setState(() {
+      _rateEdited = false;
+      _fetchingRate = false;
+      _lookupFailed = false;
+      _quote = null;
+      _rate.text = code == 'MYR' ? '1' : '';
+    });
+    if (code == 'MYR' || !RegExp(r'^[A-Z]{3}$').hasMatch(code)) return;
+    if (immediate) {
+      unawaited(_fetchRate(code, generation));
+    } else {
+      _lookupTimer = Timer(
+        const Duration(milliseconds: 400),
+        () => unawaited(_fetchRate(code, generation)),
+      );
+    }
+  }
+
+  Future<void> _fetchRate(String code, int generation) async {
+    if (!mounted || generation != _lookupGeneration || _rateEdited) return;
+    setState(() => _fetchingRate = true);
+    try {
+      final quote = await ref.read(frankfurterServiceProvider).fetch(code);
+      if (!mounted || generation != _lookupGeneration) return;
+      setState(() {
+        if (!_rateEdited) {
+          _rate.text = quote.rate;
+          _quote = quote;
+        }
+      });
+    } catch (_) {
+      if (mounted && generation == _lookupGeneration && !_rateEdited) {
+        setState(() => _lookupFailed = true);
+      }
+    } finally {
+      if (mounted && generation == _lookupGeneration) {
+        setState(() => _fetchingRate = false);
+      }
+    }
   }
 
   Future<void> _save() async {
@@ -90,8 +151,8 @@ class _CurrencyEditorState extends ConsumerState<CurrencyEditor> {
         widget.currency?.isBase == true ||
         widget.currency?.isUsed == true ||
         widget.currency?.recordId != null;
-    final base = widget.currency?.isBase == true;
     final code = _code.text.trim().toUpperCase();
+    final base = widget.currency?.isBase == true || code == 'MYR';
     return EditorSheet(
       title: widget.currency == null ? 'Add currency' : 'Edit currency',
       formKey: _formKey,
@@ -130,7 +191,10 @@ class _CurrencyEditorState extends ConsumerState<CurrencyEditor> {
           ),
           validator: (value) =>
               fieldError(() => CurrencyDraft.validateCode(value ?? '')),
-          onChanged: (_) => setState(() {}),
+          onChanged: (_) {
+            setState(() {});
+            _scheduleRateLookup();
+          },
         ),
         TextFormField(
           controller: _name,
@@ -176,7 +240,29 @@ class _CurrencyEditorState extends ConsumerState<CurrencyEditor> {
           ),
           validator: (value) =>
               fieldError(() => normalizeExchangeRate(value ?? '')),
+          onChanged: (_) => setState(() {
+            _rateEdited = true;
+            _quote = null;
+            _lookupFailed = false;
+          }),
         ),
+        if (_fetchingRate) ...[
+          const LinearProgressIndicator(),
+          const Text('Getting Frankfurter’s latest reference rate…'),
+        ],
+        if (_quote != null)
+          Text(
+            'Frankfurter reference rate · ${_quote!.date}\nPrefilled once. You can edit it before saving.',
+          ),
+        if (_lookupFailed) ...[
+          const Text(
+            'Could not get a reference rate. Enter your rate manually, or retry.',
+          ),
+          TextButton(
+            onPressed: () => _scheduleRateLookup(immediate: true, retry: true),
+            child: const Text('Retry rate lookup'),
+          ),
+        ],
         const Text(
           'Changing the default rate affects new transactions only. Existing conversion snapshots are preserved.',
         ),

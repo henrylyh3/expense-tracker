@@ -1,6 +1,8 @@
 # Android app updates
 
-The Android app checks the public GitHub latest-release API once after successful ledger startup on each cold app launch. A newer ARM64 build prompts with **Update now** and **Later**. Checks are skipped on other platforms, during ledger recovery, and if the user has navigated away from Home while the request was running. Offline, invalid or rate-limited responses do not block the app or show repeated errors. Choosing Later defers until the next cold launch.
+The Android app checks the public GitHub latest-release API after successful ledger startup and when returning to the foreground after at least five minutes. A newer ARM64 build prompts with **Update now** and **Later**. Checks are skipped on other platforms and during ledger recovery. An available update stays pending while you are away from Home and is offered when you return. Choosing Later defers that version for the current app session.
+
+Metadata and initial APK requests use fresh query URLs and no-cache headers to avoid stale GitHub redirects or cached failures. Signed redirect URLs are preserved unchanged. Temporary check failures are retried once, and simultaneous checks share one request. Offline failures never block the ledger. In Settings, the update button next to Current version provides an explicit check, shows whether you are up to date, and offers Retry on failure. No GitHub account or phone setup is required.
 
 Update now downloads the APK with progress and cancellation. The app accepts only HTTPS GitHub release endpoints and their known asset hosts. It bounds metadata and APK size, cross-checks the manifest against the GitHub asset digest/size, and verifies the downloaded checksum. Android also checks the actual package ID, strictly newer version code, existing signing certificate and ARM64 libraries before the installer can open. Installation is always initiated by the user; it is not a silent background update.
 

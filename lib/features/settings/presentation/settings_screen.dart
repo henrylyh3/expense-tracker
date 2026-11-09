@@ -8,6 +8,7 @@ import '../../../core/app_info.dart';
 import '../../../core/models/ledger_types.dart';
 import '../../currencies/presentation/currency_view_model.dart';
 import 'reset_ledger.dart';
+import 'update_prompt.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -21,10 +22,7 @@ class SettingsScreen extends ConsumerWidget {
           leading: Icon(Icons.info_outline),
           title: Text('Current version'),
           subtitle: Text(appVersion),
-          trailing: Tooltip(
-            message: 'Checks for Android updates when the app opens',
-            child: Icon(Icons.system_update_alt),
-          ),
+          trailing: CheckUpdatesButton(),
         ),
       ),
       const SizedBox(height: 12),

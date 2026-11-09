@@ -39,14 +39,17 @@ class _ExpenseTrackerAppState extends ConsumerState<ExpenseTrackerApp> {
       darkTheme: AppTheme.dark(),
       themeMode: mode ?? ThemeMode.system,
       routerConfig: router,
-      builder: (context, child) => UpdateCheckOnOpen(
-        ready: ready,
-        busy: busy,
-        canPrompt: () =>
-            router.routeInformationProvider.value.uri.path == '/home',
-        navigatorContext: () =>
-            router.routerDelegate.navigatorKey.currentState?.overlay?.context,
-        child: AbsorbPointer(absorbing: busy, child: child!),
+      builder: (context, child) => AnimatedBuilder(
+        animation: router.routeInformationProvider,
+        builder: (context, _) => UpdateCheckOnOpen(
+          ready: ready,
+          busy: busy,
+          canPrompt: () =>
+              router.routeInformationProvider.value.uri.path == '/home',
+          navigatorContext: () =>
+              router.routerDelegate.navigatorKey.currentState?.overlay?.context,
+          child: AbsorbPointer(absorbing: busy, child: child!),
+        ),
       ),
     );
   }

@@ -1,9 +1,11 @@
 # Privacy and local data
 
-Expense Tracker has no online account, external backend, exchange-rate API,
-advertising, analytics or crash-reporting service. Shared-trip access uses private invitation keys. Personal ledger operations require no internet connection. Optional shared trips use local Wi-Fi or hotspot networking. Exchange rates are entered manually.
+Expense Tracker has no online account, external ledger backend,
+advertising, analytics or crash-reporting service. Shared-trip access uses private invitation keys. Personal ledger operations require no internet connection. Optional shared trips use local Wi-Fi or hotspot networking. New currencies can prefill Frankfurter reference rates; rates remain editable and fixed after saving.
 
-On Android, the app checks GitHub Releases for updates once on startup. GitHub receives the network request (including the device's public IP address and updater user agent); no ledger, trip, invitation or backup data is sent. Choosing Update now downloads a signed APK from GitHub. The temporary update cache is separate from ledger storage and excluded from ledger exports. Android installation permission is used only after you choose to update. See [UPDATES.md](UPDATES.md).
+On Android, the app checks GitHub Releases for updates on startup, on foreground return after at least five minutes, and when you explicitly check in Settings. GitHub receives the network request (including the device's public IP address and updater user agent); no ledger, trip, invitation or backup data is sent. Choosing Update now downloads a signed APK from GitHub. The temporary update cache is separate from ledger storage and excluded from ledger exports. Android installation permission is used only after you choose to update. See [UPDATES.md](UPDATES.md).
+
+When you choose or type a currency while creating a new record, the app requests its latest reference rate to MYR from api.frankfurter.dev. The request identifies the currency pair; no expense amounts, notes, trip names or invitations are transmitted. The network connection exposes its public IP address to the service/infrastructure. The returned rate is only a suggested form value: it does not refresh saved rates or rewrite existing expenses. Offline users can enter a rate manually. See [CURRENCY_RATES.md](CURRENCY_RATES.md).
 
 Transactions, notes, categories, currencies, saved rates and appearance settings
 are stored in private SQLite storage on the device. All reports use saved MYR

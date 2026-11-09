@@ -62,12 +62,18 @@ class _Updates extends UpdateService {
   }
 }
 
-Widget _app(_Updates service, {bool ready = true}) {
+Widget _app(
+  _Updates service, {
+  bool ready = true,
+  bool canPrompt = true,
+  DateTime Function()? clock,
+}) {
   final navigator = GlobalKey<NavigatorState>();
   return ProviderScope(
     overrides: [
       updateServiceProvider.overrideWithValue(service),
       updateSupportedProvider.overrideWithValue(true),
+      if (clock != null) updateClockProvider.overrideWithValue(clock),
     ],
     child: MaterialApp(
       navigatorKey: navigator,
@@ -75,6 +81,7 @@ Widget _app(_Updates service, {bool ready = true}) {
       builder: (_, child) => UpdateCheckOnOpen(
         ready: ready,
         busy: false,
+        canPrompt: () => canPrompt,
         navigatorContext: () => navigator.currentState?.overlay?.context,
         child: child!,
       ),
@@ -83,6 +90,56 @@ Widget _app(_Updates service, {bool ready = true}) {
 }
 
 void main() {
+  testWidgets('retains an available update while away from Home', (
+    tester,
+  ) async {
+    final service = _Updates();
+    await tester.pumpWidget(_app(service, canPrompt: false));
+    await tester.pumpAndSettle();
+    expect(find.text('Update available'), findsNothing);
+    await tester.pumpWidget(_app(service));
+    await tester.pumpAndSettle();
+    expect(find.text('Update available'), findsOneWidget);
+    expect(service.checks, 1);
+  });
+  testWidgets('resuming retries an earlier failed check after five minutes', (
+    tester,
+  ) async {
+    var now = DateTime(2026, 11, 9);
+    final service = _Updates()..offline = true;
+    await tester.pumpWidget(_app(service, clock: () => now));
+    await tester.pumpAndSettle();
+    expect(find.text('Update available'), findsNothing);
+    service.offline = false;
+    now = now.add(const Duration(minutes: 6));
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pumpAndSettle();
+    expect(service.checks, 2);
+    expect(find.text('Update available'), findsOneWidget);
+  });
+  testWidgets('Settings shows a failed check and can retry successfully', (
+    tester,
+  ) async {
+    final service = _Updates()..offline = true;
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          updateServiceProvider.overrideWithValue(service),
+          updateSupportedProvider.overrideWithValue(true),
+        ],
+        child: const MaterialApp(home: Scaffold(body: CheckUpdatesButton())),
+      ),
+    );
+    await tester.tap(find.byTooltip('Check for updates'));
+    await tester.pumpAndSettle();
+    expect(find.text('Could not check for updates'), findsOneWidget);
+    service.offline = false;
+    await tester.tap(find.text('Retry'));
+    await tester.pumpAndSettle();
+    expect(find.text('Update available'), findsOneWidget);
+    expect(service.checks, 2);
+  });
   testWidgets('startup checks once and Later keeps the ledger open', (
     tester,
   ) async {

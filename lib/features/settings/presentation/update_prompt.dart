@@ -7,6 +7,81 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/updates/update_service.dart';
 
 final updateSupportedProvider = Provider<bool>((ref) => Platform.isAndroid);
+final updateClockProvider = Provider<DateTime Function()>(
+  (ref) => DateTime.now,
+);
+
+class CheckUpdatesButton extends ConsumerWidget {
+  const CheckUpdatesButton({super.key});
+  @override
+  Widget build(BuildContext context, WidgetRef ref) => IconButton(
+    tooltip: 'Check for updates',
+    icon: const Icon(Icons.system_update_alt),
+    onPressed: !ref.watch(updateSupportedProvider)
+        ? null
+        : () => showDialog<void>(
+            context: context,
+            builder: (_) => const _ManualUpdateCheck(),
+          ),
+  );
+}
+
+class _ManualUpdateCheck extends ConsumerStatefulWidget {
+  const _ManualUpdateCheck();
+  @override
+  ConsumerState<_ManualUpdateCheck> createState() => _ManualUpdateCheckState();
+}
+
+class _ManualUpdateCheckState extends ConsumerState<_ManualUpdateCheck> {
+  late Future<UpdateRelease?> _check;
+  @override
+  void initState() {
+    super.initState();
+    _check = ref.read(updateServiceProvider).check();
+  }
+
+  @override
+  Widget build(BuildContext context) => FutureBuilder<UpdateRelease?>(
+    future: _check,
+    builder: (context, state) {
+      if (state.connectionState == ConnectionState.done &&
+          !state.hasError &&
+          state.data != null) {
+        return UpdatePrompt(release: state.data!);
+      }
+      final loading = state.connectionState != ConnectionState.done;
+      return AlertDialog(
+        title: Text(
+          loading
+              ? 'Checking for updates'
+              : state.hasError
+              ? 'Could not check for updates'
+              : 'You’re up to date',
+        ),
+        content: loading
+            ? const LinearProgressIndicator()
+            : Text(
+                state.hasError
+                    ? 'Check your internet connection and try again. GitHub may be temporarily unavailable.'
+                    : 'You have the latest published version.',
+              ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+          if (state.hasError)
+            FilledButton(
+              onPressed: () => setState(() {
+                _check = ref.read(updateServiceProvider).check();
+              }),
+              child: const Text('Retry'),
+            ),
+        ],
+      );
+    },
+  );
+}
 
 class UpdateCheckOnOpen extends ConsumerStatefulWidget {
   const UpdateCheckOnOpen({
@@ -26,12 +101,36 @@ class UpdateCheckOnOpen extends ConsumerStatefulWidget {
   ConsumerState<UpdateCheckOnOpen> createState() => _UpdateCheckOnOpenState();
 }
 
-class _UpdateCheckOnOpenState extends ConsumerState<UpdateCheckOnOpen> {
+class _UpdateCheckOnOpenState extends ConsumerState<UpdateCheckOnOpen>
+    with WidgetsBindingObserver {
   bool _attempted = false;
+  bool _queued = false;
+  bool _showing = false;
+  UpdateRelease? _pending;
+  DateTime? _lastCheck;
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _schedule();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed &&
+        !_showing &&
+        (_lastCheck == null ||
+            ref.read(updateClockProvider)().difference(_lastCheck!) >=
+                const Duration(minutes: 5))) {
+      _attempted = false;
+      _schedule();
+    }
   }
 
   @override
@@ -41,40 +140,64 @@ class _UpdateCheckOnOpenState extends ConsumerState<UpdateCheckOnOpen> {
   }
 
   void _schedule() {
-    if (_attempted ||
-        !widget.ready ||
-        widget.busy ||
-        !ref.read(updateSupportedProvider)) {
+    if (!widget.ready || widget.busy || !ref.read(updateSupportedProvider)) {
       return;
     }
+    _offerPending();
+    if (_attempted) return;
     _attempted = true;
+    _lastCheck = ref.read(updateClockProvider)();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
       try {
         final release = await ref.read(updateServiceProvider).check();
         if (!mounted || release == null) return;
-        // Never interrupt a restore/reset or an editor opened while checking.
-        final context = widget.navigatorContext();
-        if (!widget.ready ||
-            widget.busy ||
-            context == null ||
-            !context.mounted) {
-          return;
-        }
-        if (!(widget.canPrompt?.call() ?? true)) {
-          return;
-        }
-        final route = ModalRoute.of(context);
-        if (route != null && !route.isCurrent) return;
+        _pending = release;
+        _offerPending();
+      } catch (_) {
+        // Offline, unavailable, and rate-limited checks never block the ledger.
+      }
+    });
+    WidgetsBinding.instance.ensureVisualUpdate();
+  }
+
+  void _offerPending() {
+    if (_pending == null || _queued || _showing) return;
+    _queued = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      _queued = false;
+      if (!mounted ||
+          _pending == null ||
+          !widget.ready ||
+          widget.busy ||
+          !(widget.canPrompt?.call() ?? true)) {
+        return;
+      }
+      final service = ref.read(updateServiceProvider);
+      if (_pending!.versionCode == service.deferredVersion) {
+        _pending = null;
+        return;
+      }
+      final context = widget.navigatorContext();
+      if (context == null ||
+          !context.mounted ||
+          Navigator.of(context, rootNavigator: true).canPop()) {
+        return;
+      }
+      final release = _pending!;
+      _pending = null;
+      _showing = true;
+      try {
         await showDialog<void>(
           context: context,
           barrierDismissible: false,
           builder: (_) => UpdatePrompt(release: release),
         );
-      } catch (_) {
-        // Offline, unavailable, and rate-limited checks never block the ledger.
+      } finally {
+        _showing = false;
       }
     });
+    WidgetsBinding.instance.ensureVisualUpdate();
   }
 
   @override
@@ -254,7 +377,13 @@ class _UpdatePromptState extends ConsumerState<UpdatePrompt>
             ]
           : [
               TextButton(
-                onPressed: _busy ? null : () => Navigator.pop(context),
+                onPressed: _busy
+                    ? null
+                    : () {
+                        ref.read(updateServiceProvider).deferredVersion =
+                            widget.release.versionCode;
+                        Navigator.pop(context);
+                      },
                 child: const Text('Later'),
               ),
               FilledButton(

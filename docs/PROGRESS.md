@@ -304,3 +304,15 @@ until those checks pass. Use a test installation for destructive restore tests.
 - Validation: clean Flutter analysis, all 261 Flutter tests passed, and project configuration checks passed. Tests cover mixed saved rates, rate removal after deleting an expense, narrow-screen display, named default records and History labels/amounts.
 - Release version 0.4.3+12; signed ARM64 APK: release/expense-tracker-0.4.3-arm64-release.apk. Publish the APK and update manifest through the existing GitHub updater workflow.
 - Signed artifact verified: com.example.expense_tracker, versionName 0.4.3, versionCode 2012 (previous 2011), arm64-v8a only, with the same signing certificate as v0.4.2.
+
+## 2026-11-09 — v0.4.4 creation-time reference rates and reliable updates
+
+- New currency/rate records prefill Frankfurter's latest available reference rate to MYR when a template or valid currency code is entered. The observation date is shown. The rate remains editable and is saved through the normal currency workflow.
+- Existing currencies, trip rates and saved expense snapshots are never refreshed by this feature. Manual entry remains available offline or for unsupported currencies. Late responses cannot overwrite a manual edit or a different selected currency.
+- Reference rate decimals are parsed from the original JSON number token, rounded half up to 12 fractional digits and validated without binary floating-point conversion of the saved rate.
+- Fixed cached GitHub update/download requests with fresh initial URLs and no-cache headers while preserving signed redirect URLs. Temporary checks retry once, concurrent checks share a request, and updates discovered away from Home remain pending until the user returns.
+- Added a Settings Check for updates button with visible success/failure and Retry. Foreground checks run after at least five minutes; Later defers the same version for the current session. No GitHub setup is needed on the phone.
+- Validation: clean Flutter analysis, all 274 Flutter tests passed, project configuration checks passed. Coverage includes reference-pair validation, decimal rounding, offline input, races/manual overrides, saved-record no-fetch behavior, update cache busting, signed redirects, retries, pending prompts and foreground checks.
+- Version: 0.4.4+13. Signed ARM64 APK: release/expense-tracker-0.4.4-arm64-release.apk. Guides: CURRENCY_RATES.md and UPDATES.md.
+- Signed artifact verified: com.example.expense_tracker, versionName 0.4.4, versionCode 2013 (previous 2012), arm64-v8a only, with the same signing certificate as v0.4.3.
+- Android API 36 release smoke test: installed over v0.4.3 with the RM 25.60 expense preserved; Settings update check completed visibly; selecting THB fetched Frankfurter rate 0.121 dated 2026-11-09; a manual override of 0.13 was saved and remained 0.13 on Edit currency without a new reference lookup. No app runtime errors were recorded.

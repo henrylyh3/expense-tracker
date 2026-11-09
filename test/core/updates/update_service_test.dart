@@ -14,6 +14,8 @@ void main() {
   late Map<String, dynamic> manifest;
   late Map<String, dynamic> release;
   late List<String> calls;
+  late List<Uri> requests;
+  var responseCount = 0;
   var installedCode = 2010;
   var mode = 'ok';
   final bytes = List.generate(128, (i) => i);
@@ -21,6 +23,8 @@ void main() {
   setUp(() async {
     directory = await Directory.systemTemp.createTemp('expense-update-test-');
     calls = [];
+    requests = [];
+    responseCount = 0;
     installedCode = 2010;
     mode = 'ok';
     manifest = {
@@ -76,7 +80,8 @@ void main() {
         });
     server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     server.listen((request) async {
-      if (mode == 'offline') {
+      responseCount++;
+      if (mode == 'offline' || (mode == 'flaky' && responseCount == 1)) {
         request.response.statusCode = 503;
       } else if (mode == 'missing') {
         request.response.statusCode = 404;
@@ -84,6 +89,13 @@ void main() {
         request.response.write(jsonEncode(release));
       } else if (request.uri.path.endsWith('update.json')) {
         request.response.write(jsonEncode(manifest));
+      } else if (mode == 'signed-redirect' &&
+          request.uri.path.contains('/releases/download/')) {
+        request.response.statusCode = 302;
+        request.response.headers.set(
+          'location',
+          'https://release-assets.githubusercontent.com/test.apk?signature=keep',
+        );
       } else if (mode == 'redirect') {
         request.response.statusCode = 302;
         request.response.headers.set(
@@ -98,7 +110,7 @@ void main() {
       await request.response.close();
     });
     service = UpdateService(
-      clientFactory: () => _LocalClient(server.port),
+      clientFactory: () => _LocalClient(server.port, requests),
       channel: channel,
     );
   });
@@ -121,6 +133,31 @@ void main() {
       expect(await service.check(), isNull);
       mode = 'offline';
       await expectLater(service.check(), throwsA(isA<HttpException>()));
+    },
+  );
+  test(
+    'refreshes cached metadata, retries temporary failures and shares concurrent checks',
+    () async {
+      mode = 'flaky';
+      final results = await Future.wait([service.check(), service.check()]);
+      expect(results.every((r) => r?.versionCode == 2011), isTrue);
+      expect(requests.where((u) => u.path.endsWith('/latest')), hasLength(2));
+      expect(
+        requests.every((u) => u.queryParameters.containsKey('_check')),
+        isTrue,
+      );
+    },
+  );
+  test(
+    'busts the initial APK cache without changing signed redirect queries',
+    () async {
+      final update = (await service.check())!;
+      requests.clear();
+      mode = 'signed-redirect';
+      await service.download(update, (_, _) {});
+      expect(requests.first.queryParameters.containsKey('_check'), isTrue);
+      expect(requests.last.host, 'release-assets.githubusercontent.com');
+      expect(requests.last.query, 'signature=keep');
     },
   );
   test('rejects a wrong package, release hash, asset URL and prerelease', () {
@@ -179,8 +216,9 @@ void main() {
 }
 
 class _LocalClient extends Fake implements HttpClient {
-  _LocalClient(this.port);
+  _LocalClient(this.port, this.requests);
   final int port;
+  final List<Uri> requests;
   final inner = HttpOverrides.runWithHttpOverrides(
     HttpClient.new,
     _RealHttpOverrides(),
@@ -188,9 +226,19 @@ class _LocalClient extends Fake implements HttpClient {
   @override
   set connectionTimeout(Duration? value) => inner.connectionTimeout = value;
   @override
-  Future<HttpClientRequest> getUrl(Uri url) => inner.getUrl(
-    Uri(scheme: 'http', host: '127.0.0.1', port: port, path: url.path),
-  );
+  Future<HttpClientRequest> getUrl(Uri url) {
+    requests.add(url);
+    return inner.getUrl(
+      Uri(
+        scheme: 'http',
+        host: '127.0.0.1',
+        port: port,
+        path: url.path,
+        query: url.query,
+      ),
+    );
+  }
+
   @override
   void close({bool force = false}) => inner.close(force: force);
 }

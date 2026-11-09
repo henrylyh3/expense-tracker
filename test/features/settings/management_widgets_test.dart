@@ -1,4 +1,6 @@
 import 'package:expense_tracker/core/models/ledger_types.dart';
+import 'package:expense_tracker/core/dates/calendar_date.dart';
+import 'package:expense_tracker/features/currencies/data/frankfurter_service.dart';
 import 'package:expense_tracker/features/categories/domain/ledger_category.dart';
 import 'package:expense_tracker/features/categories/presentation/categories_screen.dart';
 import 'package:expense_tracker/features/categories/presentation/category_view_model.dart';
@@ -66,11 +68,14 @@ void main() {
   });
 
   testWidgets(
-    'JPY template selects precision zero and leaves rate for manual entry',
+    'JPY template selects precision zero and prefills its reference rate',
     (tester) async {
       await tester.pumpWidget(
-        const ProviderScope(
-          child: MaterialApp(
+        ProviderScope(
+          overrides: [
+            frankfurterServiceProvider.overrideWithValue(_TemplateRates()),
+          ],
+          child: const MaterialApp(
             home: Scaffold(body: CurrencyEditor(configuredCodes: {'MYR'})),
           ),
         ),
@@ -93,7 +98,7 @@ void main() {
       );
       expect(
         tester.widget<TextField>(_field('MYR for 1 JPY')).controller!.text,
-        isEmpty,
+        '0.03',
       );
     },
   );
@@ -138,3 +143,9 @@ void main() {
 Finder _field(String label) => find.byWidgetPredicate(
   (widget) => widget is TextField && widget.decoration?.labelText == label,
 );
+
+class _TemplateRates extends FrankfurterService {
+  @override
+  Future<FrankfurterQuote> fetch(String code) async =>
+      FrankfurterQuote(rate: '0.03', date: CalendarDate.parse('2026-11-09'));
+}

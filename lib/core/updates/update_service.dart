@@ -112,6 +112,15 @@ class UpdateService {
   HttpClient? _active;
   bool _cancelled = false;
   bool _working = false;
+  Future<UpdateRelease?>? _pendingCheck;
+  int? deferredVersion;
+
+  static Uri freshUrl(Uri uri) => uri.replace(
+    queryParameters: {
+      ...uri.queryParameters,
+      '_check': DateTime.now().microsecondsSinceEpoch.toString(),
+    },
+  );
 
   void cancel() {
     _cancelled = true;
@@ -139,6 +148,7 @@ class UpdateService {
           .getUrl(uri)
           .timeout(const Duration(seconds: 15));
       request.followRedirects = false;
+      request.headers.set(HttpHeaders.cacheControlHeader, 'no-cache');
       request.headers.set(
         HttpHeaders.userAgentHeader,
         'ExpenseTracker-Updater',
@@ -170,7 +180,7 @@ class UpdateService {
     Uri uri, {
     bool allowMissing = false,
   }) async {
-    final response = await _get(client, uri);
+    final response = await _get(client, freshUrl(uri));
     if (allowMissing && response.statusCode == 404) return null;
     if (response.statusCode != 200) {
       throw const HttpException('Unable to check for updates.');
@@ -190,7 +200,25 @@ class UpdateService {
   }
 
   Future<UpdateRelease?> check() async {
-    if (_working) return null;
+    return _pendingCheck ??= _checkWithRetry().whenComplete(() {
+      _pendingCheck = null;
+    });
+  }
+
+  Future<UpdateRelease?> _checkWithRetry() async {
+    for (var attempt = 0; attempt < 2; attempt++) {
+      try {
+        return await _check();
+      } catch (_) {
+        if (attempt == 1) rethrow;
+        await Future<void>.delayed(const Duration(milliseconds: 500));
+      }
+    }
+    return null;
+  }
+
+  Future<UpdateRelease?> _check() async {
+    if (_working) throw StateError('An update download is already running.');
     _working = true;
     final client = _clientFactory()
       ..connectionTimeout = const Duration(seconds: 15);
@@ -264,7 +292,7 @@ class UpdateService {
       }
       file = File('$directory/update.apk');
       sink = file.openWrite();
-      final response = await _get(client, update.url);
+      final response = await _get(client, freshUrl(update.url));
       if (response.statusCode != 200 ||
           (response.contentLength >= 0 &&
               response.contentLength != update.size)) {
