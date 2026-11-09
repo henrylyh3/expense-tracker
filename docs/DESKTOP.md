@@ -24,7 +24,7 @@ flutter build macos --release
 python3 tool/package_desktop.py macos
 ```
 
-Outputs: `release/expense-tracker-<version>-macos.dmg` (drag the app to Applications) and `-macos-update.zip` (Sparkle update payload). The app currently retains the generated stable desktop identity `com.example.expenseTracker`; choose a permanent identity before the first distributed build if desired, then retain it. Sign the app with your Developer ID, enable hardened runtime with appropriate Flutter entitlements, notarize/staple, then package. For public distribution also sign/notarize/staple the DMG. Local unsigned validation builds can trigger Gatekeeper and are not signed releases.
+Stored outputs: `release/mac/expense-tracker-<version>-macos.dmg` (drag the app to Applications) and `-macos-update.zip` (Sparkle update payload). The app currently retains the generated stable desktop identity `com.example.expenseTracker`; choose a permanent identity before the first distributed build if desired, then retain it. Sign the app with your Developer ID, enable hardened runtime with appropriate Flutter entitlements, notarize/staple, then package. For public distribution also sign/notarize/staple the DMG. Local unsigned validation builds can trigger Gatekeeper and are not signed releases.
 
 Windows requires Visual Studio's Desktop development with C++ workload, Windows SDK, CMake and Inno Setup 6:
 
@@ -34,9 +34,15 @@ flutter build windows --release
 python tool/package_desktop.py windows --iscc "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
 ```
 
-Outputs: `release/expense-tracker-<version>-windows-x64.zip` and `-windows-x64-setup.exe`. The ZIP contains the EXE, DLLs and data together. Extract the whole ZIP before running. The installer uses a stable AppId and per-user `{localappdata}\Programs\ExpenseTracker` directory, closes the running app for upgrades and leaves ledger data intact. Prefer the installer for native updates; portable users can manually replace the entire extracted binary folder after closing the app. Install the Visual C++ x64 runtime on machines that lack it. Authenticode-sign the installer before generating its updater signature. Windows SmartScreen may flag unsigned or unfamiliar applications.
+Stored outputs: `release/window/expense-tracker-<version>-windows-x64.zip` and `-windows-x64-setup.exe`. The ZIP contains the EXE, DLLs and data together. Extract the whole ZIP before running. The installer uses a stable AppId and per-user `{localappdata}\Programs\ExpenseTracker` directory, closes the running app for upgrades and leaves ledger data intact. Prefer the installer for native updates; portable users can manually replace the entire extracted binary folder after closing the app. Install the Visual C++ x64 runtime on machines that lack it. Authenticode-sign the installer before generating its updater signature. Windows SmartScreen may flag unsigned or unfamiliar applications.
 
 `.github/workflows/desktop-build.yml` provides a manually triggered native build matrix and downloadable validation artifacts. These builds have no release signing credentials and do not publish releases or enable desktop update feeds.
+
+## Artifact storage folders
+
+Keep macOS installers and update ZIPs in `release/mac/`, and Windows complete bundle ZIPs and setup EXEs in `release/window/`. Android artifacts stay directly under `release/`. These locations also apply to validation builds; moving a file does not change its signing or verification status.
+
+Current packaging scripts and the native workflow still output directly under `release/`. After packaging, move desktop outputs to the folders above. The appcast and publishing scripts also currently read the root `release/` directory, so stage copies there before using those commands.
 
 ## Prompted desktop updates
 
