@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:expense_tracker/core/updates/update_service.dart';
 import 'package:expense_tracker/features/settings/presentation/update_prompt.dart';
@@ -72,7 +73,7 @@ Widget _app(
   return ProviderScope(
     overrides: [
       updateServiceProvider.overrideWithValue(service),
-      updateSupportedProvider.overrideWithValue(true),
+      updateTargetPlatformProvider.overrideWithValue(TargetPlatform.android),
       if (clock != null) updateClockProvider.overrideWithValue(clock),
     ],
     child: MaterialApp(
@@ -90,6 +91,23 @@ Widget _app(
 }
 
 void main() {
+  test(
+    'update support follows the host OS rather than the test UI platform',
+    () {
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      final expected = Platform.isAndroid
+          ? TargetPlatform.android
+          : Platform.isMacOS
+          ? TargetPlatform.macOS
+          : Platform.isWindows
+          ? TargetPlatform.windows
+          : null;
+      expect(container.read(updateTargetPlatformProvider), expected);
+      expect(container.read(updateSupportedProvider), expected != null);
+    },
+  );
+
   testWidgets('retains an available update while away from Home', (
     tester,
   ) async {
@@ -126,7 +144,9 @@ void main() {
       ProviderScope(
         overrides: [
           updateServiceProvider.overrideWithValue(service),
-          updateSupportedProvider.overrideWithValue(true),
+          updateTargetPlatformProvider.overrideWithValue(
+            TargetPlatform.android,
+          ),
         ],
         child: const MaterialApp(home: Scaffold(body: CheckUpdatesButton())),
       ),

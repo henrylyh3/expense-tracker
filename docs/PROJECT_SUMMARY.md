@@ -2,7 +2,7 @@
 
 ## Desktop extension — 2026-11-09
 
-macOS/Windows targets, application-data ledger storage, existing-layout reuse, foreground Discord progress, native updater integration and multi-platform packaging/release checks are implemented in source. Existing Android guests continue through Discord; the laptop is the ledger owner. No always-on service was added. Signed update feeds are opt-in and unconfigured in this checkout. Current focused verification passes: analysis, 69 Flutter tests and 7 release-tool tests. Native builds/signing/device and upgrade validation are pending. See [DESKTOP.md](DESKTOP.md) for commands, storage, migration and remaining release requirements. Historical phase test counts below are earlier checkpoints.
+macOS/Windows targets, application-data ledger storage, existing-layout reuse, foreground Discord progress, native updater integration and multi-platform packaging/release checks are implemented in source. Existing Android guests continue through Discord; the laptop is the ledger owner. No always-on service was added. Signed update feeds are opt-in and unconfigured in this checkout. Current focused verification passes: analysis, 75 distinct focused Flutter tests and 7 release-tool tests. Hosted native desktop builds and packaging passed; original Android signing key, desktop release signing, and real-device/upgrade validation remain pending. See [DESKTOP.md](DESKTOP.md) for commands, storage, migration and remaining release requirements. Historical phase test counts below are earlier checkpoints.
 
 
 Last updated: 2026-11-05 (Malaysia). This document is the handoff and decision record. See [Phase 1](PHASE_1_FOUNDATION.md) for setup and [progress](PROGRESS.md) for verified status.

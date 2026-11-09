@@ -2,18 +2,18 @@
 
 ## Desktop extension — 2026-11-09
 
-macOS/Windows targets, application-data ledger storage, existing-layout reuse, foreground Discord progress, native updater integration and multi-platform packaging/release checks are implemented in source. Existing Android guests continue through Discord; the laptop is the ledger owner. No always-on service was added. Signed update feeds are opt-in and unconfigured in this checkout. Native builds/signing/device and upgrade validation are pending. See [DESKTOP.md](DESKTOP.md) for commands, storage, migration and remaining release requirements. Historical phase test counts below are earlier checkpoints.
+macOS/Windows targets, application-data ledger storage, existing-layout reuse, foreground Discord progress, native updater integration and multi-platform packaging/release checks are implemented in source. Existing Android guests continue through Discord; the laptop is the ledger owner. No always-on service was added. Signed update feeds are opt-in and unconfigured in this checkout. Native desktop builds passed on GitHub Actions; release signing/device and upgrade validation are pending. See [DESKTOP.md](DESKTOP.md) for commands, storage, migration and remaining release requirements. Historical phase test counts below are earlier checkpoints.
 
 
 ### Verification for the desktop extension
 
 - `flutter analyze`: passed with no issues.
-- 69 focused Flutter tests across desktop storage, updater configuration, Discord sync/progress and linked Android updater/sharing/recovery behavior: passed. The full suite was not run.
+- 75 distinct focused Flutter tests across desktop storage, updater configuration, Discord sync/progress and linked Android updater/sharing/recovery behavior: passed. No full suite was manually invoked; the existing push workflow runs its configured verification automatically. An updater platform-selection regression from its recovery test was fixed and covered by focused checks.
 - 7 Python release integrity tests: passed; `git diff --check`: passed.
-- macOS build attempt: blocked because full Xcode is absent; CocoaPods is also missing.
-- Windows build attempt: rejected on this macOS host; requires Windows with Visual Studio C++ tools.
+- Local macOS build is blocked by missing Xcode/CocoaPods; the hosted macOS native build and DMG packaging passed.
+- Local Windows build requires a Windows host; the hosted Windows build, complete ZIP and installer packaging passed.
 - Android SDK and release signing configuration are absent. This environment's Flutter SDK reports `3.48.0-0.5.pre`; official stable SDK release validation remains required.
-- Version reserved in source: **0.4.7+16**. No new native release artifacts have been published. Signing/feed setup, native packaging and real-device upgrade verification remain pending.
+- Version reserved in source: **0.4.7+16**. Desktop validation artifacts are uploaded in [run 42628890725](https://github.com/henrylyh3/expense-tracker/actions/runs/42628890725); DMG integrity, bundle identity/version and Windows x64/native files were checked. No complete GitHub Release has been published. Original Android keystore, desktop signing/feed setup and real-device upgrade verification remain pending.
 
 Last updated: 2026-11-05 (Malaysia).
 

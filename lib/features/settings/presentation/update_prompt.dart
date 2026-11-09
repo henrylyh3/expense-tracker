@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -7,12 +7,19 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/updates/update_service.dart';
 import '../../../core/updates/desktop_updater.dart';
 
+// Package installation follows the running OS, independently of UI styling.
+final updateTargetPlatformProvider = Provider<TargetPlatform?>((ref) {
+  if (Platform.isAndroid) return TargetPlatform.android;
+  if (Platform.isMacOS) return TargetPlatform.macOS;
+  if (Platform.isWindows) return TargetPlatform.windows;
+  return null;
+});
 final updateSupportedProvider = Provider<bool>(
-  (ref) =>
-      defaultTargetPlatform == TargetPlatform.android ||
-      defaultTargetPlatform == TargetPlatform.macOS ||
-      defaultTargetPlatform == TargetPlatform.windows,
+  (ref) => ref.watch(updateTargetPlatformProvider) != null,
 );
+
+bool _desktopTarget(TargetPlatform? target) =>
+    target == TargetPlatform.macOS || target == TargetPlatform.windows;
 final updateClockProvider = Provider<DateTime Function()>(
   (ref) => DateTime.now,
 );
@@ -26,8 +33,7 @@ class CheckUpdatesButton extends ConsumerWidget {
     onPressed: !ref.watch(updateSupportedProvider)
         ? null
         : () async {
-            if (defaultTargetPlatform == TargetPlatform.macOS ||
-                defaultTargetPlatform == TargetPlatform.windows) {
+            if (_desktopTarget(ref.read(updateTargetPlatformProvider))) {
               try {
                 await desktopUpdater.check();
               } catch (_) {
@@ -35,7 +41,7 @@ class CheckUpdatesButton extends ConsumerWidget {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
                       content: Text(
-                        'Desktop update check unavailable. Check your connection and signed update-feed configuration.',
+                        'Could not check for desktop updates. Check your connection or install the latest desktop release from GitHub.',
                       ),
                     ),
                   );
@@ -174,8 +180,7 @@ class _UpdateCheckOnOpenState extends ConsumerState<UpdateCheckOnOpen>
     _lastCheck = ref.read(updateClockProvider)();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
-      if (defaultTargetPlatform == TargetPlatform.macOS ||
-          defaultTargetPlatform == TargetPlatform.windows) {
+      if (_desktopTarget(ref.read(updateTargetPlatformProvider))) {
         try {
           await desktopUpdater.check(background: true);
         } catch (_) {
