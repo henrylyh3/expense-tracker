@@ -70,8 +70,11 @@ void main() {
       addTearDown(subscription.cancel);
       await host.pollDiscord();
       await Future<void>.delayed(Duration.zero);
-    expect(progress.first.stage, 'Connecting to Discord');
-    expect(progress.map((p) => p.stage), contains('Fetching Discord requests'));
+      expect(progress.first.stage, 'Connecting to Discord');
+      expect(
+        progress.map((p) => p.stage),
+        contains('Fetching Discord requests'),
+      );
       expect(progress.last.stage, 'idle');
       final batches = progress.where((p) => p.total != null).toList();
       expect(batches, isNotEmpty);
