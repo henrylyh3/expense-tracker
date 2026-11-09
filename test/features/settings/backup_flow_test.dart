@@ -43,6 +43,8 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.byIcon(Icons.settings_outlined));
       await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(find.text('Import and export'), 200);
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Import and export'));
       await tester.pumpAndSettle();
       final container = ProviderScope.containerOf(

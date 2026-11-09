@@ -6,10 +6,10 @@ import '../../../core/models/ledger_types.dart';
 import '../../../core/providers/trip_provider.dart';
 import '../../currencies/presentation/currency_view_model.dart';
 import '../../../core/providers/default_currency_provider.dart';
-import '../../../core/money/display_currency.dart';
 import '../../reports/presentation/report_view_model.dart';
 import '../../reports/presentation/report_widgets.dart';
 import '../../reports/domain/report_period.dart';
+import '../../reports/domain/financial_report.dart';
 
 class TripsScreen extends ConsumerWidget {
   const TripsScreen({super.key});
@@ -114,90 +114,115 @@ class TripsScreen extends ConsumerWidget {
 final tripSummaryProvider = StreamProvider.family(
   (ref, String id) => ref
       .watch(reportRepositoryProvider)
-      .watchPeriod(ReportPeriod.trip(), expensesOnly: true, tripId: id),
+      .watchPeriod(
+        ReportPeriod.trip(),
+        expensesOnly: true,
+        tripId: id,
+        includeCurrencyTotals: true,
+      ),
   retry: (count, error) => null,
 );
 
-class TripSummaryScreen extends ConsumerStatefulWidget {
+class TripSummaryScreen extends ConsumerWidget {
   const TripSummaryScreen({required this.id, super.key});
   final String id;
   @override
-  ConsumerState<TripSummaryScreen> createState() => _TripSummaryScreenState();
-}
-
-class _TripSummaryScreenState extends ConsumerState<TripSummaryScreen> {
-  String? _code;
-
-  @override
-  Widget build(BuildContext context) {
-    final report = ref.watch(tripSummaryProvider(widget.id));
-    final used =
-        ref.watch(tripUsedCurrenciesProvider(widget.id)).asData?.value ??
-        const <String>{};
-    final currencies = ref.watch(currenciesProvider).asData?.value ?? [];
-    final options = currencies
-        .where((item) => used.contains(item.code))
-        .toList();
-    final preferred =
-        ref.watch(tripDefaultCurrencyProvider(widget.id)).asData?.value ??
-        DisplayCurrency.myr;
-    final code = options.any((item) => item.key == _code)
-        ? _code
-        : options.any((item) => item.key == preferred.key)
-        ? preferred.key
-        : options.firstOrNull?.key;
-    final chosen = options.where((item) => item.key == code).firstOrNull;
-    final rate = ref
-        .watch(tripRatesProvider(widget.id))
-        .asData
-        ?.value[chosen?.code]
-        ?.rate;
-    final display = chosen == null
-        ? preferred
-        : DisplayCurrency(
-            chosen.code,
-            chosen.decimalPlaces,
-            chosen.recordId != null
-                ? chosen.rateToMyr
-                : rate ?? chosen.rateToMyr,
-            recordId: chosen.recordId,
-          );
+  Widget build(BuildContext context, WidgetRef ref) {
+    final report = ref.watch(tripSummaryProvider(id));
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        if (options.isNotEmpty)
-          Align(
-            alignment: Alignment.centerRight,
-            child: DropdownButton<String>(
-              value: code,
-              items: [
-                for (final item in options)
-                  DropdownMenuItem(
-                    value: item.key,
-                    child: Text('${item.code} · ${item.name}'),
-                  ),
-              ],
-              onChanged: (value) => setState(() => _code = value),
-            ),
-          ),
         report.when(
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (_, _) => TextButton(
-            onPressed: () => ref.invalidate(tripSummaryProvider(widget.id)),
+            onPressed: () => ref.invalidate(tripSummaryProvider(id)),
             child: const Text('Retry summary'),
           ),
           data: (value) => Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              FinancialSummary(report: value, currency: display),
+              _TripCurrencySummary(report: value),
               const SizedBox(height: 16),
-              SpendingBreakdown(report: value, currency: display),
+              SpendingBreakdown(report: value),
             ],
           ),
         ),
       ],
     );
   }
+}
+
+class _TripCurrencySummary extends StatelessWidget {
+  const _TripCurrencySummary({required this.report});
+  final FinancialReport report;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      Text('${report.expenseCount} expenses'),
+      const SizedBox(height: 12),
+      Card(
+        margin: EdgeInsets.zero,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Spent by currency',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 8),
+              const Text('Original expense amounts, grouped by currency.'),
+              if (report.expenseCount == 0)
+                const Padding(
+                  padding: EdgeInsets.only(top: 12),
+                  child: Text('No expenses in this trip.'),
+                ),
+              for (final total in report.currencyTotals)
+                Padding(
+                  padding: const EdgeInsets.only(top: 12),
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Text(
+                      total.format(),
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+      const SizedBox(height: 12),
+      Card(
+        margin: EdgeInsets.zero,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Total in MYR',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 8),
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Text(
+                  report.expenses.format(),
+                  style: Theme.of(context).textTheme.headlineSmall,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text('Combined using each expense’s saved exchange rate.'),
+            ],
+          ),
+        ),
+      ),
+    ],
+  );
 }
 
 class TripRatesScreen extends ConsumerWidget {

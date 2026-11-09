@@ -272,3 +272,16 @@ until those checks pass. Use a test installation for destructive restore tests.
 - Release artifact verified: package com.example.expense_tracker, versionName 0.4.0, versionCode 2009 (previous 2007), arm64-v8a only, same signing certificate as v0.3.0.
 - Signed release installed as an update on the API 36 emulator. Home, Settings, Shared trips and Start hosting opened successfully, with no AndroidRuntime/Flutter error log entries.
 - APK SHA-256: FC7BC2006AE6D39E35DA88F8385F51A7028F6368D07F2073C608BD97B4DA8FE1.
+
+## 2026-11-09 — v0.4.1 trip currency totals and version in Settings
+
+- Added a Current version card at the top of Settings, displaying the same version/build identifier as the About dialog and backup metadata.
+- Trip summaries now list all original expense totals grouped by currency, then a combined MYR total calculated from saved transaction rates. Named rate records for the same currency are combined in the original currency total.
+- Removed the trip summary currency dropdown. The category chart uses MYR; trip expense currency defaults remain managed through trip currency settings.
+- Increased app version to 0.4.1+10. Retained the Android package identity and release signing key for updates over existing installations.
+- This change does not add automatic updates. APK updates can be installed over the existing app; an in-app download/update flow would need a hosted APK and Android installation approval.
+- Signed ARM64 APK: release/expense-tracker-0.4.1-arm64-release.apk.
+- Validation: clean flutter analyze, all 251 Flutter tests passed, and project configuration checks passed. Added checks cover original currency totals, mixed saved rates across months, archived currencies, trip isolation, live deletion updates and a narrow trip summary with enlarged text.
+- Signed APK verified: com.example.expense_tracker, versionName 0.4.1, versionCode 2010 (previous 2009), arm64-v8a only, same signing certificate as v0.4.0.
+- API 36 emulator update smoke test: created an RM 12.50 expense in v0.4.0, installed v0.4.1 over it and confirmed the expense persisted. Settings displayed 0.4.1+10; trip summary showed original and combined MYR totals, an MYR category chart and no currency dropdown. No app runtime errors were recorded.
+- APK SHA-256: 3E87DAB9D37D388B98D35103295826018A02484EB6C451C6EB59F12A0914E35C.

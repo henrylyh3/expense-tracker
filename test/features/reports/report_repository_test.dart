@@ -57,6 +57,74 @@ void main() {
   );
 
   test(
+    'trip currency totals retain originals, saved rates and trip scope',
+    () async {
+      final firstUsd = await add(amount: '10');
+      await CurrencyRepository(database).save(
+        CurrencyDraft(
+          code: 'USD',
+          name: 'Dollar',
+          symbol: r'$',
+          decimalPlaces: 2,
+          rateToMyr: '5',
+        ),
+        originalCode: 'USD',
+      );
+      await add(amount: '2', date: '2027-01-06');
+      await add(currency: 'MYR', amount: '3');
+      await add(amount: '100', type: TransactionType.income);
+      await CurrencyRepository(database).save(
+        CurrencyDraft(
+          code: 'JPY',
+          name: 'Yen',
+          symbol: '¥',
+          decimalPlaces: 0,
+          rateToMyr: '0.03',
+        ),
+      );
+      await add(currency: 'JPY', amount: '100');
+      final unrelated = await add(amount: '99');
+      await database.customStatement(
+        "INSERT INTO trips VALUES ('other','Other')",
+      );
+      await database.customStatement(
+        "UPDATE transactions SET trip_id = 'other' WHERE id = ?",
+        [unrelated],
+      );
+      await CurrencyRepository(database).remove('USD');
+      final iterator = StreamIterator(
+        reports.watchPeriod(
+          ReportPeriod.trip(),
+          expensesOnly: true,
+          tripId: 'personal',
+          includeCurrencyTotals: true,
+        ),
+      );
+      try {
+        expect(await iterator.moveNext(), isTrue);
+        expect(
+          iterator.current.currencyTotals.map(
+            (m) => '${m.currencyCode}:${m.toInput()}',
+          ),
+          ['JPY:100', 'MYR:3.00', 'USD:12.00'],
+        );
+        expect(iterator.current.expenseMinor, 6100);
+        expect(iterator.current.expenseCount, 4);
+        final transaction = await transactions.getById(firstUsd);
+        await transactions.delete(
+          firstUsd,
+          expectedUpdatedAtUtc: transaction.updatedAtUtc,
+        );
+        expect(await iterator.moveNext(), isTrue);
+        expect(iterator.current.currencyTotals.last.toInput(), '2.00');
+        expect(iterator.current.expenseMinor, 1600);
+      } finally {
+        await iterator.cancel();
+      }
+    },
+  );
+
+  test(
     'monthly and yearly reports select correct date ranges and saved MYR facts',
     () async {
       await add();

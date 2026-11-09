@@ -12,6 +12,7 @@ class ReportEntry {
     required this.categoryName,
     required this.categoryColorHex,
     required this.categoryIconKey,
+    this.original,
   });
   final TransactionType type;
   final int amountMyrMinor;
@@ -20,6 +21,7 @@ class ReportEntry {
   final String categoryName;
   final String categoryColorHex;
   final String categoryIconKey;
+  final Money? original;
 }
 
 class CategorySpending {
@@ -61,8 +63,10 @@ class FinancialReport {
     required this.expenseCount,
     required List<CategorySpending> categories,
     required List<TrendBucket> buckets,
+    required List<Money> currencyTotals,
   }) : categories = List.unmodifiable(categories),
-       buckets = List.unmodifiable(buckets);
+       buckets = List.unmodifiable(buckets),
+       currencyTotals = List.unmodifiable(currencyTotals);
 
   factory FinancialReport.calculate(
     ReportPeriod period,
@@ -78,6 +82,8 @@ class FinancialReport {
     final totals = <String, BigInt>{};
     final counts = <String, int>{};
     final metadata = <String, ReportEntry>{};
+    final originalTotals = <String, BigInt>{};
+    final originalPrecision = <String, int>{};
     final start = period.start.toString();
     final end = period.endExclusive?.toString();
     for (final entry in entries) {
@@ -100,6 +106,15 @@ class FinancialReport {
       } else {
         expense += value;
         expenseCount++;
+        final original = entry.original;
+        if (original != null) {
+          originalTotals.update(
+            original.currencyCode,
+            (total) => total + BigInt.from(original.minorUnits),
+            ifAbsent: () => BigInt.from(original.minorUnits),
+          );
+          originalPrecision[original.currencyCode] = original.decimalPlaces;
+        }
         if (period.isTrip) {
           tripDays.update(
             entry.date,
@@ -146,6 +161,14 @@ class FinancialReport {
       netMinor: Money.checkedMinorUnits(income - expense),
       incomeCount: incomeCount,
       expenseCount: expenseCount,
+      currencyTotals: [
+        for (final code in (originalTotals.keys.toList()..sort()))
+          Money.fromMinor(
+            minorUnits: Money.checkedMinorUnits(originalTotals[code]!),
+            currencyCode: code,
+            decimalPlaces: originalPrecision[code]!,
+          ),
+      ],
       categories: categories,
       buckets: period.isTrip
           ? [
@@ -181,6 +204,7 @@ class FinancialReport {
   final int expenseCount;
   final List<CategorySpending> categories;
   final List<TrendBucket> buckets;
+  final List<Money> currencyTotals;
   int get transactionCount => incomeCount + expenseCount;
   Money get income => _myr(incomeMinor);
   Money get expenses => _myr(expenseMinor);

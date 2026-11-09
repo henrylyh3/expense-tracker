@@ -16,6 +16,14 @@ class SettingsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) => ListView(
     padding: const EdgeInsets.fromLTRB(16, 8, 16, 112),
     children: [
+      const Card(
+        child: ListTile(
+          leading: Icon(Icons.info_outline),
+          title: Text('Current version'),
+          subtitle: Text(appVersion),
+        ),
+      ),
+      const SizedBox(height: 12),
       Card(
         child: Column(
           children: [

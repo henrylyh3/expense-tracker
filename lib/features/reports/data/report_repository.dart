@@ -3,6 +3,7 @@ import 'package:drift/drift.dart';
 import '../../../core/database/app_database.dart';
 import '../../../core/dates/calendar_date.dart';
 import '../../../core/models/ledger_types.dart';
+import '../../../core/money/money.dart';
 import '../domain/financial_report.dart';
 import '../domain/report_period.dart';
 
@@ -14,6 +15,7 @@ class ReportRepository {
     ReportPeriod period, {
     bool expensesOnly = false,
     String? tripId,
+    bool includeCurrencyTotals = false,
   }) {
     final end = period.endExclusive;
     // One bounded, consistent SQLite result drives totals, category groups and
@@ -22,15 +24,21 @@ class ReportRepository {
     return _database
         .customSelect(
           '''SELECT t.type, t.amount_myr_minor, t.transaction_date, t.category_id,
-        c.name AS category_name, c.color_hex, c.icon_key
+        c.name AS category_name, c.color_hex, c.icon_key,
+        t.amount_minor, t.currency_code, currency.decimal_places
         FROM transactions t JOIN categories c ON c.id = t.category_id
+        JOIN currencies currency ON currency.code = t.currency_code
         WHERE t.transaction_date >= ?${end == null ? '' : ' AND t.transaction_date < ?'}${expensesOnly ? " AND t.type = 'expense'" : ''}${tripId == null ? '' : ' AND t.trip_id = ?'}''',
           variables: [
             Variable<String>(period.start.toString()),
             if (end != null) Variable<String>(end.toString()),
             if (tripId != null) Variable.withString(tripId),
           ],
-          readsFrom: {_database.transactions, _database.categories},
+          readsFrom: {
+            _database.transactions,
+            _database.categories,
+            _database.currencies,
+          },
         )
         .watch()
         .map(
@@ -45,6 +53,13 @@ class ReportRepository {
                 categoryName: row.read<String>('category_name'),
                 categoryColorHex: row.read<String>('color_hex'),
                 categoryIconKey: row.read<String>('icon_key'),
+                original: includeCurrencyTotals
+                    ? Money.fromMinor(
+                        minorUnits: row.read<int>('amount_minor'),
+                        currencyCode: row.read<String>('currency_code'),
+                        decimalPlaces: row.read<int>('decimal_places'),
+                      )
+                    : null,
               ),
             ),
           ),
