@@ -6,6 +6,7 @@ import '../core/providers/appearance_provider.dart';
 import '../core/providers/ledger_operation_providers.dart';
 import 'router.dart';
 import 'theme.dart';
+import '../features/sharing/presentation/discord_settings.dart';
 import '../features/settings/presentation/update_prompt.dart';
 
 class ExpenseTrackerApp extends ConsumerStatefulWidget {
@@ -48,7 +49,11 @@ class _ExpenseTrackerAppState extends ConsumerState<ExpenseTrackerApp> {
               router.routeInformationProvider.value.uri.path == '/home',
           navigatorContext: () =>
               router.routerDelegate.navigatorKey.currentState?.overlay?.context,
-          child: AbsorbPointer(absorbing: busy, child: child!),
+          child: DiscordSyncOnOpen(
+            ready: ready,
+            busy: busy,
+            child: AbsorbPointer(absorbing: busy, child: child!),
+          ),
         ),
       ),
     );

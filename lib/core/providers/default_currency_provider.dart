@@ -9,25 +9,15 @@ import 'database_providers.dart';
 import '../../features/currencies/data/currency_repository.dart';
 
 final globalDefaultCurrencyProvider = StreamProvider<DisplayCurrency>(
-  (ref) => watchDefaultCurrency(ref, tripDefaults: false),
+  (ref) => watchDefaultCurrency(ref),
   retry: (count, error) => null,
 );
 final defaultCurrencyProvider = StreamProvider<DisplayCurrency>(
-  (ref) => watchDefaultCurrency(ref, tripDefaults: true),
+  (ref) => watchDefaultCurrency(ref),
   retry: (count, error) => null,
 );
 
-final tripDefaultCurrencyProvider =
-    StreamProvider.family<DisplayCurrency, String>(
-      (ref, id) => watchDefaultCurrency(ref, tripDefaults: true, tripId: id),
-      retry: (count, error) => null,
-    );
-
-Stream<DisplayCurrency> watchDefaultCurrency(
-  Ref ref, {
-  required bool tripDefaults,
-  String? tripId,
-}) {
+Stream<DisplayCurrency> watchDefaultCurrency(Ref ref) {
   final db = ref.watch(databaseProvider);
   return db
       .customSelect(
@@ -37,29 +27,15 @@ Stream<DisplayCurrency> watchDefaultCurrency(
       UNION ALL SELECT c.code, r.id, r.id, c.decimal_places, r.rate_to_myr,
         CASE WHEN c.is_active = 1 THEN r.is_active ELSE 0 END
       FROM currency_rates r JOIN currencies c ON c.code = r.currency_code
-    ), context AS (SELECT COALESCE(?, (SELECT value FROM app_settings WHERE key = 'active_trip'), 'personal') AS trip),
-    preference AS (
+    ), preference AS (
       SELECT COALESCE(
-        CASE WHEN ? = 1 THEN (SELECT COALESCE(r.rate_id, s.value) FROM app_settings s
-          LEFT JOIN trip_rates r ON r.trip_id = context.trip AND r.currency_code = s.value
-          JOIN records rc ON rc.record_key = COALESCE(r.rate_id, s.value) AND rc.is_active = 1
-          WHERE s.key = 'trip_currency:' || context.trip) END,
         (SELECT rc.record_key FROM records rc WHERE rc.is_active = 1 AND rc.record_key =
           COALESCE((SELECT value FROM app_settings WHERE key = 'default_rate'),
           (SELECT value FROM app_settings WHERE key = 'default_currency'))),
-        'MYR') AS selected FROM context
+        'MYR') AS selected
     )
     SELECT rc.* FROM records rc JOIN preference p ON rc.record_key = p.selected''',
-        variables: [
-          Variable<String>(tripId),
-          Variable.withInt(tripDefaults ? 1 : 0),
-        ],
-        readsFrom: {
-          db.appSettings,
-          db.currencies,
-          db.tripRates,
-          db.currencyRates,
-        },
+        readsFrom: {db.appSettings, db.currencies, db.currencyRates},
       )
       .watchSingleOrNull()
       .map(

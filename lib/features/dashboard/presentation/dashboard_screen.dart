@@ -167,7 +167,7 @@ class DashboardScreen extends ConsumerWidget {
                         child: ListTile(
                           title: Text(item.categoryName),
                           subtitle: Text(
-                            '${item.date} Â· ${item.type.name}\n${display.format(item.conversion.myr.minorUnits)}',
+                            '${item.date}\n${display.format(item.conversion.myr.minorUnits)}',
                           ),
                           trailing: const Icon(Icons.chevron_right),
                           onTap: () => context.push('/transactions/${item.id}'),

@@ -40,4 +40,48 @@ void main() {
     addTearDown(third.dispose);
     expect((await third.read(defaultCurrencyProvider.future)).code, 'MYR');
   });
+  test('one default overrides legacy trip preferences in every profile', () async {
+    final db = AppDatabase.forTesting(NativeDatabase.memory());
+    addTearDown(db.close);
+    await db.initialize();
+    await db.customStatement(
+      "INSERT INTO currencies VALUES ('THB','Thai Baht','THB',2,'0.12',1,0,0)",
+    );
+    await db.customStatement(
+      "INSERT INTO currency_rates (id, currency_code, name, rate_to_myr) VALUES ('thb-2026','THB','THB 2026','0.14')",
+    );
+    await db.customStatement(
+      "INSERT INTO trips (id,name) VALUES ('holiday','Holiday')",
+    );
+    await db.customStatement(
+      "INSERT INTO app_settings (key,value) VALUES ('trip_currency:personal','MYR'), ('trip_currency:holiday','THB')",
+    );
+    final writer = ProviderContainer(
+      overrides: [databaseProvider.overrideWithValue(db)],
+    );
+    addTearDown(writer.dispose);
+    await writer.read(defaultCurrencyActionsProvider.notifier).set('thb-2026');
+    expect(writer.read(defaultCurrencyActionsProvider).hasError, isFalse);
+    for (final trip in ['personal', 'holiday']) {
+      await db.customStatement(
+        "INSERT OR REPLACE INTO app_settings (key,value) VALUES ('active_trip', ?)",
+        [trip],
+      );
+      final reader = ProviderContainer(
+        overrides: [databaseProvider.overrideWithValue(db)],
+      );
+      reader.listen(defaultCurrencyProvider, (_, _) {});
+      final selected = await reader.read(defaultCurrencyProvider.future);
+      expect(selected.key, 'thb-2026');
+      expect(selected.rateToMyr, '0.14');
+      reader.dispose();
+    }
+    await writer.read(defaultCurrencyActionsProvider.notifier).set('MYR');
+    final reader = ProviderContainer(
+      overrides: [databaseProvider.overrideWithValue(db)],
+    );
+    addTearDown(reader.dispose);
+    reader.listen(defaultCurrencyProvider, (_, _) {});
+    expect((await reader.read(defaultCurrencyProvider.future)).key, 'MYR');
+  });
 }

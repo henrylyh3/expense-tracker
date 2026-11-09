@@ -173,7 +173,7 @@ void main() {
     },
   );
 
-  test('snapshot includes the selected named trip currency', () async {
+  test('snapshot uses the app default instead of a legacy trip default', () async {
     await hostDb.customStatement(
       "INSERT INTO currencies VALUES ('THB','Thai baht','฿',2,'0.12',1,0,0)",
     );
@@ -184,7 +184,7 @@ void main() {
       "INSERT INTO trip_rates VALUES ('personal','THB','0.13','THB 2026','thb-2026')",
     );
     await hostDb.customStatement(
-      "INSERT INTO app_settings VALUES ('trip_currency:personal','THB')",
+      "INSERT INTO app_settings VALUES ('trip_currency:personal','MYR'), ('default_currency','THB'), ('default_rate','thb-2026')",
     );
     await guest.sync(invitation['id'] as String);
     final cache =

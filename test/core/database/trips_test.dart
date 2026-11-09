@@ -83,7 +83,7 @@ void main() {
       final global = container.listen(globalDefaultCurrencyProvider, (_, _) {});
       expect(
         (await container.read(defaultCurrencyProvider.future)).code,
-        'THB',
+        'MYR',
       );
       expect(
         (await container.read(globalDefaultCurrencyProvider.future)).code,

@@ -8,6 +8,7 @@ import '../../../core/providers/default_currency_provider.dart';
 import 'backup_view_model.dart';
 import 'ledger_view_reset.dart';
 import '../../sharing/presentation/sharing_screen.dart';
+import '../../sharing/presentation/discord_settings.dart';
 
 final resetLedgerProvider = Provider<ResetLedger>(ResetLedger.new);
 
@@ -20,6 +21,8 @@ class ResetLedger {
     ref.read(ledgerTransferBusyProvider.notifier).set(true);
     try {
       await ref.read(sharingServiceProvider).stopHost();
+      await ref.read(sharingServiceProvider).relaySecrets.clear();
+      ref.invalidate(discordSettingsProvider);
       await ref.read(databaseProvider).resetLedger();
       ref.invalidate(sharedSessionsProvider);
       if (!ref.mounted) return;

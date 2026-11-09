@@ -17,9 +17,20 @@ import '../../features/reports/domain/report_period.dart';
 import '../../features/transactions/data/transaction_repository.dart';
 import '../../features/transactions/domain/transaction_input.dart';
 import 'sharing_cipher.dart';
+import 'discord_api.dart';
+
+part 'discord_sharing.dart';
 
 class SharingService {
-  SharingService(this.db);
+  SharingService(
+    this.db, {
+    DiscordApi? discordApi,
+    RelaySecretStore? relaySecrets,
+  }) : discordApi = discordApi ?? DiscordApi(),
+       relaySecrets = relaySecrets ?? DeviceRelaySecrets();
+  final DiscordApi discordApi;
+  final RelaySecretStore relaySecrets;
+  bool _discordPolling = false;
   final AppDatabase db;
   final cipher = SharingCipher();
   HttpServer? _server;
@@ -128,12 +139,14 @@ class SharingService {
               as Map<String, dynamic>;
       final id = value['id'] as String;
       final key = value['key'] as String;
-      if (value['version'] != 1 ||
+      if (!{1, 2}.contains(value['version']) ||
           !Uuid.isValidUUID(fromString: id) ||
           base64Url.decode(key).length != 32) {
         throw const FormatException();
       }
-      final endpoint = validateEndpoint(value['endpoint'] as String).toString();
+      final endpoint = value['version'] == 2
+          ? DiscordConnection.decode(value['endpoint'] as String).encode()
+          : validateEndpoint(value['endpoint'] as String).toString();
       final name = requiredText(
         value['name'] as String,
         label: 'Invitation name',
@@ -169,13 +182,29 @@ class SharingService {
     }
   }
 
-  Future<void> revoke(String id) => db.writeTransaction(() async {
-    await db.customUpdate(
-      'DELETE FROM shared_sessions WHERE id = ?',
-      variables: [Variable.withString(id)],
-      updates: {db.sharedSessions, db.sharedPending, db.sharedReceipts},
-    );
-  });
+  Future<void> revoke(String id) async {
+    final session = await _session(id);
+    // Persist removal before the network call. Revoked guests cannot insert.
+    if (session['role'] == 'host' &&
+        DiscordConnection.matches(session['endpoint'] as String)) {
+      final pending =
+          ((jsonDecode(await relaySecrets.read('revocations') ?? '[]')) as List)
+              .cast<String>()
+              .toSet()
+            ..add(session['endpoint'] as String);
+      await relaySecrets.write('revocations', jsonEncode(pending.toList()));
+    }
+    await db.writeTransaction(() async {
+      await db.customUpdate(
+        'DELETE FROM shared_sessions WHERE id = ?',
+        variables: [Variable.withString(id)],
+        updates: {db.sharedSessions, db.sharedPending, db.sharedReceipts},
+      );
+    });
+    if (DiscordConnection.matches(session['endpoint'] as String)) {
+      await retryDiscordRevocations();
+    }
+  }
 
   Future<void> discardPending(String session, String id) =>
       db.writeTransaction(() async {
@@ -243,9 +272,8 @@ class SharingService {
     final currencies = await CurrencyRepository(db).watchAll().first;
     final preferences = await db
         .customSelect(
-          'SELECT key, value FROM app_settings WHERE key IN (?, ?, ?)',
+          'SELECT key, value FROM app_settings WHERE key IN (?, ?)',
           variables: [
-            Variable.withString('trip_currency:$trip'),
             Variable.withString('default_rate'),
             Variable.withString('default_currency'),
           ],
@@ -255,10 +283,12 @@ class SharingService {
       for (final row in preferences)
         row.read<String>('key'): row.read<String>('value'),
     };
-    final tripCurrency = selected['trip_currency:$trip'];
-    final defaultCurrency = tripCurrency == null
-        ? selected['default_rate'] ?? selected['default_currency'] ?? 'MYR'
-        : rates[tripCurrency]?.readNullable<String>('rate_id') ?? tripCurrency;
+    final preferred =
+        selected['default_rate'] ?? selected['default_currency'] ?? 'MYR';
+    final defaultCurrency =
+        currencies.any((c) => c.isActive && c.key == preferred)
+        ? preferred
+        : 'MYR';
     final rows = await TransactionRepository(
       db,
     ).watchHistory(tripId: trip, limit: 100).first;
@@ -434,6 +464,9 @@ class SharingService {
     Map<String, Object?> session,
     Map<String, Object?> data,
   ) async {
+    if (DiscordConnection.matches(session['endpoint'] as String)) {
+      return _sendDiscord(session, data);
+    }
     final id = session['id'] as String;
     final requestId = const Uuid().v4();
     final uri = validateEndpoint(
@@ -505,6 +538,16 @@ class SharingService {
           );
           await _cache(id, response['snapshot']);
         });
+        if (DiscordConnection.matches(session['endpoint'] as String)) {
+          await relaySecrets.write(
+            'request:$id:${row.read<String>('id')}',
+            null,
+          );
+        }
+      }
+      if (pending.isNotEmpty &&
+          DiscordConnection.matches(session['endpoint'] as String)) {
+        return;
       }
       final response = await _send(session, {'action': 'read'});
       await db.writeTransaction(() => _cache(id, response['snapshot']));

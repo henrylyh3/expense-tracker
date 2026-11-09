@@ -38,6 +38,7 @@ class TransactionEditorScreen extends ConsumerWidget {
     Widget failure(Object error, StackTrace stack) => ManagementLoadError(
       message: 'Unable to load the transaction editor.',
       onRetry: () {
+        ref.invalidate(defaultCurrencyProvider);
         ref.invalidate(categoriesProvider);
         ref.invalidate(currenciesProvider);
         if (transactionId != null) {
@@ -45,6 +46,11 @@ class TransactionEditorScreen extends ConsumerWidget {
         }
       },
     );
+    final preference = ref.watch(defaultCurrencyProvider);
+    if (preference.hasError) {
+      return Scaffold(body: failure(preference.error!, StackTrace.empty));
+    }
+    if (preference.isLoading) return Scaffold(body: loading());
     return Scaffold(
       appBar: AppBar(title: const Text('Transaction')),
       body: SafeArea(

@@ -13,6 +13,8 @@ import '../../../core/models/ledger_types.dart';
 import '../../../core/money/money.dart';
 import '../../../core/dates/calendar_date.dart';
 import '../../../core/sharing/sharing_service.dart';
+import '../../../core/sharing/discord_api.dart';
+import 'discord_settings.dart';
 
 final sharingServiceProvider = Provider<SharingService>((ref) {
   final service = SharingService(ref.watch(databaseProvider));
@@ -60,7 +62,9 @@ class _SharingScreenState extends ConsumerState<SharingScreen> {
         setState(
           () => _message = error is LedgerException
               ? error.message
-              : 'Unable to connect. Keep the host app open on the same Wi-Fi or hotspot, check its address, then retry.',
+              : error is DiscordUnavailable
+              ? 'Discord connection is no longer available. Check the channel and bot access.'
+              : 'Unable to sync. Check your connection and sharing settings, then retry.',
         );
       }
     } finally {
@@ -87,11 +91,11 @@ class _SharingScreenState extends ConsumerState<SharingScreen> {
         padding: const EdgeInsets.all(16),
         children: [
           const Text(
-            'Local Wi-Fi / hotspot sharing',
+            'Shared trips',
             style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
           ),
           const Text(
-            'The host keeps the ledger. Keep the host app open and awake while syncing. Guests can queue expenses offline after the first sync. No cloud database is used.',
+            'The host keeps the ledger. Share over local Wi-Fi or through encrypted internet messages relayed by Discord. Keep the host app open to process expenses. Guests can queue offline after their first sync.',
           ),
           if (_busy) const LinearProgressIndicator(),
           if (_message != null)
@@ -100,6 +104,86 @@ class _SharingScreenState extends ConsumerState<SharingScreen> {
               child: Text(_message!),
             ),
           if (widget.sessionId == null) ...[
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const Text(
+                      'Internet sharing',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    Text(
+                      ref.watch(discordSettingsProvider).asData?.value == null
+                          ? 'Set up your private Discord connection once for all trips.'
+                          : 'Discord connection saved. Works across different networks.',
+                    ),
+                    OutlinedButton.icon(
+                      icon: const Icon(Icons.cloud_outlined),
+                      label: const Text('Configure internet sharing'),
+                      onPressed: _busy
+                          ? null
+                          : () async {
+                              final saved = await showDialog<bool>(
+                                context: context,
+                                builder: (_) =>
+                                    DiscordSettingsDialog(service: service),
+                              );
+                              if (saved == true) {
+                                ref.invalidate(discordSettingsProvider);
+                              }
+                            },
+                    ),
+                    if (ref.watch(discordSettingsProvider).asData?.value !=
+                        null) ...[
+                      FilledButton(
+                        onPressed: _busy
+                            ? null
+                            : () => _run(() async {
+                                final guest = await _text(
+                                  context,
+                                  'Invite internet guest',
+                                  'Guest name',
+                                );
+                                if (guest == null) return;
+                                final code = await service.inviteDiscord(
+                                  active,
+                                  guest,
+                                );
+                                if (!context.mounted) return;
+                                await _showInvitation(context, code);
+                              }),
+                        child: const Text('Invite guest over internet'),
+                      ),
+                      OutlinedButton(
+                        onPressed: _busy
+                            ? null
+                            : () => _run(() async {
+                                await service.pollDiscord();
+                                if (mounted) {
+                                  setState(
+                                    () =>
+                                        _message = 'Internet inbox processed.',
+                                  );
+                                }
+                              }),
+                        child: const Text('Process internet inbox'),
+                      ),
+                      TextButton(
+                        onPressed: _busy
+                            ? null
+                            : () => _run(() async {
+                                await service.clearDiscord();
+                                ref.invalidate(discordSettingsProvider);
+                              }),
+                        child: const Text('Remove internet connection'),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
             const SizedBox(height: 16),
             Text(
               'Host trip: $tripName',
@@ -247,6 +331,7 @@ class _SharingScreenState extends ConsumerState<SharingScreen> {
   ) {
     final id = session['id'] as String;
     final guest = session['role'] == 'guest';
+    final internet = DiscordConnection.matches(session['endpoint'] as String);
     final cache = session['cache'] as String?;
     final data = cache == null
         ? null
@@ -259,7 +344,15 @@ class _SharingScreenState extends ConsumerState<SharingScreen> {
         style: Theme.of(context).textTheme.headlineSmall,
       ),
       if (guest) ...[
-        Text('Host address: ${session['endpoint']}'),
+        if (internet)
+          const Text(
+            'Send queued expenses, then sync again after the host processes them. Pending items remain here until confirmed.',
+          ),
+        Text(
+          internet
+              ? 'Internet sharing · encrypted relay via Discord'
+              : 'Host address: ${session['endpoint']}',
+        ),
         Text('${pending.length} expenses waiting to sync'),
         FilledButton.icon(
           onPressed: _busy ? null : () => _run(() => service.sync(id)),
@@ -284,22 +377,23 @@ class _SharingScreenState extends ConsumerState<SharingScreen> {
           icon: const Icon(Icons.add),
           label: const Text('Add shared expense'),
         ),
-        TextButton(
-          onPressed: _busy
-              ? null
-              : () => _run(() async {
-                  final endpoint = await _text(
-                    context,
-                    'Update host address',
-                    'Host Wi-Fi / hotspot address',
-                    initial: session['endpoint'] as String,
-                  );
-                  if (endpoint != null) {
-                    await service.updateEndpoint(id, endpoint.trim());
-                  }
-                }),
-          child: const Text('Update host address'),
-        ),
+        if (!internet)
+          TextButton(
+            onPressed: _busy
+                ? null
+                : () => _run(() async {
+                    final endpoint = await _text(
+                      context,
+                      'Update host address',
+                      'Host Wi-Fi / hotspot address',
+                      initial: session['endpoint'] as String,
+                    );
+                    if (endpoint != null) {
+                      await service.updateEndpoint(id, endpoint.trim());
+                    }
+                  }),
+            child: const Text('Update host address'),
+          ),
         for (final item in pending)
           ListTile(
             title: Text(
@@ -319,7 +413,7 @@ class _SharingScreenState extends ConsumerState<SharingScreen> {
                         builder: (context) => AlertDialog(
                           title: const Text('Discard queued expense?'),
                           content: const Text(
-                            'If the host already accepted this expense, discarding the local queue entry will not delete it from the host ledger.',
+                            'If already sent, the host may still save this expense. Discarding only removes the local queue entry; it does not cancel a sent message or delete a saved expense.',
                           ),
                           actions: [
                             TextButton(
@@ -547,3 +641,37 @@ Future<Map<String, Object?>?> _expense(
     ),
   );
 }
+
+Future<void> _showInvitation(
+  BuildContext context,
+  String code,
+) => showDialog<void>(
+  context: context,
+  builder: (context) => AlertDialog(
+    title: const Text('Guest invitation'),
+    scrollable: true,
+    content: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Text(
+          'Share privately with this guest. This invitation grants read and add access to one trip. Do not share it with others.',
+        ),
+        const SizedBox(height: 12),
+        SelectableText(code),
+      ],
+    ),
+    actions: [
+      TextButton(
+        onPressed: () async {
+          await Clipboard.setData(ClipboardData(text: code));
+          if (context.mounted) Navigator.pop(context);
+        },
+        child: const Text('Copy invitation'),
+      ),
+      TextButton(
+        onPressed: () => Navigator.pop(context),
+        child: const Text('Done'),
+      ),
+    ],
+  ),
+);

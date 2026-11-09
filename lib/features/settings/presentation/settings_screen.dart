@@ -33,7 +33,7 @@ class SettingsScreen extends ConsumerWidget {
               leading: const Icon(Icons.group_outlined),
               title: const Text('Shared trips'),
               subtitle: const Text(
-                'Invite guests or join over Wi-Fi / hotspot',
+                'Invite guests over internet or local Wi-Fi',
               ),
               onTap: () => context.push('/settings/sharing'),
             ),
@@ -60,9 +60,9 @@ class SettingsScreen extends ConsumerWidget {
               onTap: () => context.push('/settings/currencies'),
             ),
             ListTile(
-              title: const Text('Default currency'),
+              title: const Text('Default'),
               subtitle: const Text(
-                'New expenses and displayed totals. Base: MYR.',
+                'Currency for new expenses in every profile. Base: MYR.',
               ),
               trailing: _DefaultCurrencyPicker(),
             ),
@@ -145,7 +145,7 @@ class SettingsScreen extends ConsumerWidget {
               leading: Icon(Icons.shield_outlined),
               title: Text('Stored on this device'),
               subtitle: Text(
-                'No account or cloud sync. Base currency: MYR. '
+                'Your ledger stays on this device. Optional sharing uses local Wi-Fi or encrypted messages through Discord. Base currency: MYR. '
                 'Backups are saved or shared only when you choose.',
               ),
             ),
@@ -160,14 +160,14 @@ class _DefaultCurrencyPicker extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final currencies = ref.watch(currenciesProvider);
-    final preference = ref.watch(globalDefaultCurrencyProvider);
+    final preference = ref.watch(defaultCurrencyProvider);
     final options = currencies.asData?.value.where((item) => item.isActive);
     final selected = preference.asData?.value.key;
     if (currencies.hasError || preference.hasError) {
       return TextButton(
         onPressed: () {
           ref.invalidate(currenciesProvider);
-          ref.invalidate(globalDefaultCurrencyProvider);
+          ref.invalidate(defaultCurrencyProvider);
         },
         child: const Text('Retry'),
       );

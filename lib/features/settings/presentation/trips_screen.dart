@@ -5,7 +5,6 @@ import 'package:go_router/go_router.dart';
 import '../../../core/models/ledger_types.dart';
 import '../../../core/providers/trip_provider.dart';
 import '../../currencies/presentation/currency_view_model.dart';
-import '../../../core/providers/default_currency_provider.dart';
 import '../../reports/presentation/report_view_model.dart';
 import '../../reports/presentation/report_widgets.dart';
 import '../../reports/domain/report_period.dart';
@@ -245,11 +244,6 @@ class TripRatesScreen extends ConsumerWidget {
     final options = currencies.asData?.value.where(
       (item) => item.isActive && !item.isBase && (item.recordId == null),
     );
-    final selected = ref
-        .watch(tripDefaultCurrencyProvider(id))
-        .asData
-        ?.value
-        .key;
     final overrides = rates.asData?.value;
     if (currencies.hasError || rates.hasError) {
       return Center(
@@ -268,35 +262,6 @@ class TripRatesScreen extends ConsumerWidget {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        const Text('Default expense currency for this trip'),
-        DropdownButton<String>(
-          isExpanded: true,
-          value:
-              currencies.asData?.value.any(
-                    (item) => item.isActive && item.key == selected,
-                  ) ==
-                  true
-              ? selected
-              : null,
-          items: [
-            for (final item in currencies.asData!.value.where(
-              (item) => item.isActive,
-            ))
-              DropdownMenuItem(
-                value: item.key,
-                child: Text('${item.code} · ${item.name}'),
-              ),
-          ],
-          onChanged: (code) async {
-            if (code != null) {
-              await _run(
-                context,
-                () =>
-                    ref.read(tripActionsProvider).setDefaultCurrency(id, code),
-              );
-            }
-          },
-        ),
         const Text(
           'Give a currency a name and a manual rate for this trip. Saved expenses keep their original rates.',
         ),
