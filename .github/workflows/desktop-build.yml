@@ -1,0 +1,52 @@
+name: Build desktop bundles
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  desktop:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            target: macos
+          - os: windows-latest
+            target: windows
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: flutter analyze
+      - name: Release integrity tests
+        run: python -m unittest discover -s tool -p test_desktop_release.py
+      - name: Focused desktop and linked tests
+        run: flutter test test/core/database/private_storage_test.dart test/core/updates/desktop_updater_test.dart test/core/sharing/discord_sharing_test.dart test/features/settings/discord_settings_test.dart test/features/settings/update_prompt_test.dart
+      - name: Install Inno Setup
+        if: matrix.target == 'windows'
+        run: choco install innosetup --no-progress -y
+      - name: Build native app
+        run: flutter build ${{ matrix.target }} --release
+      - name: Package macOS
+        if: matrix.target == 'macos'
+        run: python3 tool/package_desktop.py macos
+      - name: Package Windows
+        if: matrix.target == 'windows'
+        shell: pwsh
+        run: python tool/package_desktop.py windows --iscc "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+      # Native packaging checks, not publication: keys, signing and notarization
+      # must be configured and verified before promoting to a public release.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: expense-tracker-${{ matrix.target }}-validation
+          path: release/*-${{ matrix.target }}*
+          if-no-files-found: error
+          retention-days: 14

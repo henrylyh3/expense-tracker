@@ -21,3 +21,8 @@ Follow AGENTS.md: bump pubspec and app_info, analyze/test, build and verify a si
 The publisher uses the existing Git Credential Manager credential only on the developer's machine. It creates a draft, uploads the APK and update.json, checks GitHub's uploaded digests, then publishes the completed release as latest. Interrupted drafts can be retried; published versions cannot be overwritten by this tool. The current repository is public, so phones do not need a GitHub account or token. The APK contains no publishing credential or signing key.
 
 The first version containing this feature must be installed manually. iOS needs a separate Apple signing/distribution route such as TestFlight or registered-device Ad Hoc distribution; this updater installs Android APKs only.
+
+
+## Desktop extension
+
+macOS and Windows now have opt-in native updater integration. Their signed appcasts and payloads are separate from Android's `update.json`. See [Desktop setup and releases](DESKTOP.md) for native build, signing, DMG/Windows bundle packaging and update-feed configuration. The publisher now requires artifacts for all three release platforms; this page's earlier APK-only instructions describe the Android part of that workflow.

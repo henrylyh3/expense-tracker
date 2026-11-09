@@ -140,6 +140,7 @@ extension DiscordSharing on SharingService {
     try {
       final config = await discordSettings();
       if (config == null) return;
+      _reportDiscord(const DiscordSyncProgress('Connecting to Discord'));
       await retryDiscordRevocations();
       final candidates = await db
           .customSelect(
@@ -151,6 +152,7 @@ extension DiscordSharing on SharingService {
       var cursor = await relaySecrets.read('cursor:$channel') ?? '0';
       // Bound work per foreground tick; subsequent ticks continue from the cursor.
       for (var page = 0; page < 3; page++) {
+        _reportDiscord(const DiscordSyncProgress('Fetching Discord requests'));
         final messages = await discordApi.messages(
           channel,
           config['token'] as String,
@@ -161,7 +163,15 @@ extension DiscordSharing on SharingService {
             a['id'] as String,
           ).compareTo(BigInt.parse(b['id'] as String)),
         );
+        var processed = 0;
         for (final message in messages) {
+          _reportDiscord(
+            DiscordSyncProgress(
+              'Processing Discord requests',
+              completed: processed,
+              total: messages.length,
+            ),
+          );
           final messageId = message['id'] as String;
           if (BigInt.parse(messageId) <= BigInt.parse(cursor)) continue;
           Map<String, Object?>? session;
@@ -177,10 +187,19 @@ extension DiscordSharing on SharingService {
           if (session != null) await _processDiscordMessage(session, message);
           cursor = messageId;
           await relaySecrets.write('cursor:$channel', cursor);
+          processed++;
+          _reportDiscord(
+            DiscordSyncProgress(
+              'Processing Discord requests',
+              completed: processed,
+              total: messages.length,
+            ),
+          );
         }
         if (messages.length < 100) break;
       }
     } finally {
+      _reportDiscord(const DiscordSyncProgress('idle'));
       _discordPolling = false;
     }
   }

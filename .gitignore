@@ -56,3 +56,12 @@ app.*.map.json
 expense-tracker-backup-*.json
 expense-tracker-*.json
 __pycache__/
+
+# Release signing material stays outside version control.
+*.jks
+*.keystore
+android/key.properties
+dsa_priv.pem
+*.p12
+*.pfx
+macos/Runner/Configs/Signing.xcconfig

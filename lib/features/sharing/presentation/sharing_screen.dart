@@ -18,7 +18,7 @@ import 'discord_settings.dart';
 
 final sharingServiceProvider = Provider<SharingService>((ref) {
   final service = SharingService(ref.watch(databaseProvider));
-  ref.onDispose(() => unawaited(service.stopHost()));
+  ref.onDispose(() => unawaited(service.dispose()));
   return service;
 });
 final sharedSessionsProvider = StreamProvider(

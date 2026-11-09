@@ -70,7 +70,45 @@ class _DiscordSyncOnOpenState extends ConsumerState<DiscordSyncOnOpen>
   }
 
   @override
-  Widget build(BuildContext context) => widget.child;
+  Widget build(BuildContext context) {
+    if (!widget.ready) return widget.child;
+    return Column(
+      children: [
+        StreamBuilder<DiscordSyncProgress>(
+          stream: ref.watch(sharingServiceProvider).discordProgress,
+          builder: (context, snapshot) {
+            final value = snapshot.data;
+            if (value == null || value.stage == 'idle') {
+              return const SizedBox.shrink();
+            }
+            return SafeArea(
+              bottom: false,
+              child: Material(
+                child: Padding(
+                  padding: const EdgeInsets.all(8),
+                  child: Column(
+                    children: [
+                      LinearProgressIndicator(
+                        value: value.total != null && value.total! > 0
+                            ? value.completed / value.total!
+                            : null,
+                      ),
+                      Text(
+                        value.total == null
+                            ? value.stage
+                            : '${value.stage}: ${value.completed}/${value.total}',
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+        Expanded(child: widget.child),
+      ],
+    );
+  }
 }
 
 class DiscordSettingsDialog extends StatefulWidget {

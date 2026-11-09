@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:expense_tracker/core/database/private_storage.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -8,6 +9,42 @@ void main() {
   final messenger =
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
   tearDown(() => messenger.setMockMethodCallHandler(channel, null));
+
+  for (final platform in [TargetPlatform.macOS, TargetPlatform.windows]) {
+    test(
+      '$platform stores the ledger in application data and reuses it',
+      () async {
+        final support = await Directory.systemTemp.createTemp(
+          'desktop storage ',
+        );
+        addTearDown(() => support.delete(recursive: true));
+        final path = await prepareLedgerDirectory(
+          platform: platform,
+          supportDirectory: () async => support,
+        );
+        final sentinel = File('$path/existing-data');
+        await sentinel.writeAsString('preserve');
+        expect(
+          await prepareLedgerDirectory(
+            platform: platform,
+            supportDirectory: () async => support,
+          ),
+          path,
+        );
+        expect(await sentinel.readAsString(), 'preserve');
+        expect(path, contains(support.path));
+      },
+    );
+  }
+  test('desktop rejects a relative support directory', () async {
+    await expectLater(
+      prepareLedgerDirectory(
+        platform: TargetPlatform.windows,
+        supportDirectory: () async => Directory('relative'),
+      ),
+      throwsStateError,
+    );
+  });
 
   test(
     'uses the native prepared absolute directory, including spaces',

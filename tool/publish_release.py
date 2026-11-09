@@ -1,4 +1,4 @@
-"""Prepare and publish the signed APK already committed to origin/main.
+"""Prepare and publish a complete Android/macOS/Windows release committed to origin/main.
 
 Uses Git Credential Manager in memory; never embeds credentials in the app.
 """
@@ -11,6 +11,7 @@ import sys
 import urllib.error
 import urllib.parse
 import urllib.request
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -28,6 +29,48 @@ def artifact():
     raw = apk.read_bytes()
     manifest = dict(schema=1, version=version, version_code=2000 + int(build), package='com.example.expense_tracker', abi='arm64-v8a', apk=apk.name, size=len(raw), sha256=hashlib.sha256(raw).hexdigest())
     return apk, ROOT / 'release' / f'update-{version}.json', manifest
+
+
+def release_assets(apk, manifest_path, manifest, require_feeds=False):
+    version = manifest['version']
+    directory = apk.parent
+    names = [f'expense-tracker-{version}{suffix}' for suffix in (
+        '-macos.dmg', '-macos-update.zip', '-windows-x64.zip', '-windows-x64-setup.exe')]
+    assets = [(apk.name, apk, 'application/vnd.android.package-archive'),
+              ('update.json', manifest_path, 'application/json')]
+    for name in names:
+        path = directory / name
+        if not path.is_file() or path.stat().st_size == 0:
+            raise RuntimeError(f'Missing required release artifact: {name}. Build it on its native host.')
+        assets.append((name, path, 'application/octet-stream'))
+    # Feeds are optional while desktop update signing is unconfigured, but must
+    # be supplied together when enabling desktop updates for a release.
+    feeds = [directory / f'appcast-{target}-{version}.xml' for target in ('macos', 'windows')]
+    if require_feeds or any(path.exists() for path in feeds):
+        for target, path in zip(('macos', 'windows'), feeds):
+            if not path.is_file():
+                raise RuntimeError('Both signed platform appcasts are required.')
+            try:
+                enclosure = ET.parse(path).find('./channel/item/enclosure')
+            except ET.ParseError:
+                raise RuntimeError('Malformed desktop appcast XML.') from None
+            sparkle = '{http://www.andymatuschak.org/xml-namespaces/sparkle}'
+            suffix = '-macos-update.zip' if target == 'macos' else '-windows-x64-setup.exe'
+            payload = directory / f'expense-tracker-{version}{suffix}'
+            signature_key = sparkle + ('edSignature' if target == 'macos' else 'dsaSignature')
+            expected_url = f'https://github.com/{REPO}/releases/download/v{version}/{payload.name}'
+            if (enclosure is None or not enclosure.get(signature_key)
+                    or enclosure.get('url') != expected_url
+                    or enclosure.get('length') != str(payload.stat().st_size)
+                    or enclosure.get(sparkle + 'shortVersionString') != version):
+                raise RuntimeError('Desktop appcast does not match this release payload.')
+            assets.append((f'appcast-{target}.xml', path, 'application/xml'))
+    return assets
+
+
+def checksums(assets):
+    return ''.join(f'{hashlib.sha256(path.read_bytes()).hexdigest()}  {name}\n'
+                   for name, path, _ in assets)
 
 
 def credential():
@@ -53,6 +96,7 @@ def request(token, url, method='GET', data=None, content_type='application/json'
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--prepare', action='store_true')
+    parser.add_argument('--desktop-updates', action='store_true', help='Require both signed desktop appcasts')
     parser.add_argument('--auth-check', action='store_true')
     parser.add_argument('--notes-file', type=Path)
     args = parser.parse_args()
@@ -63,15 +107,23 @@ def main():
         print('GitHub release publishing access verified.')
         return
     apk, manifest_path, manifest = artifact()
+    assets = release_assets(apk, manifest_path, manifest, args.desktop_updates)
+    sums_path = apk.parent / f'SHA256SUMS-{manifest["version"]}.txt'
     if args.prepare:
         manifest_path.write_text(json.dumps(manifest, indent=2) + '\n', encoding='utf-8')
-        print(f'Prepared {manifest_path.relative_to(ROOT)}')
+        sums_path.write_text(checksums(assets), encoding='utf-8')
+        print(f'Prepared {manifest_path.relative_to(ROOT)} and {sums_path.name}')
         return
     if not args.notes_file:
         parser.error('--notes-file is required for publishing')
     if json.loads(manifest_path.read_text()) != manifest:
         raise RuntimeError('Prepare and commit the matching update manifest first.')
-    for path in [apk, manifest_path]:
+    if sums_path.read_text() != checksums(assets):
+        raise RuntimeError('Prepare matching multi-platform checksums first.')
+    if git('status', '--porcelain'):
+        raise RuntimeError('Commit all completed source changes and release artifacts before publishing.')
+    assets.append(('SHA256SUMS.txt', sums_path, 'text/plain'))
+    for _, path, _ in assets:
         relative = str(path.relative_to(ROOT)).replace('\\', '/')
         if subprocess.run(['git', 'diff', '--quiet', 'HEAD', '--', relative], cwd=ROOT).returncode:
             raise RuntimeError('Commit release artifacts before publishing.')
@@ -91,10 +143,10 @@ def main():
     release = existing or request(token, API + '/releases', 'POST', json.dumps(dict(tag_name=tag, target_commitish=commit, name=f'Expense Tracker {manifest["version"]}', body=notes, draft=True, prerelease=False)).encode())
     # Only draft assets may be replaced after an interrupted publication.
     for asset in release.get('assets', []):
-        if asset['name'] in [apk.name, 'update.json']:
+        if asset['name'] in [name for name, _, _ in assets]:
             request(token, API + f'/releases/assets/{asset["id"]}', 'DELETE')
     upload_url = release['upload_url'].split('{')[0]
-    for name, path, mime in [(apk.name, apk, 'application/vnd.android.package-archive'), ('update.json', manifest_path, 'application/json')]:
+    for name, path, mime in assets:
         asset = request(token, upload_url + '?name=' + urllib.parse.quote(name), 'POST', path.read_bytes(), mime)
         if asset.get('digest') != 'sha256:' + hashlib.sha256(path.read_bytes()).hexdigest():
             raise RuntimeError('GitHub upload checksum verification failed; release remains a draft.')

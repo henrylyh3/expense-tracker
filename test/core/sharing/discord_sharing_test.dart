@@ -61,6 +61,39 @@ void main() {
           .read<int>('n');
 
   test(
+    'host sync reports real batch progress and clears it after completion',
+    () async {
+      await guest.join(code);
+      await expectLater(guest.sync(id), throwsA(isA<LedgerException>()));
+      final progress = <DiscordSyncProgress>[];
+      final subscription = host.discordProgress.listen(progress.add);
+      addTearDown(subscription.cancel);
+      await host.pollDiscord();
+      await Future<void>.delayed(Duration.zero);
+    expect(progress.first.stage, 'Connecting to Discord');
+    expect(progress.map((p) => p.stage), contains('Fetching Discord requests'));
+      expect(progress.last.stage, 'idle');
+      final batches = progress.where((p) => p.total != null).toList();
+      expect(batches, isNotEmpty);
+      expect(batches.last.completed, batches.last.total);
+    },
+  );
+  test('host sync clears progress on an acknowledgement error', () async {
+    await guest.join(code);
+    await expectLater(guest.sync(id), throwsA(isA<LedgerException>()));
+    api.failReply = true;
+    final progress = <DiscordSyncProgress>[];
+    final subscription = host.discordProgress.listen(progress.add);
+    addTearDown(subscription.cancel);
+    await expectLater(host.pollDiscord(), throwsA(isA<LedgerException>()));
+    await Future<void>.delayed(Duration.zero);
+    expect(progress.last.stage, 'idle');
+    api.failReply = false;
+    await host.pollDiscord();
+    await guest.sync(id);
+  });
+
+  test(
     'one setup creates separate invitations without sharing bot credentials',
     () async {
       final second = await host.inviteDiscord('personal', 'Bob');

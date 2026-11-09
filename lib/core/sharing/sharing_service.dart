@@ -21,6 +21,13 @@ import 'discord_api.dart';
 
 part 'discord_sharing.dart';
 
+class DiscordSyncProgress {
+  const DiscordSyncProgress(this.stage, {this.completed = 0, this.total});
+  final String stage;
+  final int completed;
+  final int? total;
+}
+
 class SharingService {
   SharingService(
     this.db, {
@@ -31,6 +38,17 @@ class SharingService {
   final DiscordApi discordApi;
   final RelaySecretStore relaySecrets;
   bool _discordPolling = false;
+  final _discordProgress = StreamController<DiscordSyncProgress>.broadcast();
+  Stream<DiscordSyncProgress> get discordProgress => _discordProgress.stream;
+  void _reportDiscord(DiscordSyncProgress value) {
+    if (!_discordProgress.isClosed) _discordProgress.add(value);
+  }
+
+  Future<void> dispose() async {
+    await stopHost();
+    await _discordProgress.close();
+  }
+
   final AppDatabase db;
   final cipher = SharingCipher();
   HttpServer? _server;

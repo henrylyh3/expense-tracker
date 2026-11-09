@@ -1,12 +1,18 @@
 # Expense Tracker
 
-A Flutter expense ledger with trip profiles, named manual currency rates and MYR accounting. Personal tracking works offline. Optional shared trips use local Wi-Fi or hotspot connections, with the host phone owning the ledger and guests keeping cached views and offline expense queues. No cloud database or exchange-rate API is required.
+A Flutter expense ledger with trip profiles, named manual currency rates and MYR accounting. Personal tracking works offline. Optional shared trips use local Wi-Fi or hotspot connections, with the host device owning the ledger and guests keeping cached views and offline expense queues. No cloud database or exchange-rate API is required.
 
-The current source passes 281 Flutter tests. Android builds and emulator checks are available. Physical two-phone Wi-Fi testing and iOS device validation remain separate checks.
+Earlier verification recorded 281 Flutter tests. See [development progress](docs/PROGRESS.md) for the scope of current checks. Android builds and emulator checks are available. Physical two-phone Wi-Fi testing and iOS device validation remain separate checks.
 
 See [Shared trips](docs/SHARING.md) for hosting, invitations, guest sync and data handling. Settings also provides JSON import/export and a confirmed reset to initial defaults.
 
 New currency records can [prefill Frankfurter reference rates](docs/CURRENCY_RATES.md) once during creation, with manual overrides and offline entry. Saved rates remain fixed. [Android updates](docs/UPDATES.md) are checked automatically and can also be checked explicitly beside the version in Settings.
+
+## Desktop host
+
+macOS and Windows targets reuse the existing layout. Use your laptop as the ledger host and keep Android guests on the existing Discord invitations. Sync runs while the app is open/foreground with a visible progress strip. Ledger files live in Application Support/AppData, outside the installed binaries.
+
+See [Desktop setup, packaging and signed updates](docs/DESKTOP.md). Releases now require an Android ARM64 APK, macOS DMG and complete Windows ZIP bundle, with companion updater payloads. Native desktop builds and signed update-feed setup remain pending; no desktop binaries are published by this source change.
 
 ## Project documentation
 

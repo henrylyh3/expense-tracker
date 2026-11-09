@@ -1,12 +1,18 @@
-import 'dart:io';
+import 'package:flutter/foundation.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/updates/update_service.dart';
+import '../../../core/updates/desktop_updater.dart';
 
-final updateSupportedProvider = Provider<bool>((ref) => Platform.isAndroid);
+final updateSupportedProvider = Provider<bool>(
+  (ref) =>
+      defaultTargetPlatform == TargetPlatform.android ||
+      defaultTargetPlatform == TargetPlatform.macOS ||
+      defaultTargetPlatform == TargetPlatform.windows,
+);
 final updateClockProvider = Provider<DateTime Function()>(
   (ref) => DateTime.now,
 );
@@ -19,10 +25,29 @@ class CheckUpdatesButton extends ConsumerWidget {
     icon: const Icon(Icons.system_update_alt),
     onPressed: !ref.watch(updateSupportedProvider)
         ? null
-        : () => showDialog<void>(
-            context: context,
-            builder: (_) => const _ManualUpdateCheck(),
-          ),
+        : () async {
+            if (defaultTargetPlatform == TargetPlatform.macOS ||
+                defaultTargetPlatform == TargetPlatform.windows) {
+              try {
+                await desktopUpdater.check();
+              } catch (_) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        'Desktop update check unavailable. Check your connection and signed update-feed configuration.',
+                      ),
+                    ),
+                  );
+                }
+              }
+              return;
+            }
+            await showDialog<void>(
+              context: context,
+              builder: (_) => const _ManualUpdateCheck(),
+            );
+          },
   );
 }
 
@@ -149,6 +174,15 @@ class _UpdateCheckOnOpenState extends ConsumerState<UpdateCheckOnOpen>
     _lastCheck = ref.read(updateClockProvider)();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
+      if (defaultTargetPlatform == TargetPlatform.macOS ||
+          defaultTargetPlatform == TargetPlatform.windows) {
+        try {
+          await desktopUpdater.check(background: true);
+        } catch (_) {
+          /* Offline never blocks the ledger. */
+        }
+        return;
+      }
       try {
         final release = await ref.read(updateServiceProvider).check();
         if (!mounted || release == null) return;

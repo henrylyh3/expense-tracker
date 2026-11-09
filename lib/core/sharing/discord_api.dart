@@ -13,7 +13,11 @@ abstract class RelaySecretStore {
 }
 
 class DeviceRelaySecrets implements RelaySecretStore {
-  final _storage = const FlutterSecureStorage();
+  // A single-app desktop install does not need a shared Keychain group or
+  // a machine-specific provisioning profile. Mobile defaults are unchanged.
+  final _storage = const FlutterSecureStorage(
+    mOptions: MacOsOptions(usesDataProtectionKeychain: false),
+  );
   static const _prefix = 'expense_discord_';
   @override
   Future<String?> read(String key) => _storage.read(key: '$_prefix$key');
