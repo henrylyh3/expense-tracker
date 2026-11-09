@@ -6,6 +6,7 @@ import '../core/providers/appearance_provider.dart';
 import '../core/providers/ledger_operation_providers.dart';
 import 'router.dart';
 import 'theme.dart';
+import '../features/settings/presentation/update_prompt.dart';
 
 class ExpenseTrackerApp extends ConsumerStatefulWidget {
   const ExpenseTrackerApp({super.key});
@@ -29,6 +30,7 @@ class _ExpenseTrackerAppState extends ConsumerState<ExpenseTrackerApp> {
     final ready = ref.watch(databaseReadyProvider).asData != null;
     final mode = ready ? ref.watch(appearanceProvider).asData?.value : null;
     final busy = ref.watch(ledgerTransferBusyProvider);
+    final router = ref.watch(routerProvider);
     return MaterialApp.router(
       title: 'Expense Tracker',
       scaffoldMessengerKey: _messenger,
@@ -36,9 +38,16 @@ class _ExpenseTrackerAppState extends ConsumerState<ExpenseTrackerApp> {
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),
       themeMode: mode ?? ThemeMode.system,
-      routerConfig: ref.watch(routerProvider),
-      builder: (context, child) =>
-          AbsorbPointer(absorbing: busy, child: child!),
+      routerConfig: router,
+      builder: (context, child) => UpdateCheckOnOpen(
+        ready: ready,
+        busy: busy,
+        canPrompt: () =>
+            router.routeInformationProvider.value.uri.path == '/home',
+        navigatorContext: () =>
+            router.routerDelegate.navigatorKey.currentState?.overlay?.context,
+        child: AbsorbPointer(absorbing: busy, child: child!),
+      ),
     );
   }
 }

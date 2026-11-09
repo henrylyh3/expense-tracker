@@ -6,8 +6,11 @@ import io.flutter.plugin.common.MethodChannel
 import java.io.File
 
 class MainActivity : FlutterActivity() {
+    private val updates by lazy { UpdateInstaller(this) }
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "expense_tracker/updates")
+            .setMethodCallHandler(updates::handle)
         MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
             "expense_tracker/private_storage"
@@ -26,5 +29,10 @@ class MainActivity : FlutterActivity() {
                 }
             }
         }
+    }
+
+    override fun onDestroy() {
+        updates.close()
+        super.onDestroy()
     }
 }

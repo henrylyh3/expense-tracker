@@ -3,6 +3,8 @@
 Expense Tracker has no online account, external backend, exchange-rate API,
 advertising, analytics or crash-reporting service. Shared-trip access uses private invitation keys. Personal ledger operations require no internet connection. Optional shared trips use local Wi-Fi or hotspot networking. Exchange rates are entered manually.
 
+On Android, the app checks GitHub Releases for updates once on startup. GitHub receives the network request (including the device's public IP address and updater user agent); no ledger, trip, invitation or backup data is sent. Choosing Update now downloads a signed APK from GitHub. The temporary update cache is separate from ledger storage and excluded from ledger exports. Android installation permission is used only after you choose to update. See [UPDATES.md](UPDATES.md).
+
 Transactions, notes, categories, currencies, saved rates and appearance settings
 are stored in private SQLite storage on the device. All reports use saved MYR
 conversions. SQLite is not separately encrypted by this app; protection relies on

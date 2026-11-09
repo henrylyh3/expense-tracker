@@ -20,8 +20,13 @@ def main():
               'android.permission.READ_EXTERNAL_STORAGE', 'android.permission.WRITE_EXTERNAL_STORAGE'}
     assert any(item.attrib.get(ANDROID + 'name') == 'android.permission.INTERNET' for item in manifest.findall('uses-permission')), 'Peer sharing requires INTERNET permission.'
     permissions = {item.attrib.get(ANDROID + 'name') for item in manifest.findall('uses-permission')}
-    assert not permissions & denied, 'Release source requests network or broad storage permission.'
+    assert not permissions & denied, 'Release source requests broad storage permission.'
+    assert 'android.permission.REQUEST_INSTALL_PACKAGES' in permissions, 'The Android updater needs installation permission.'
     app = manifest.find('application')
+    updater = next(item for item in app.findall('provider') if item.attrib.get(ANDROID + 'authorities') == '${applicationId}.updates')
+    assert updater.attrib.get(ANDROID + 'exported') == 'false' and updater.attrib.get(ANDROID + 'grantUriPermissions') == 'true', 'Restrict update file sharing.'
+    paths = ET.parse(ROOT / 'android/app/src/main/res/xml/update_paths.xml').getroot()
+    assert len(paths) == 1 and paths[0].tag == 'cache-path' and paths[0].attrib == {'name': 'updates', 'path': 'updates/'}, 'Expose only the update cache directory.'
     assert app.attrib.get(ANDROID + 'allowBackup') == 'false', 'Internal ledger must exclude automatic backup.'
     for attr, expected in [('fullBackupContent', '@xml/backup_rules'), ('dataExtractionRules', '@xml/data_extraction_rules')]:
         assert app.attrib.get(ANDROID + attr) == expected, f'Missing Android {attr} configuration.'

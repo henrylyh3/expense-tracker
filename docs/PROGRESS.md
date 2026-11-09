@@ -285,3 +285,13 @@ until those checks pass. Use a test installation for destructive restore tests.
 - Signed APK verified: com.example.expense_tracker, versionName 0.4.1, versionCode 2010 (previous 2009), arm64-v8a only, same signing certificate as v0.4.0.
 - API 36 emulator update smoke test: created an RM 12.50 expense in v0.4.0, installed v0.4.1 over it and confirmed the expense persisted. Settings displayed 0.4.1+10; trip summary showed original and combined MYR totals, an MYR category chart and no currency dropdown. No app runtime errors were recorded.
 - APK SHA-256: 3E87DAB9D37D388B98D35103295826018A02484EB6C451C6EB59F12A0914E35C.
+
+## 2026-11-09 — v0.4.2 automatic Android updates
+
+- Added a once-per-cold-launch GitHub Release check after successful ledger startup. A newer build prompts Update now or Later; offline/error checks do not block tracking.
+- Added cancellable APK download progress, GitHub manifest/asset digest validation, HTTPS host restrictions and bounded downloads. Android verifies the actual checksum, package, newer version code, ARM64 libraries and existing signing certificate before the installer opens.
+- Added Android installation permission handling and automatic installer opening after the user returns from granting permission. Ledger storage is unchanged. iOS skips this Android-only updater.
+- Added release publishing tooling and a maintained release workflow: commit signed APK/manifest/notes, push, then publish verified assets through a GitHub draft release. Publishing credentials remain on the developer machine.
+- Validation: clean Flutter analysis, all 259 Flutter tests passed, project configuration checks passed, and an API 36 Android integration test confirmed invalid APKs/paths are rejected.
+- APK: release/expense-tracker-0.4.2-arm64-release.apk. Release guide: UPDATES.md. The first updater-enabled APK needs one manual installation.
+- Release artifact verified: package com.example.expense_tracker, versionName 0.4.2, versionCode 2011 (previous 2010), ARM64 only, and the same signing certificate as v0.4.1. Final small-screen prompt tests passed with long release notes and visible download progress.

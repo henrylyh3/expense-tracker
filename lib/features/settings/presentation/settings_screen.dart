@@ -21,6 +21,10 @@ class SettingsScreen extends ConsumerWidget {
           leading: Icon(Icons.info_outline),
           title: Text('Current version'),
           subtitle: Text(appVersion),
+          trailing: Tooltip(
+            message: 'Checks for Android updates when the app opens',
+            child: Icon(Icons.system_update_alt),
+          ),
         ),
       ),
       const SizedBox(height: 12),
