@@ -198,7 +198,7 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
                 ),
                 title: Text(item.categoryName),
                 subtitle: Text(
-                  '${item.date} · ${item.type.name}\n−$displayedAmount'
+                  '${item.date}\n$displayedAmount'
                   '${originalAmount == displayedAmount ? '' : '\nOriginal: $originalAmount'}',
                 ),
                 trailing: const Icon(Icons.chevron_right),

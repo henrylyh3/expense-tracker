@@ -14,6 +14,8 @@ import 'package:expense_tracker/features/currencies/presentation/currency_view_m
 import 'package:expense_tracker/features/reports/presentation/report_view_model.dart';
 import 'package:expense_tracker/features/transactions/presentation/transaction_view_model.dart';
 import 'package:expense_tracker/features/transactions/domain/transaction_input.dart';
+import 'package:expense_tracker/features/transactions/domain/ledger_transaction.dart';
+import 'package:expense_tracker/features/transactions/domain/conversion_policy.dart';
 import 'package:expense_tracker/features/settings/presentation/trips_screen.dart';
 import 'package:expense_tracker/features/reports/domain/financial_report.dart';
 import 'package:expense_tracker/features/reports/domain/report_period.dart';
@@ -25,6 +27,41 @@ import 'package:flutter_test/flutter_test.dart';
 import '../support/report_overrides.dart';
 
 void main() {
+  testWidgets('History shows a positive amount without an expense label', (
+    tester,
+  ) async {
+    final money = Money.parsePositive(
+      '12.50',
+      currencyCode: 'MYR',
+      decimalPlaces: 2,
+    );
+    final item = LedgerTransaction(
+      id: 'history-item',
+      categoryId: 'food',
+      categoryName: 'Food',
+      categoryIconKey: 'restaurant',
+      categoryColorHex: '#123456',
+      categoryArchived: false,
+      currencyActive: true,
+      type: TransactionType.expense,
+      conversion: ConversionSnapshot(
+        original: money,
+        exchangeRate: '1',
+        myr: money,
+      ),
+      date: CalendarDate.parse('2026-11-09'),
+      note: null,
+      createdAtUtc: 1,
+      updatedAtUtc: 1,
+    );
+    await tester.pumpWidget(_navigationApp(history: [item]));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('History').last);
+    await tester.pumpAndSettle();
+    expect(find.text('2026-11-09\nRM 12.50'), findsOneWidget);
+    expect(find.textContaining('· expense'), findsNothing);
+    expect(find.textContaining('−RM'), findsNothing);
+  });
   testWidgets(
     'trip summary shows original currency totals and a fixed MYR total on a narrow screen',
     (tester) async {
@@ -33,10 +70,15 @@ void main() {
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
       final report = FinancialReport.calculate(ReportPeriod.trip(), [
-        for (final item in [('USD', '12.00', 5500), ('MYR', '3.00', 300)])
+        for (final item in [
+          ('USD', '10.00', 4500, '4.5'),
+          ('USD', '2.00', 1000, '5'),
+          ('MYR', '3.00', 300, '1'),
+        ])
           ReportEntry(
             type: TransactionType.expense,
             amountMyrMinor: item.$3,
+            exchangeRate: item.$4,
             original: Money.parsePositive(
               item.$2,
               currencyCode: item.$1,
@@ -61,6 +103,8 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Spent by currency'), findsOneWidget);
       expect(find.text('USD 12.00'), findsOneWidget);
+      expect(find.text('1 USD = 4.5 MYR'), findsOneWidget);
+      expect(find.text('1 USD = 5 MYR'), findsOneWidget);
       expect(find.text('RM 3.00'), findsOneWidget);
       await tester.ensureVisible(find.text('Total in MYR'));
       await tester.pumpAndSettle();
@@ -238,87 +282,89 @@ void main() {
   });
 }
 
-Widget _navigationApp({double textScale = 1, FinancialReport? tripReport}) =>
-    ProviderScope(
-      overrides: [
-        databaseReadyProvider.overrideWith((ref) async {}),
-        sharedSessionsProvider.overrideWith((ref) => Stream.value(const [])),
-        activeTripProvider.overrideWith((ref) => Stream.value(personalTripId)),
-        tripsProvider.overrideWith(
-          (ref) => Stream.value([(id: personalTripId, name: 'Personal')]),
-        ),
-        tripRatesProvider.overrideWith((ref, id) => Stream.value(const {})),
-        tripUsedCurrenciesProvider.overrideWith(
-          (ref, id) => Stream.value({'MYR', 'USD'}),
-        ),
-        tripDefaultCurrencyProvider.overrideWith(
-          (ref, id) => Stream.value(DisplayCurrency.myr),
-        ),
-        globalDefaultCurrencyProvider.overrideWith(
-          (ref) => Stream.value(DisplayCurrency.myr),
-        ),
-        tripSummaryProvider.overrideWith(
-          (ref, id) => Stream.value(
-            tripReport ??
-                FinancialReport.calculate(ReportPeriod.trip(), const []),
-          ),
-        ),
-        defaultCurrencyProvider.overrideWith(
-          (ref) => Stream.value(DisplayCurrency.myr),
-        ),
-        ...emptyReportOverrides(),
-        transactionsProvider.overrideWith((ref) => Stream.value(const [])),
-        categoriesProvider.overrideWith(
-          (ref) => Stream.value(const [
-            LedgerCategory(
-              id: 'food',
-              name: 'Food',
-              type: TransactionType.expense,
-              iconKey: 'restaurant',
-              colorHex: '#123456',
-              sortOrder: 0,
-              isArchived: false,
-              usageCount: 0,
-            ),
-          ]),
-        ),
-        transactionActionsProvider.overrideWith(_TestTransactionActions.new),
-        currenciesProvider.overrideWith(
-          (ref) => Stream.value(const [
-            ConfiguredCurrency(
-              code: 'MYR',
-              name: 'Malaysian Ringgit',
-              symbol: 'RM',
-              decimalPlaces: 2,
-              rateToMyr: '1',
-              isActive: true,
-              usageCount: 0,
-            ),
-            ConfiguredCurrency(
-              code: 'USD',
-              name: 'US Dollar',
-              symbol: r'$',
-              decimalPlaces: 2,
-              rateToMyr: '4.5',
-              isActive: true,
-              usageCount: 0,
-            ),
-          ]),
-        ),
-      ],
-      child: Consumer(
-        builder: (context, ref, child) => MaterialApp.router(
-          theme: AppTheme.light(),
-          routerConfig: ref.watch(routerProvider),
-          builder: (context, child) => MediaQuery(
-            data: MediaQuery.of(
-              context,
-            ).copyWith(textScaler: TextScaler.linear(textScale)),
-            child: child!,
-          ),
-        ),
+Widget _navigationApp({
+  double textScale = 1,
+  FinancialReport? tripReport,
+  List<LedgerTransaction> history = const [],
+}) => ProviderScope(
+  overrides: [
+    databaseReadyProvider.overrideWith((ref) async {}),
+    sharedSessionsProvider.overrideWith((ref) => Stream.value(const [])),
+    activeTripProvider.overrideWith((ref) => Stream.value(personalTripId)),
+    tripsProvider.overrideWith(
+      (ref) => Stream.value([(id: personalTripId, name: 'Personal')]),
+    ),
+    tripRatesProvider.overrideWith((ref, id) => Stream.value(const {})),
+    tripUsedCurrenciesProvider.overrideWith(
+      (ref, id) => Stream.value({'MYR', 'USD'}),
+    ),
+    tripDefaultCurrencyProvider.overrideWith(
+      (ref, id) => Stream.value(DisplayCurrency.myr),
+    ),
+    globalDefaultCurrencyProvider.overrideWith(
+      (ref) => Stream.value(DisplayCurrency.myr),
+    ),
+    tripSummaryProvider.overrideWith(
+      (ref, id) => Stream.value(
+        tripReport ?? FinancialReport.calculate(ReportPeriod.trip(), const []),
       ),
-    );
+    ),
+    defaultCurrencyProvider.overrideWith(
+      (ref) => Stream.value(DisplayCurrency.myr),
+    ),
+    ...emptyReportOverrides(),
+    transactionsProvider.overrideWith((ref) => Stream.value(history)),
+    categoriesProvider.overrideWith(
+      (ref) => Stream.value(const [
+        LedgerCategory(
+          id: 'food',
+          name: 'Food',
+          type: TransactionType.expense,
+          iconKey: 'restaurant',
+          colorHex: '#123456',
+          sortOrder: 0,
+          isArchived: false,
+          usageCount: 0,
+        ),
+      ]),
+    ),
+    transactionActionsProvider.overrideWith(_TestTransactionActions.new),
+    currenciesProvider.overrideWith(
+      (ref) => Stream.value(const [
+        ConfiguredCurrency(
+          code: 'MYR',
+          name: 'Malaysian Ringgit',
+          symbol: 'RM',
+          decimalPlaces: 2,
+          rateToMyr: '1',
+          isActive: true,
+          usageCount: 0,
+        ),
+        ConfiguredCurrency(
+          code: 'USD',
+          name: 'US Dollar',
+          symbol: r'$',
+          decimalPlaces: 2,
+          rateToMyr: '4.5',
+          isActive: true,
+          usageCount: 0,
+        ),
+      ]),
+    ),
+  ],
+  child: Consumer(
+    builder: (context, ref, child) => MaterialApp.router(
+      theme: AppTheme.light(),
+      routerConfig: ref.watch(routerProvider),
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(
+          context,
+        ).copyWith(textScaler: TextScaler.linear(textScale)),
+        child: child!,
+      ),
+    ),
+  ),
+);
 
 class _TestTransactionActions extends TransactionActions {
   @override

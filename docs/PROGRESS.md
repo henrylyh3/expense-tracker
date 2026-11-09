@@ -295,3 +295,12 @@ until those checks pass. Use a test installation for destructive restore tests.
 - Validation: clean Flutter analysis, all 259 Flutter tests passed, project configuration checks passed, and an API 36 Android integration test confirmed invalid APKs/paths are rejected.
 - APK: release/expense-tracker-0.4.2-arm64-release.apk. Release guide: UPDATES.md. The first updater-enabled APK needs one manual installation.
 - Release artifact verified: package com.example.expense_tracker, versionName 0.4.2, versionCode 2011 (previous 2010), ARM64 only, and the same signing certificate as v0.4.1. Final small-screen prompt tests passed with long release notes and visible download progress.
+
+## 2026-11-09 — v0.4.3 saved rates and clearer expense lists
+
+- Trip summaries list the saved exchange rates under each original currency total. Distinct historical rates remain visible even after changing or archiving the currency; equivalent rate representations are deduplicated.
+- History entries show the date and positive amount without a repeated expense type label or leading minus sign. Original currency amounts remain available where relevant.
+- Currency settings visibly mark App default and Current trip default on the exact selected currency/rate record. Markers update live, including different named records sharing the same currency code. Already-selected default menu actions are disabled.
+- Validation: clean Flutter analysis, all 261 Flutter tests passed, and project configuration checks passed. Tests cover mixed saved rates, rate removal after deleting an expense, narrow-screen display, named default records and History labels/amounts.
+- Release version 0.4.3+12; signed ARM64 APK: release/expense-tracker-0.4.3-arm64-release.apk. Publish the APK and update manifest through the existing GitHub updater workflow.
+- Signed artifact verified: com.example.expense_tracker, versionName 0.4.3, versionCode 2012 (previous 2011), arm64-v8a only, with the same signing certificate as v0.4.2.

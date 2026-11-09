@@ -1,6 +1,7 @@
 import '../../../core/dates/calendar_date.dart';
 import '../../../core/models/ledger_types.dart';
 import '../../../core/money/money.dart';
+import '../../../core/money/exchange_rate.dart';
 import 'report_period.dart';
 
 class ReportEntry {
@@ -13,6 +14,7 @@ class ReportEntry {
     required this.categoryColorHex,
     required this.categoryIconKey,
     this.original,
+    this.exchangeRate,
   });
   final TransactionType type;
   final int amountMyrMinor;
@@ -22,6 +24,7 @@ class ReportEntry {
   final String categoryColorHex;
   final String categoryIconKey;
   final Money? original;
+  final String? exchangeRate;
 }
 
 class CategorySpending {
@@ -64,9 +67,15 @@ class FinancialReport {
     required List<CategorySpending> categories,
     required List<TrendBucket> buckets,
     required List<Money> currencyTotals,
+    required Map<String, List<String>> currencyRates,
   }) : categories = List.unmodifiable(categories),
        buckets = List.unmodifiable(buckets),
-       currencyTotals = List.unmodifiable(currencyTotals);
+       currencyTotals = List.unmodifiable(currencyTotals),
+       currencyRates = Map.unmodifiable(
+         currencyRates.map(
+           (code, rates) => MapEntry(code, List<String>.unmodifiable(rates)),
+         ),
+       );
 
   factory FinancialReport.calculate(
     ReportPeriod period,
@@ -84,6 +93,7 @@ class FinancialReport {
     final metadata = <String, ReportEntry>{};
     final originalTotals = <String, BigInt>{};
     final originalPrecision = <String, int>{};
+    final originalRates = <String, Set<String>>{};
     final start = period.start.toString();
     final end = period.endExclusive?.toString();
     for (final entry in entries) {
@@ -114,6 +124,11 @@ class FinancialReport {
             ifAbsent: () => BigInt.from(original.minorUnits),
           );
           originalPrecision[original.currencyCode] = original.decimalPlaces;
+          if (entry.exchangeRate != null) {
+            originalRates
+                .putIfAbsent(original.currencyCode, () => <String>{})
+                .add(normalizeExchangeRate(entry.exchangeRate!));
+          }
         }
         if (period.isTrip) {
           tripDays.update(
@@ -169,6 +184,10 @@ class FinancialReport {
             decimalPlaces: originalPrecision[code]!,
           ),
       ],
+      currencyRates: {
+        for (final item in originalRates.entries)
+          item.key: item.value.toList()..sort(),
+      },
       categories: categories,
       buckets: period.isTrip
           ? [
@@ -205,6 +224,7 @@ class FinancialReport {
   final List<CategorySpending> categories;
   final List<TrendBucket> buckets;
   final List<Money> currencyTotals;
+  final Map<String, List<String>> currencyRates;
   int get transactionCount => incomeCount + expenseCount;
   Money get income => _myr(incomeMinor);
   Money get expenses => _myr(expenseMinor);

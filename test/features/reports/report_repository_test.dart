@@ -109,6 +109,9 @@ void main() {
           ['JPY:100', 'MYR:3.00', 'USD:12.00'],
         );
         expect(iterator.current.expenseMinor, 6100);
+        expect(iterator.current.currencyRates['USD'], ['4.5', '5']);
+        expect(iterator.current.currencyRates['JPY'], ['0.03']);
+        expect(iterator.current.currencyRates['MYR'], ['1']);
         expect(iterator.current.expenseCount, 4);
         final transaction = await transactions.getById(firstUsd);
         await transactions.delete(
@@ -118,6 +121,7 @@ void main() {
         expect(await iterator.moveNext(), isTrue);
         expect(iterator.current.currencyTotals.last.toInput(), '2.00');
         expect(iterator.current.expenseMinor, 1600);
+        expect(iterator.current.currencyRates['USD'], ['5']);
       } finally {
         await iterator.cancel();
       }

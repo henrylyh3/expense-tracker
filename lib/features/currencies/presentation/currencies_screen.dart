@@ -78,6 +78,10 @@ class _CurrenciesScreenState extends ConsumerState<CurrenciesScreen> {
   Widget build(BuildContext context) {
     final currencies = ref.watch(currenciesProvider);
     final busy = ref.watch(currencyActionsProvider).isLoading;
+    final defaultCurrency = ref.watch(globalDefaultCurrencyProvider);
+    final tripCurrency = ref.watch(defaultCurrencyProvider);
+    final defaultKey = defaultCurrency.asData?.value.key;
+    final tripKey = tripCurrency.asData?.value.key;
     return currencies.when(
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (error, stack) => ManagementLoadError(
@@ -91,6 +95,14 @@ class _CurrenciesScreenState extends ConsumerState<CurrenciesScreen> {
             style: Theme.of(context).textTheme.headlineSmall,
           ),
           const SizedBox(height: 8),
+          if (defaultCurrency.hasError || tripCurrency.hasError)
+            TextButton(
+              onPressed: () {
+                ref.invalidate(globalDefaultCurrencyProvider);
+                ref.invalidate(defaultCurrencyProvider);
+              },
+              child: const Text('Retry loading default currencies'),
+            ),
           const Text(
             'MYR is your fixed base currency. All rates mean 1 unit of the selected currency in MYR.',
           ),
@@ -123,7 +135,8 @@ class _CurrenciesScreenState extends ConsumerState<CurrenciesScreen> {
                       ? ' · Base currency'
                       : !currency.isActive
                       ? ' · Archived'
-                      : ''}',
+                      : ''}'
+                  '${currency.key == defaultKey || currency.key == tripKey ? '\n${[if (currency.key == defaultKey) 'App default', if (currency.key == tripKey) 'Current trip default'].join(' · ')}' : ''}',
                 ),
                 onTap: busy ? null : () => _edit(all, currency),
                 trailing: PopupMenuButton<String>(
@@ -168,14 +181,24 @@ class _CurrenciesScreenState extends ConsumerState<CurrenciesScreen> {
                   },
                   itemBuilder: (context) => [
                     if (currency.isActive)
-                      const PopupMenuItem(
+                      PopupMenuItem(
                         value: 'trip-default',
-                        child: Text('Make default for current trip'),
+                        enabled: currency.key != tripKey,
+                        child: Text(
+                          currency.key == tripKey
+                              ? 'Current trip default'
+                              : 'Make default for current trip',
+                        ),
                       ),
                     if (currency.isActive)
-                      const PopupMenuItem(
+                      PopupMenuItem(
                         value: 'default',
-                        child: Text('Make default'),
+                        enabled: currency.key != defaultKey,
+                        child: Text(
+                          currency.key == defaultKey
+                              ? 'App default'
+                              : 'Make default',
+                        ),
                       ),
                     const PopupMenuItem(value: 'edit', child: Text('Edit')),
                     if (!currency.isActive)

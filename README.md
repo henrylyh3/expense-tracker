@@ -2,7 +2,7 @@
 
 A Flutter expense ledger with trip profiles, named manual currency rates and MYR accounting. Personal tracking works offline. Optional shared trips use local Wi-Fi or hotspot connections, with the host phone owning the ledger and guests keeping cached views and offline expense queues. No cloud database or exchange-rate API is required.
 
-The current source passes 259 Flutter tests. Android builds and emulator checks are available. Physical two-phone Wi-Fi testing and iOS device validation remain separate checks.
+The current source passes 261 Flutter tests. Android builds and emulator checks are available. Physical two-phone Wi-Fi testing and iOS device validation remain separate checks.
 
 See [Shared trips](docs/SHARING.md) for hosting, invitations, guest sync and data handling. Settings also provides JSON import/export and a confirmed reset to initial defaults.
 

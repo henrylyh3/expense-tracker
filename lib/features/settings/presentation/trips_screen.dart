@@ -174,7 +174,7 @@ class _TripCurrencySummary extends StatelessWidget {
                 style: Theme.of(context).textTheme.titleMedium,
               ),
               const SizedBox(height: 8),
-              const Text('Original expense amounts, grouped by currency.'),
+              const Text('Original expense amounts and saved exchange rates.'),
               if (report.expenseCount == 0)
                 const Padding(
                   padding: EdgeInsets.only(top: 12),
@@ -183,12 +183,21 @@ class _TripCurrencySummary extends StatelessWidget {
               for (final total in report.currencyTotals)
                 Padding(
                   padding: const EdgeInsets.only(top: 12),
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Text(
-                      total.format(),
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Text(
+                          total.format(),
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
+                      ),
+                      for (final rate
+                          in report.currencyRates[total.currencyCode] ??
+                              const <String>[])
+                        Text('1 ${total.currencyCode} = $rate MYR'),
+                    ],
                   ),
                 ),
             ],
