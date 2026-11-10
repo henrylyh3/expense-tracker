@@ -27,6 +27,12 @@ class BuildReleaseTests(unittest.TestCase):
             patcher.start()
             self.addCleanup(patcher.stop)
 
+    def test_native_launcher_resolves_windows_batch_path_before_execution(self):
+        with patch.object(build_release.shutil, 'which', return_value='C:/flutter/bin/flutter.bat'), patch.object(build_release.subprocess, 'run') as run:
+            build_release.run(['flutter', '--version', '--machine'], capture=True)
+        self.assertEqual(run.call_args.args[0], ['C:/flutter/bin/flutter.bat', '--version', '--machine'])
+        self.assertNotIn('shell', run.call_args.kwargs)
+
     def mac_key(self):
         config = self.root / 'macos/Runner/Configs/Signing.xcconfig'
         config.parent.mkdir(parents=True)

@@ -31,8 +31,15 @@ FOCUSED_TESTS = [
 
 
 def run(command, capture=False, env=None):
-    return subprocess.run(command, cwd=ROOT, check=True, text=True,
-                          capture_output=capture, env=env)
+    command = [str(value) for value in command]
+    # Windows CreateProcess does not resolve bare Flutter/Dart .bat launchers
+    # like PowerShell does. Resolve PATHEXT explicitly before starting a tool.
+    command[0] = shutil.which(command[0]) or command[0]
+    try:
+        return subprocess.run(command, cwd=ROOT, check=True, text=True,
+                              capture_output=capture, env=env)
+    except OSError as error:
+        raise RuntimeError('Could not start native tool: ' + Path(command[0]).name) from error
 
 
 def update_defines(target):
