@@ -252,6 +252,97 @@ void main() {
       isEmpty,
     );
   });
+  test(
+    'one-way browser expenses import without sending host acknowledgements',
+    () async {
+      final link = Uri.parse(
+        await host.inviteDiscordWeb(
+          'personal',
+          'Alice',
+          Uri.parse('https://guest.example/'),
+        ),
+      );
+      final data = decode(Uri.splitQueryString(link.fragment)['invite']!),
+          id = data['id'] as String;
+      final connection = DiscordConnection.decode(data['endpoint'] as String);
+      for (var n = 1; n <= 2; n++) {
+        final encrypted = await SharingCipher().seal(
+          {
+            'action': 'add',
+            'reply': false,
+            'trip': 'personal',
+            'request': '12345678-1234-4234-8234-12345678910$n',
+            'submission': '12345678-1234-4234-8234-12345678920$n',
+            'expense': {
+              'category': 'seed-food',
+              'currency': 'MYR',
+              'amount': '12.50',
+              'rate': '1',
+              'date': '2026-11-10',
+            },
+          },
+          data['key'] as String,
+          'discord-request:$id:personal',
+        );
+        await api.post(connection.webhook, {
+          'direction': 'request',
+          'id': id,
+          ...encrypted,
+        });
+      }
+      api.failReply = true;
+      await host.pollDiscord();
+      final count = await hostDb
+          .customSelect('SELECT count(*) AS n FROM transactions')
+          .getSingle();
+      expect(count.read<int>('n'), 2);
+      expect(api.failReply, isTrue);
+      expect(
+        api.inbox
+            .skip(1)
+            .every(
+              (message) =>
+                  (message['payload'] as Map)['direction'] == 'request',
+            ),
+        isTrue,
+      );
+    },
+  );
+  test('a delayed read cannot expose a fresh snapshot after expiry', () async {
+    final code = await host.inviteDiscord(
+      'personal',
+      'Alice',
+      validFor: const Duration(minutes: 1),
+    );
+    final id = decode(code)['id'] as String;
+    await guest.join(code);
+    await expectLater(guest.sync(id), throwsA(isA<LedgerException>()));
+    final data = decode(code);
+    final request = await SharingCipher().open(
+      (await api.packet(api.inbox.last))!,
+      data['key'] as String,
+      'discord-request:$id:personal',
+    );
+    hostNow = hostNow.add(const Duration(minutes: 2));
+    await host.pollDiscord();
+    await expectLater(
+      guest.sync(id),
+      throwsA(
+        isA<LedgerException>().having(
+          (e) => e.message,
+          'message',
+          contains('expired'),
+        ),
+      ),
+    );
+    final response = await SharingCipher().open(
+      (await api.packet(api.inbox.last))!,
+      data['key'] as String,
+      'discord-response:$id:${request['request']}',
+    );
+    expect(response.containsKey('snapshot'), isFalse);
+    expect(response['error'], contains('expired'));
+  });
   test('WebCrypto packet decrypts with native SharingCipher', () async {
     final fixture =
         jsonDecode(

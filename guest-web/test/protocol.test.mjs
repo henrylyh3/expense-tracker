@@ -35,6 +35,7 @@ test('fresh link loads with host offline and all expenses send without host repl
   assert.equal(client.state.pending.length, 0); assert.equal(client.state.sent.length, 3); assert.equal(fake.posts, 3);
   assert.equal(fake.calls.filter(row => row.options.method === 'GET').length, gets);
   assert.equal(fake.saved.size, 0); // Host has not received/processed its inbox yet.
+  assert.ok([...fake.messages.values()].filter(row => row.request).every(row => row.request.reply === false));
   fake.receive(); assert.deepEqual(fake.saved, new Set(ids));
 });
 test('partial upload survives restart, encrypted history and sends remaining items only', async () => {

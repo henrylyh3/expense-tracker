@@ -258,7 +258,7 @@ export class RelayClient {
     for (const item of [...this.state.pending]) {
       onProgress(`Sending expense ${this.lastSentCount + 1} of ${total} to Discord`);
       // A Discord message receipt is sufficient; the host can import it later.
-      await this.sendRequest({ action: 'add', submission: item.id, expense: item.expense }, item, signal);
+      await this.sendRequest({ action: 'add', reply: false, submission: item.id, expense: item.expense }, item, signal);
       const pending = this.state.pending, sent = this.state.sent;
       this.state.sent = [{ id: item.id, expense: item.expense, message: item.request.message, sentAt: this.clock() }, ...sent].slice(0, 100);
       this.state.pending = pending.filter(row => row.id !== item.id);

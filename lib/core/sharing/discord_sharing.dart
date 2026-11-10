@@ -351,6 +351,18 @@ extension DiscordSharing on SharingService {
           sharedSessionId: id,
           sharedRequestId: submission,
         );
+        // One-way browser deliveries need no host reply. An expired invitation
+        // must never receive a fresh ledger snapshot, even after a valid late import.
+        if (data['reply'] == false ||
+            (expiresAt != null && !_clock().isBefore(expiresAt))) {
+          return;
+        }
+      } else if (data['action'] == 'read' &&
+          expiresAt != null &&
+          !_clock().isBefore(expiresAt)) {
+        throw const LedgerException(
+          'This invitation has expired. Ask the host for a new invitation.',
+        );
       } else if (data['action'] != 'read') {
         throw const FormatException();
       }
