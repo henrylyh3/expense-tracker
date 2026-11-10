@@ -34,7 +34,7 @@ jobs:
       - name: Release integrity tests
         run: python -m unittest discover -s tool -p 'test_*release.py'
       - name: Focused desktop and linked tests
-        run: flutter test test/core/database/private_storage_test.dart test/core/updates/desktop_updater_test.dart test/core/sharing/discord_sharing_test.dart test/features/settings/discord_settings_test.dart test/features/settings/update_prompt_test.dart
+        run: flutter test test/core/database/private_storage_test.dart test/core/updates/desktop_updater_test.dart test/core/sharing/discord_sharing_test.dart test/core/sharing/discord_web_invite_test.dart test/features/settings/web_invitation_test.dart test/features/settings/discord_settings_test.dart test/features/settings/update_prompt_test.dart
       - name: Install Inno Setup
         if: matrix.target == 'windows'
         run: choco install innosetup --no-progress -y

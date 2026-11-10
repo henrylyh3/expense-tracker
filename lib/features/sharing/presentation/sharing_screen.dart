@@ -14,6 +14,7 @@ import '../../../core/money/money.dart';
 import '../../../core/dates/calendar_date.dart';
 import '../../../core/sharing/sharing_service.dart';
 import '../../../core/sharing/discord_api.dart';
+import '../../../core/sharing/guest_web.dart';
 import 'discord_settings.dart';
 
 final sharingServiceProvider = Provider<SharingService>((ref) {
@@ -155,6 +156,33 @@ class _SharingScreenState extends ConsumerState<SharingScreen> {
                                 await _showInvitation(context, code);
                               }),
                         child: const Text('Invite guest over internet'),
+                      ),
+                      OutlinedButton.icon(
+                        icon: const Icon(Icons.link),
+                        label: const Text('Invite guest by web link'),
+                        onPressed: _busy || guestWebUrl.isEmpty
+                            ? null
+                            : () => _run(() async {
+                                final details = await showDialog<(String, int)>(
+                                  context: context,
+                                  builder: (_) => const _WebInvitationDialog(),
+                                );
+                                if (details == null || !context.mounted) return;
+                                final link = await service.inviteDiscordWeb(
+                                  active,
+                                  details.$1,
+                                  Uri.parse(guestWebUrl),
+                                  validFor: Duration(days: details.$2),
+                                );
+                                if (!context.mounted) return;
+                                await _showInvitation(
+                                  context,
+                                  link,
+                                  expiryLabel: details.$2 == 1
+                                      ? 'Expires after 24 hours. You can revoke access sooner.'
+                                      : 'Expires after ${details.$2} days. You can revoke access sooner.',
+                                );
+                              }),
                       ),
                       OutlinedButton(
                         onPressed: _busy
@@ -644,8 +672,9 @@ Future<Map<String, Object?>?> _expense(
 
 Future<void> _showInvitation(
   BuildContext context,
-  String code,
-) => showDialog<void>(
+  String code, {
+  String? expiryLabel,
+}) => showDialog<void>(
   context: context,
   builder: (context) => AlertDialog(
     title: const Text('Guest invitation'),
@@ -657,6 +686,10 @@ Future<void> _showInvitation(
           'Share privately with this guest. This invitation grants read and add access to one trip. Do not share it with others.',
         ),
         const SizedBox(height: 12),
+        if (expiryLabel != null) ...[
+          Text(expiryLabel),
+          const SizedBox(height: 12),
+        ],
         SelectableText(code),
       ],
     ),
@@ -675,3 +708,59 @@ Future<void> _showInvitation(
     ],
   ),
 );
+
+class _WebInvitationDialog extends StatefulWidget {
+  const _WebInvitationDialog();
+  @override
+  State<_WebInvitationDialog> createState() => _WebInvitationDialogState();
+}
+
+class _WebInvitationDialogState extends State<_WebInvitationDialog> {
+  final _name = TextEditingController();
+  int _days = 7;
+  @override
+  void dispose() {
+    _name.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: const Text('Invite a web guest'),
+    content: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        TextField(
+          controller: _name,
+          autofocus: true,
+          maxLength: 80,
+          decoration: const InputDecoration(labelText: 'Guest name'),
+          onChanged: (_) => setState(() {}),
+        ),
+        const SizedBox(height: 12),
+        DropdownButtonFormField<int>(
+          initialValue: _days,
+          decoration: const InputDecoration(labelText: 'Access expires after'),
+          items: const [
+            DropdownMenuItem(value: 1, child: Text('24 hours')),
+            DropdownMenuItem(value: 7, child: Text('7 days')),
+            DropdownMenuItem(value: 30, child: Text('30 days')),
+          ],
+          onChanged: (value) => setState(() => _days = value!),
+        ),
+      ],
+    ),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.pop(context),
+        child: const Text('Cancel'),
+      ),
+      FilledButton(
+        onPressed: _name.text.trim().isEmpty
+            ? null
+            : () => Navigator.pop(context, (_name.text.trim(), _days)),
+        child: const Text('Create link'),
+      ),
+    ],
+  );
+}

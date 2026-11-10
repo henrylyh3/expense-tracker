@@ -63,7 +63,18 @@ extension DiscordSharing on SharingService {
     await relaySecrets.write('config', null);
   }
 
-  Future<String> inviteDiscord(String trip, String guest) async {
+  Future<String> inviteDiscord(
+    String trip,
+    String guest, {
+    Duration? validFor,
+  }) async {
+    if (validFor != null &&
+        (validFor < const Duration(minutes: 1) ||
+            validFor > const Duration(days: 30))) {
+      throw const LedgerException(
+        'Choose invitation access between one minute and 30 days.',
+      );
+    }
     final config = await discordSettings();
     if (config == null) {
       throw const LedgerException('Set up internet sharing first.');
@@ -82,7 +93,12 @@ extension DiscordSharing on SharingService {
     );
     final id = const Uuid().v4();
     final key = await cipher.newKey();
-    final endpoint = DiscordConnection(webhook, trip).encode();
+    final expiry = validFor == null ? null : _clock().toUtc().add(validFor);
+    final endpoint = DiscordConnection(
+      webhook,
+      trip,
+      expiresAt: expiry,
+    ).encode();
     try {
       await db.writeTransaction(() async {
         await db.customInsert(
@@ -102,6 +118,26 @@ extension DiscordSharing on SharingService {
       rethrow;
     }
     return 'expense-trip:${base64UrlEncode(utf8.encode(jsonEncode({'version': 2, 'id': id, 'key': key, 'endpoint': endpoint, 'name': name})))}';
+  }
+
+  Future<String> inviteDiscordWeb(
+    String trip,
+    String guest,
+    Uri page, {
+    Duration validFor = const Duration(days: 7),
+  }) async {
+    if (page.scheme != 'https' ||
+        page.host.isEmpty ||
+        page.userInfo.isNotEmpty ||
+        page.hasQuery ||
+        page.hasFragment ||
+        page.port != 443) {
+      throw const LedgerException(
+        'Configure an HTTPS guest page URL without a query or fragment.',
+      );
+    }
+    final code = await inviteDiscord(trip, guest, validFor: validFor);
+    return page.replace(fragment: 'invite=$code').toString();
   }
 
   Future<void> _scheduleWebhookRemoval(String endpoint) async {
@@ -253,6 +289,13 @@ extension DiscordSharing on SharingService {
       if (active['role'] != 'host' || active['trip_id'] != connection.trip) {
         return;
       }
+      if (DiscordConnection.decode(
+        active['endpoint'] as String,
+      ).expired(_clock())) {
+        throw const LedgerException(
+          'This invitation has expired. Ask the host for a new invitation.',
+        );
+      }
       if (data['action'] == 'add') {
         final submission = data['submission'];
         if (submission is! String ||
@@ -301,6 +344,11 @@ extension DiscordSharing on SharingService {
       );
     }
     final connection = DiscordConnection.decode(session['endpoint'] as String);
+    if (connection.expired(_clock())) {
+      throw const LedgerException(
+        'This invitation has expired. Ask the host for a new invitation.',
+      );
+    }
     final slot = 'request:$id:${data['submission'] ?? 'read'}';
     var raw = await relaySecrets.read(slot);
     try {

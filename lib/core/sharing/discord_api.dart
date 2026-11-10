@@ -35,9 +35,11 @@ class DeviceRelaySecrets implements RelaySecretStore {
 }
 
 class DiscordConnection {
-  const DiscordConnection(this.webhook, this.trip);
+  const DiscordConnection(this.webhook, this.trip, {this.expiresAt});
   final Uri webhook;
   final String trip;
+  final DateTime? expiresAt;
+  bool expired(DateTime now) => expiresAt != null && !now.isBefore(expiresAt!);
   static bool matches(String endpoint) => endpoint.startsWith('discord:');
   static Uri validateWebhook(String value) {
     final uri = Uri.parse(value);
@@ -63,11 +65,22 @@ class DiscordConnection {
         jsonDecode(utf8.decode(base64Url.decode(source.substring(8)))) as Map;
     final trip = value['trip'] as String;
     if (trip.isEmpty || trip.length > 80) throw const FormatException();
-    return DiscordConnection(validateWebhook(value['webhook'] as String), trip);
+    final rawExpiry = value['expires_at'];
+    final expiry = rawExpiry == null
+        ? null
+        : rawExpiry is String
+        ? DateTime.tryParse(rawExpiry)?.toUtc()
+        : null;
+    if (rawExpiry != null && expiry == null) throw const FormatException();
+    return DiscordConnection(
+      validateWebhook(value['webhook'] as String),
+      trip,
+      expiresAt: expiry,
+    );
   }
 
   String encode() =>
-      'discord:${base64UrlEncode(utf8.encode(jsonEncode({'webhook': webhook.toString(), 'trip': trip})))}';
+      'discord:${base64UrlEncode(utf8.encode(jsonEncode({'webhook': webhook.toString(), 'trip': trip, if (expiresAt != null) 'expires_at': expiresAt!.toUtc().toIso8601String()})))}';
 }
 
 class DiscordUnavailable implements Exception {

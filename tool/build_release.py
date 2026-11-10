@@ -20,6 +20,9 @@ from package_desktop import ROOT, PLATFORM_FOLDERS, version
 from publish_release import REPO
 
 FOCUSED_TESTS = [
+    'test/core/sharing/discord_sharing_test.dart',
+    'test/core/sharing/discord_web_invite_test.dart',
+    'test/features/settings/web_invitation_test.dart',
     'test/core/updates/desktop_updater_test.dart',
     'test/core/updates/update_service_test.dart',
     'test/features/settings/update_prompt_test.dart',

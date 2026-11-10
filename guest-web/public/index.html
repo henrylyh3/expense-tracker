@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#176b58">
+<meta name="description" content="Join an Expense Tracker trip and submit expenses to your host.">
+<title>Guest trip · Expense Tracker</title>
+<link rel="stylesheet" href="/app.css">
+<script type="module" src="/main.mjs"></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to trip</a>
+<header><a href="/" aria-label="Expense Tracker guest home">Expense Tracker <span>Guest access</span></a></header>
+<main id="main">
+<section id="join" class="panel narrow">
+<h1>Join a shared trip</h1>
+<p>Open the host’s invitation link, or paste an internet invitation below. The host keeps the ledger on their desktop.</p>
+<form id="join-form"><label for="invitation">Invitation link or code</label><textarea id="invitation" required rows="4" autocomplete="off" spellcheck="false" maxlength="8192"></textarea><button>Open trip</button></form>
+</section>
+<section id="trip" hidden>
+<div class="trip-heading"><div><h1 id="trip-name"></h1><p id="expiry" class="muted"></p></div><button id="sync" class="secondary" type="button">Sync now</button></div>
+<div id="summary" class="summary" hidden><div><p>Total in MYR</p><strong id="total" class="num"></strong></div><p id="count"></p></div>
+<div class="layout"><section class="panel"><h2>Add expense</h2><p class="muted">Saved on this device first. Keep this page and the host’s app open to sync.</p>
+<form id="expense-form"><fieldset id="expense-fields" disabled>
+<div class="form-row"><div><label for="amount">Amount</label><input id="amount" name="amount" inputmode="decimal" required maxlength="40" autocomplete="off"><small>Use a decimal point, for example 12.50.</small></div><div><label for="currency">Currency</label><select id="currency" name="currency" required></select></div></div>
+<label for="category">Category</label><select id="category" name="category" required></select>
+<label for="date">Date</label><input id="date" name="date" type="date" required>
+<label for="note">Note <span class="muted">(optional)</span></label><textarea id="note" name="note" rows="2" maxlength="500"></textarea>
+<button id="add">Save expense</button></fieldset></form><p id="form-status" role="status" class="form-status"></p></section>
+<div><section class="panel"><div class="section-heading"><h2>Pending on this device</h2><span id="pending-count" class="badge">0</span></div><p id="pending-empty" class="muted">No pending expenses.</p><ul id="pending" class="entries"></ul><p class="muted small">Only a host confirmation removes an expense from this queue.</p></section>
+<section class="panel history"><h2>Recent expenses</h2><p id="history-empty" class="muted">Sync to see the latest trip view.</p><ul id="history" class="entries"></ul><p id="synced" class="muted small"></p></section></div></div>
+<details class="privacy"><summary>About guest access</summary><p>Your invitation is a private access link. Share it only with your intended guest. Discord relays encrypted messages; Cloudflare serves this page. The host’s desktop must be open to process requests. Sync runs only while this page is visible. Revocation or expiry stops future access; previously cached trip data stays on this device.</p><button id="leave" class="secondary" type="button">Close trip on this tab</button></details>
+</section>
+<p id="status" role="status" aria-live="polite" class="status">An invitation is required to access a trip.</p>
+<noscript>Enable JavaScript to decrypt invitations and submit expenses.</noscript>
+</main><footer>Expense Tracker · Desktop-owned ledger</footer>
+</body></html>

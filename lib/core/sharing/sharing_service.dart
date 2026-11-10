@@ -33,8 +33,11 @@ class SharingService {
     this.db, {
     DiscordApi? discordApi,
     RelaySecretStore? relaySecrets,
+    DateTime Function()? clock,
   }) : discordApi = discordApi ?? DiscordApi(),
-       relaySecrets = relaySecrets ?? DeviceRelaySecrets();
+       relaySecrets = relaySecrets ?? DeviceRelaySecrets(),
+       _clock = clock ?? DateTime.now;
+  final DateTime Function() _clock;
   final DiscordApi discordApi;
   final RelaySecretStore relaySecrets;
   bool _discordPolling = false;
@@ -165,6 +168,12 @@ class SharingService {
       final endpoint = value['version'] == 2
           ? DiscordConnection.decode(value['endpoint'] as String).encode()
           : validateEndpoint(value['endpoint'] as String).toString();
+      if (DiscordConnection.matches(endpoint) &&
+          DiscordConnection.decode(endpoint).expired(_clock())) {
+        throw const LedgerException(
+          'This invitation has expired. Ask the host for a new invitation.',
+        );
+      }
       final name = requiredText(
         value['name'] as String,
         label: 'Invitation name',
@@ -357,6 +366,13 @@ class SharingService {
     final session = await _session(id);
     if (session['role'] != 'guest') {
       throw const LedgerException('Only a guest queues expenses.');
+    }
+    final endpoint = session['endpoint'] as String;
+    if (DiscordConnection.matches(endpoint) &&
+        DiscordConnection.decode(endpoint).expired(_clock())) {
+      throw const LedgerException(
+        'This invitation has expired. Ask the host for a new invitation.',
+      );
     }
     final cache = session['cache'];
     if (cache is! String) {
