@@ -1,0 +1,202 @@
+name: Build signed release files
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: Platform to build (all also prepares complete release metadata)
+        required: true
+        default: android
+        type: choice
+        options:
+          - android
+          - windows
+          - macos
+          - all
+      check_only:
+        description: Check configured Secret/Variable names without importing credentials or building
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: signed-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Focused signing and release-tool checks
+        run: |
+          python -m unittest discover -s tool -p test_ci_signing.py
+          python -m unittest discover -s tool -p 'test_*release.py'
+      - name: Select native hosts and protect published versions
+        id: plan
+        env:
+          RELEASE_PLATFORM: ${{ inputs.platform }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python - <<'PY'
+          import json, os, sys, urllib.error, urllib.request
+          sys.path.insert(0, 'tool')
+          from package_desktop import version
+          if os.environ['GITHUB_REF'] != 'refs/heads/main':
+              raise SystemExit('Run signed builds from main only.')
+          tag = 'v' + version()[0]
+          request = urllib.request.Request(f'https://api.github.com/repos/{os.environ["GITHUB_REPOSITORY"]}/releases/tags/{tag}')
+          request.add_unredirected_header('Authorization', 'Bearer ' + os.environ['GITHUB_TOKEN'])
+          try:
+              with urllib.request.urlopen(request) as response:
+                  if not json.load(response)['draft']:
+                      raise SystemExit('This version is already published; bump the version before rebuilding.')
+          except urllib.error.HTTPError as error:
+              if error.code != 404:
+                  raise
+          hosts = {'android': 'ubuntu-latest', 'windows': 'windows-latest', 'macos': 'macos-latest'}
+          selected = os.environ['RELEASE_PLATFORM']
+          matrix = {'include': [{'target': target, 'os': host} for target, host in hosts.items() if selected in ('all', target)]}
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write('matrix=' + json.dumps(matrix) + '\n')
+          PY
+
+  build:
+    needs: plan
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    env:
+      MACOS_CODESIGN_IDENTITY: ${{ vars.MACOS_CODESIGN_IDENTITY }}
+      MACOS_SPARKLE_PUBLIC_KEY: ${{ vars.MACOS_SPARKLE_PUBLIC_KEY }}
+      MACOS_NOTARY_KEY_ID: ${{ vars.MACOS_NOTARY_KEY_ID }}
+      MACOS_NOTARY_ISSUER_ID: ${{ vars.MACOS_NOTARY_ISSUER_ID }}
+      WINDOWS_UPDATER_PUBLIC_KEY: ${{ vars.WINDOWS_UPDATER_PUBLIC_KEY }}
+      WINDOWS_TIMESTAMP_URL: ${{ vars.WINDOWS_TIMESTAMP_URL }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Check Android signing inputs
+        if: matrix.target == 'android'
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: python tool/ci_signing.py check android
+      - name: Check Windows signing inputs
+        if: matrix.target == 'windows'
+        env:
+          WINDOWS_CERTIFICATE_BASE64: ${{ secrets.WINDOWS_CERTIFICATE_BASE64 }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+          WINDOWS_UPDATER_PRIVATE_KEY: ${{ secrets.WINDOWS_UPDATER_PRIVATE_KEY }}
+        run: python tool/ci_signing.py check windows
+      - name: Check macOS signing inputs
+        if: matrix.target == 'macos'
+        env:
+          MACOS_CERTIFICATE_BASE64: ${{ secrets.MACOS_CERTIFICATE_BASE64 }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          MACOS_SPARKLE_PRIVATE_KEY: ${{ secrets.MACOS_SPARKLE_PRIVATE_KEY }}
+          MACOS_NOTARY_KEY_BASE64: ${{ secrets.MACOS_NOTARY_KEY_BASE64 }}
+        run: python tool/ci_signing.py check macos
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        if: ${{ !inputs.check_only }}
+        with:
+          channel: stable
+          flutter-version: '3.47.9'
+          cache: true
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3
+        if: ${{ !inputs.check_only && matrix.target == 'android' }}
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Install Windows packaging/signing tools
+        if: ${{ !inputs.check_only && matrix.target == 'windows' }}
+        run: choco install innosetup openssl --no-progress -y
+      - name: Configure Android credentials
+        if: ${{ !inputs.check_only && matrix.target == 'android' }}
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: python tool/ci_signing.py configure android
+      - name: Configure Windows credentials
+        if: ${{ !inputs.check_only && matrix.target == 'windows' }}
+        env:
+          WINDOWS_CERTIFICATE_BASE64: ${{ secrets.WINDOWS_CERTIFICATE_BASE64 }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+          WINDOWS_UPDATER_PRIVATE_KEY: ${{ secrets.WINDOWS_UPDATER_PRIVATE_KEY }}
+        run: python tool/ci_signing.py configure windows
+      - name: Configure macOS credentials
+        if: ${{ !inputs.check_only && matrix.target == 'macos' }}
+        env:
+          MACOS_CERTIFICATE_BASE64: ${{ secrets.MACOS_CERTIFICATE_BASE64 }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          MACOS_SPARKLE_PRIVATE_KEY: ${{ secrets.MACOS_SPARKLE_PRIVATE_KEY }}
+          MACOS_NOTARY_KEY_BASE64: ${{ secrets.MACOS_NOTARY_KEY_BASE64 }}
+        run: python tool/ci_signing.py configure macos
+      - name: Analyze, run focused updater tests, build
+        if: ${{ !inputs.check_only }}
+        run: python tool/build_release.py ${{ matrix.target }} --stage build
+      - name: Sign/notarize native app
+        if: ${{ !inputs.check_only && matrix.target != 'android' }}
+        run: python tool/ci_signing.py sign-app ${{ matrix.target }}
+      - name: Package Android or macOS
+        if: ${{ !inputs.check_only && matrix.target != 'windows' }}
+        run: python tool/build_release.py ${{ matrix.target }} --stage package
+      - name: Package Windows full bundle and installer
+        if: ${{ !inputs.check_only && matrix.target == 'windows' }}
+        run: python tool/build_release.py windows --stage package --iscc "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+      - name: Sign/notarize final native installer
+        if: ${{ !inputs.check_only && matrix.target != 'android' }}
+        run: python tool/ci_signing.py sign-package ${{ matrix.target }}
+      - name: Sign updater payload and create appcast
+        if: ${{ !inputs.check_only && matrix.target != 'android' }}
+        run: python tool/build_release.py ${{ matrix.target }} --stage sign
+      - name: Select current platform files only
+        if: ${{ !inputs.check_only }}
+        run: python tool/ci_signing.py export ${{ matrix.target }}
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: ${{ !inputs.check_only }}
+        with:
+          name: signed-release-${{ matrix.target }}
+          path: build/release-upload/
+          if-no-files-found: error
+          retention-days: 14
+      - name: Remove private credentials and imported identities
+        if: always()
+        run: python tool/ci_signing.py cleanup
+
+  collect:
+    if: ${{ inputs.platform == 'all' && !inputs.check_only }}
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: signed-release-*
+          merge-multiple: true
+          path: release/
+      - name: Prepare complete release manifest and checksums
+        run: |
+          python tool/publish_release.py --prepare
+          python tool/ci_signing.py export all
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: complete-signed-release
+          path: build/release-upload/
+          if-no-files-found: error
+          retention-days: 14

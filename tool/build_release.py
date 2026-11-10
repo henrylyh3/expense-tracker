@@ -159,7 +159,13 @@ def sign(target, dart):
             run(['powershell.exe', '-NoProfile', '-NonInteractive', '-Command', script],
                 env={**os.environ, 'EXPENSE_TRACKER_SIGNED_FILE': str(path)})
         attribute = 'dsaSignature'
-    result = run([dart, 'run', 'auto_updater:sign_update', str(payload)], capture=True)
+    command = [dart, 'run', 'auto_updater:sign_update', str(payload)]
+    private_key_file = os.environ.get('SPARKLE_PRIVATE_KEY_FILE')
+    if target == 'macos' and private_key_file:
+        if not Path(private_key_file).is_file():
+            raise RuntimeError('SPARKLE_PRIVATE_KEY_FILE does not exist.')
+        command += ['--ed-key-file', private_key_file]
+    result = run(command, capture=True)
     match = re.search(rf'sparkle:{attribute}="([A-Za-z0-9+/=]+)"', result.stdout)
     if not match:
         raise RuntimeError('Native signing tool did not return an updater signature.')

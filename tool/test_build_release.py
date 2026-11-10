@@ -152,6 +152,29 @@ class BuildReleaseTests(unittest.TestCase):
                     build_release.stage_android()
         self.assertFalse((self.root / 'release/android/expense-tracker-0.4.8-arm64-release.apk').exists())
 
+    def test_mac_ci_signing_passes_private_key_by_file_path(self):
+        self.mac_key()
+        public = base64.b64encode(b'x' * 32).decode()
+        app = self.root / 'build/macos/Build/Products/Release/expense_tracker.app'
+        (app / 'Contents').mkdir(parents=True)
+        (app / 'Contents/Info.plist').write_bytes(package_desktop.plistlib.dumps({'SUPublicEDKey': public}))
+        config = self.root / 'macos/Flutter/ephemeral/Flutter-Generated.xcconfig'
+        config.parent.mkdir(parents=True)
+        defines = ','.join(base64.b64encode(value.encode()).decode() for value in build_release.update_defines('macos'))
+        config.write_text('DART_DEFINES=' + defines + '\n')
+        folder = self.root / 'release/mac'
+        folder.mkdir(parents=True)
+        (folder / 'expense-tracker-0.4.8-macos-update.zip').write_bytes(b'test payload')
+        key = self.root / 'private-key.txt'
+        key.write_text('private-key-fixture-never-passed-inline')
+        signature = base64.b64encode(b'x' * 64).decode()
+        output = f'sparkle:edSignature="{signature}" length="12"'
+        with patch.object(build_release.platform, 'system', return_value='Darwin'), patch.dict(build_release.os.environ, {'SPARKLE_PRIVATE_KEY_FILE': str(key)}), patch.object(build_release, 'run', return_value=subprocess.CompletedProcess([], 0, stdout=output)) as run:
+            build_release.sign('macos', 'dart')
+        command = run.call_args.args[0]
+        self.assertEqual(command[-2:], ['--ed-key-file', str(key)])
+        self.assertNotIn(key.read_text(), command)
+
 
 if __name__ == '__main__':
     unittest.main()

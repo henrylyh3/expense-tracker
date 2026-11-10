@@ -14,6 +14,8 @@ macOS and Windows targets reuse the existing layout. Use your laptop as the ledg
 
 See [Desktop setup, packaging and signed updates](docs/DESKTOP.md). Release files are grouped under `release/android/`, `release/mac/` and `release/window/`. Run `python tool/build_release.py android`, `macos` or `windows` on each native host; desktop release builds automatically enable the signed update feed. The [release guide](docs/DESKTOP.md#release-commands) covers signing stages and one-command manifest/checksum preparation. Complete signed release publication and device upgrade testing remain pending; existing desktop validation artifacts have no enabled update feeds.
 
+For hosted builds, see [Actions signing credentials and workflow](docs/SIGNING_CI.md). Original Android credentials stay unchanged; desktop updater keys are separate from Windows/Apple app-signing certificates.
+
 ## Project documentation
 
 - [Project summary and technical decisions](docs/PROJECT_SUMMARY.md): full scope,

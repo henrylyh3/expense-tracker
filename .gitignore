@@ -65,3 +65,6 @@ dsa_priv.pem
 *.p12
 *.pfx
 macos/Runner/Configs/Signing.xcconfig
+/.local/signing/
+/dsa_pub.pem
+*.p8
