@@ -1,5 +1,7 @@
 """Focused release integrity checks; no live services or native toolchains."""
 import base64
+import hashlib
+import os
 import tempfile
 import unittest
 import zipfile
@@ -33,6 +35,74 @@ class DesktopReleaseTests(unittest.TestCase):
 
     def assets(self, **kwargs):
         return publish_release.release_assets(self.apk, self.manifest_path, self.manifest, **kwargs)
+
+    def test_ci_context_requires_actions_repository_event_and_commit(self):
+        env = dict(GITHUB_ACTIONS='true', GITHUB_REPOSITORY=publish_release.REPO,
+                   GITHUB_EVENT_NAME='workflow_dispatch', GITHUB_REF='refs/heads/main',
+                   GITHUB_SHA='abc', GITHUB_TOKEN='test-token')
+        def git(*args):
+            return {'rev-parse': 'abc', 'diff': '', 'ls-remote': 'abc\trefs/heads/main'}[args[0]]
+        with patch.dict(os.environ, env, clear=True), patch.object(publish_release, 'git', side_effect=git):
+            self.assertEqual(publish_release.publication_context(True, []), ('abc', 'test-token'))
+            for name, value in [('GITHUB_ACTIONS', 'false'), ('GITHUB_REPOSITORY', 'other/repo'),
+                                ('GITHUB_EVENT_NAME', 'pull_request'), ('GITHUB_REF', 'refs/heads/feature'),
+                                ('GITHUB_SHA', 'wrong')]:
+                with self.subTest(name=name), patch.dict(os.environ, {name: value}):
+                    with self.assertRaisesRegex(RuntimeError, 'CI publication requires'):
+                        publish_release.publication_context(True, [])
+            with patch.dict(os.environ, {'GITHUB_TOKEN': ''}):
+                with self.assertRaisesRegex(RuntimeError, 'GITHUB_TOKEN'):
+                    publish_release.publication_context(True, [])
+
+    def test_ci_context_rejects_changed_source_and_moved_remote(self):
+        env = dict(GITHUB_ACTIONS='true', GITHUB_REPOSITORY=publish_release.REPO,
+                   GITHUB_EVENT_NAME='push', GITHUB_REF='refs/heads/release/v0.4.7',
+                   GITHUB_SHA='abc', GITHUB_TOKEN='test-token')
+        with patch.dict(os.environ, env, clear=True):
+            with patch.object(publish_release, 'git', side_effect=['abc', 'changed']):
+                with self.assertRaisesRegex(RuntimeError, 'source differs'):
+                    publish_release.publication_context(True, [])
+            with patch.object(publish_release, 'git', side_effect=['abc', '', 'new\tref']):
+                with self.assertRaisesRegex(RuntimeError, 'origin branch'):
+                    publish_release.publication_context(True, [])
+
+    def test_publication_verifies_all_uploads_before_latest(self):
+        self.feeds()
+        with patch.object(sys, 'argv', ['publish_release.py', '--prepare']):
+            publish_release.main()
+        notes = self.root / 'notes.md'
+        notes.write_text('Release notes')
+        draft = dict(id=1, upload_url='https://uploads.example/assets{?name}', assets=[])
+        calls = []
+        def request(token, url, method='GET', data=None, content_type=None):
+            calls.append((method, url))
+            if '/releases/tags/' in url:
+                raise RuntimeError('GitHub release operation failed (HTTP 404).')
+            if method == 'POST' and '/assets' in url:
+                return dict(digest='sha256:' + hashlib.sha256(data).hexdigest())
+            if method == 'PATCH':
+                self.assertEqual(sum(method == 'POST' and '/assets' in url for method, url in calls), 9)
+                return dict(html_url='https://example/release')
+            return draft
+        args = ['publish_release.py', '--ci', '--notes-file', str(notes)]
+        with patch.object(sys, 'argv', args), patch.object(publish_release, 'publication_context', return_value=('abc', 'token')), patch.object(publish_release, 'request', side_effect=request):
+            publish_release.main()
+        self.assertEqual(calls[-1][0], 'PATCH')
+        with patch.object(sys, 'argv', args), patch.object(publish_release, 'publication_context', return_value=('abc', 'token')), patch.object(publish_release, 'request', return_value=dict(draft=False)) as api:
+            with self.assertRaisesRegex(RuntimeError, 'never overwrite'):
+                publish_release.main()
+            self.assertEqual(api.call_count, 1)
+        def bad_upload(token, url, method='GET', data=None, content_type=None):
+            if '/releases/tags/' in url:
+                raise RuntimeError('GitHub release operation failed (HTTP 404).')
+            if '/assets' in url:
+                return dict(digest='sha256:wrong')
+            if method == 'PATCH':
+                self.fail('Failed upload must never publish')
+            return draft
+        with patch.object(sys, 'argv', args), patch.object(publish_release, 'publication_context', return_value=('abc', 'token')), patch.object(publish_release, 'request', side_effect=bad_upload):
+            with self.assertRaisesRegex(RuntimeError, 'checksum verification failed'):
+                publish_release.main()
 
     def feeds(self):
         desktop_appcast.generate('macos', base64.b64encode(b'x' * 64).decode())

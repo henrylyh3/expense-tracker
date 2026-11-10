@@ -10,6 +10,10 @@ Android may require **Allow from this source** for Expense Tracker. Return to th
 
 ## Publishing each release
 
+Automatic route: commit the version/build bump in `pubspec.yaml` and `lib/core/app_info.dart`, plus `docs/releases/v<version>.md`, then push to `release` or `release/**`. The signed release workflow builds all three platforms, collects their verified files, uploads a draft release, verifies every uploaded digest and marks the complete release latest. Manual runs on `main` or a release branch also publish when `platform: all` and `check_only: false`. Single-platform/check-only runs do not publish. Personal mode skips desktop publisher certificates/notarization and discloses installation warnings; Android and updater payload signing remain required. No additional publishing Variable is needed: only the publishing job receives a write-scoped GitHub token. See [CI setup](SIGNING_CI.md).
+
+For local publication:
+
 Follow AGENTS.md: bump pubspec and app_info, then run `python tool/build_release.py android` using the existing private key. It analyzes/runs linked tests, builds and verifies the signed ARM64 APK and copies it to `release/android/`. The ARM64 split adds 2000 to the pubspec build number; the updater compares actual Android version codes. Collect the desktop packages and signed appcasts in `release/mac/` and `release/window/` as described in [Desktop releases](DESKTOP.md#release-commands).
 
 1. Run `python tool/publish_release.py --prepare` after collecting all three platforms and both signed feeds. This creates `release/android/update-<version>.json` containing APK size, checksum, package, ABI and build/version, plus `release/SHA256SUMS-<version>.txt` for all platforms.

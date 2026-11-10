@@ -6,6 +6,7 @@ import argparse
 import base64
 import hashlib
 import json
+import os
 import re
 import subprocess
 import sys
@@ -109,6 +110,39 @@ def request(token, url, method='GET', data=None, content_type='application/json'
         raise RuntimeError(f'GitHub release operation failed (HTTP {error.code}).') from None
 
 
+def publication_context(ci, assets):
+    commit = git('rev-parse', 'HEAD')
+    if ci:
+        ref = os.environ.get('GITHUB_REF', '')
+        if (os.environ.get('GITHUB_ACTIONS') != 'true'
+                or os.environ.get('GITHUB_REPOSITORY') != REPO
+                or os.environ.get('GITHUB_EVENT_NAME') not in ('push', 'workflow_dispatch')
+                or not (ref == 'refs/heads/main' or ref == 'refs/heads/release'
+                        or ref.startswith('refs/heads/release/'))
+                or os.environ.get('GITHUB_SHA') != commit):
+            raise RuntimeError('CI publication requires this repository and its checked-out main/release commit.')
+        token = os.environ.get('GITHUB_TOKEN')
+        if not token:
+            raise RuntimeError('CI publication requires GITHUB_TOKEN.')
+        # Generated native artifacts are downloaded from this run, not committed.
+        if git('diff', 'HEAD', '--', '.', ':!release'):
+            raise RuntimeError('CI source differs from the checked-out release commit.')
+    else:
+        ref = 'refs/heads/main'
+        if git('status', '--porcelain'):
+            raise RuntimeError('Commit all completed source changes and release artifacts before publishing.')
+        for _, path, _ in assets:
+            relative = str(path.relative_to(ROOT)).replace('\\', '/')
+            if subprocess.run(['git', 'diff', '--quiet', 'HEAD', '--', relative], cwd=ROOT).returncode:
+                raise RuntimeError('Commit release artifacts before publishing.')
+            git('ls-files', '--error-unmatch', relative)
+        token = credential()
+    remote = git('ls-remote', 'origin', ref).split()
+    if not remote or remote[0] != commit:
+        raise RuntimeError('Push the completed release commit to its origin branch first.')
+    return commit, token
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--prepare', action='store_true')
@@ -116,6 +150,7 @@ def main():
                         help='Require both signed desktop appcasts (always enabled for publication)')
     parser.add_argument('--auth-check', action='store_true')
     parser.add_argument('--notes-file', type=Path)
+    parser.add_argument('--ci', action='store_true', help='Publish verified artifacts collected by this Actions run')
     args = parser.parse_args()
     if args.auth_check:
         repo = request(credential(), API)
@@ -137,21 +172,15 @@ def main():
         raise RuntimeError('Prepare and commit the matching update manifest first.')
     if sums_path.read_text() != checksums(assets):
         raise RuntimeError('Prepare matching multi-platform checksums first.')
-    if git('status', '--porcelain'):
-        raise RuntimeError('Commit all completed source changes and release artifacts before publishing.')
     assets.append(('SHA256SUMS.txt', sums_path, 'text/plain'))
-    for _, path, _ in assets:
-        relative = str(path.relative_to(ROOT)).replace('\\', '/')
-        if subprocess.run(['git', 'diff', '--quiet', 'HEAD', '--', relative], cwd=ROOT).returncode:
-            raise RuntimeError('Commit release artifacts before publishing.')
-        git('ls-files', '--error-unmatch', relative)
-    commit = git('rev-parse', 'HEAD')
-    if git('ls-remote', 'origin', 'refs/heads/main').split()[0] != commit:
-        raise RuntimeError('Push the completed release commit to origin/main first.')
-    token = credential()
+    commit, token = publication_context(args.ci, assets)
     tag = 'v' + manifest['version']
-    releases = request(token, API + '/releases?per_page=100')
-    existing = next((r for r in releases if r['tag_name'] == tag), None)
+    try:
+        existing = request(token, API + '/releases/tags/' + tag)
+    except RuntimeError as error:
+        if str(error) != 'GitHub release operation failed (HTTP 404).':
+            raise
+        existing = None
     if existing and not existing['draft']:
         raise RuntimeError('This version is already published; never overwrite a published APK.')
     if existing and existing['target_commitish'] != commit:
