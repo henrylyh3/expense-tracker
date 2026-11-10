@@ -14,20 +14,22 @@ The host stores and enforces expiry independently of the link. Editing a guest l
 
 ## Cloudflare Pages configuration
 
-Connect `henrylyh3/expense-tracker` to Cloudflare Pages using Git integration:
+Production site: **https://expense-tracker-guest.pages.dev/**. Cloudflare Pages project: `expense-tracker-guest`, connected to `henrylyh3/expense-tracker` through the GitHub app installation scoped to this repository only.
+
+Configured build settings:
 
 - Production branch: `main`.
 - Root directory: `guest-web`.
 - Framework preset: None.
 - Build command: `npm test` (tests run from the root directory).
 - Build output directory: `public`.
-- Node version: 22 or newer.
+- Build environment variable: `NODE_VERSION=22` (public, Production and Preview).
 - Production build watch path: `guest-web/*`.
 - No application environment variables or secrets are required by this static site.
 
 Cloudflare deploys only `public`, keeping the fictional relay and crypto fixtures outside the published directory. `_headers` restricts scripts/styles to the site, connections to the Discord API/CDN, and disables referrers, framing and camera/microphone/location access. The repository's guest-web workflow checks the same focused protocol tests on pushes and pull requests.
 
-Configure the actual HTTPS production URL through `GUEST_WEB_URL` in the native build (or its default in `lib/core/sharing/guest_web.dart`). Until a real deployment URL is configured, the web invitation button is disabled. Never ship a guessed Pages URL: another account could own it.
+The native app defaults to this verified production URL in `lib/core/sharing/guest_web.dart`, enabling **Invite guest by web link**. `GUEST_WEB_URL` can override it for a separate deployment. Keep a stable production domain: invitation links and encrypted browser queues are tied to its origin. The base page asks for an invitation; hosts generate private links from the app. No manual GitHub deployment token is needed by the Pages Git integration.
 
 ## Validation
 
