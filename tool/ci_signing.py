@@ -46,10 +46,10 @@ def require_inputs(target):
     if os.environ.get('GITHUB_ACTIONS') == 'true':
         for name in PRIVATE_INPUTS[target]:
             value = os.environ.get(name, '')
-            if value:
+            if value.strip() not in ('', '-'):
                 escaped = value.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
                 print('::add-mask::' + escaped, flush=True)
-    missing = [name for name in REQUIRED[target] if not os.environ.get(name, '').strip()]
+    missing = [name for name in REQUIRED[target] if os.environ.get(name, '').strip() in ('', '-')]
     if missing:
         raise RuntimeError('Missing GitHub Actions Variables: ' + ', '.join(missing))
     if os.environ.get('GITHUB_ACTIONS') != 'true':

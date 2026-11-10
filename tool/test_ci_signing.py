@@ -49,6 +49,16 @@ class CiSigningTests(unittest.TestCase):
         self.assertIn('::add-mask::line1%25%0D%0Aline2\n', output.getvalue())
         self.assertEqual(output.getvalue().count('::add-mask::'), 4)
 
+    def test_dash_placeholders_stop_before_import_and_are_not_mask_commands(self):
+        os.environ.update({name: ' - ' for name in ci_signing.REQUIRED['android']})
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output), patch.object(ci_signing, 'native') as native:
+            with self.assertRaisesRegex(RuntimeError, 'ANDROID_KEYSTORE_BASE64'):
+                ci_signing.configure('android')
+            native.assert_not_called()
+        self.assertNotIn('::add-mask::', output.getvalue())
+        self.assertFalse((self.root / 'github-env').exists())
+
     def test_java_properties_preserve_unicode_backslash_and_line_breaks(self):
         self.assertEqual(ci_signing.property_value(' a\\b\n中😀='), r'\ a\\b\u000a\u4e2d\ud83d\ude00\=')
 
