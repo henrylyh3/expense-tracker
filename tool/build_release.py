@@ -14,6 +14,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+from ci_signing import signing_mode
 import desktop_appcast
 import package_desktop
 from package_desktop import ROOT, PLATFORM_FOLDERS, version
@@ -98,6 +99,14 @@ def android_tools():
     return tools / ('apksigner.bat' if platform.system() == 'Windows' else 'apksigner'), tools / ('aapt.exe' if platform.system() == 'Windows' else 'aapt')
 
 
+def apk_signers(output):
+    # apksigner uses SDK-range labels for v3.1 signatures instead of Signer #1.
+    # Source-stamp certificates are not APK signers and must not satisfy continuity.
+    return {value.lower() for value in re.findall(
+        r'^Signer (?:#\d+|\([^\r\n]+\)) certificate SHA-256 digest: ([A-Fa-f0-9]{64})\s*$',
+        output, re.M)}
+
+
 def stage_android():
     name, build_number = version()
     source = ROOT / 'build/app/outputs/flutter-apk/app-arm64-v8a-release.apk'
@@ -105,10 +114,11 @@ def stage_android():
     if output.exists():
         raise RuntimeError(f'Refusing to overwrite {output.name}.')
     apksigner, aapt = android_tools()
-    signature = run([str(apksigner), 'verify', '--print-certs', str(source)], capture=True).stdout
-    digest = re.search(r'Signer #1 certificate SHA-256 digest: (\S+)', signature)
+    signature = run([str(apksigner), 'verify', '--verbose', '--print-certs', str(source)], capture=True).stdout
+    digest = apk_signers(signature)
     if not digest:
-        raise RuntimeError('Cannot verify the Android release signer.')
+        labels = [line.split(':', 1)[0] for line in signature.splitlines() if 'certificate' in line.lower()]
+        raise RuntimeError('Cannot verify the Android release signer. Certificate labels: ' + (', '.join(labels[:8]) or 'none returned by apksigner'))
     badging = run([str(aapt), 'dump', 'badging', str(source)], capture=True).stdout
     code = 2000 + int(build_number)
     package = re.search(r"^package: name='([^']+)' versionCode='(\d+)' versionName='([^']+)'", badging, re.M)
@@ -118,11 +128,11 @@ def stage_android():
     previous = sorted(output.parent.glob('expense-tracker-*-arm64-release.apk'),
                       key=lambda path: tuple(map(int, re.search(r'(\d+\.\d+\.\d+)', path.name)[1].split('.'))))
     if previous:
-        old_signature = run([str(apksigner), 'verify', '--print-certs', str(previous[-1])], capture=True).stdout
-        old_digest = re.search(r'Signer #1 certificate SHA-256 digest: (\S+)', old_signature)
+        old_signature = run([str(apksigner), 'verify', '--verbose', '--print-certs', str(previous[-1])], capture=True).stdout
+        old_digest = apk_signers(old_signature)
         old_badging = run([str(aapt), 'dump', 'badging', str(previous[-1])], capture=True).stdout
         old_code = re.search(r"versionCode='(\d+)'", old_badging)
-        if not old_digest or old_digest[1] != digest[1] or not old_code or int(old_code[1]) >= code:
+        if not old_digest or old_digest != digest or not old_code or int(old_code[1]) >= code:
             raise RuntimeError('APK must retain the previous release signer and increase its version code.')
     output.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(source, output)
@@ -144,11 +154,13 @@ def sign(target, dart):
         if info.get('SUPublicEDKey') != configured_key:
             raise RuntimeError('Built macOS app does not embed the configured updater public key.')
         run(['codesign', '--verify', '--deep', '--strict', str(app)])
-        run(['spctl', '--assess', '--type', 'execute', str(app)])
-        run(['xcrun', 'stapler', 'validate', str(app)])
+        if signing_mode() == 'trusted':
+            run(['spctl', '--assess', '--type', 'execute', str(app)])
+            run(['xcrun', 'stapler', 'validate', str(app)])
         run(['hdiutil', 'verify', str(dmg)])
-        run(['codesign', '--verify', '--strict', str(dmg)])
-        run(['xcrun', 'stapler', 'validate', str(dmg)])
+        if signing_mode() == 'trusted':
+            run(['codesign', '--verify', '--strict', str(dmg)])
+            run(['xcrun', 'stapler', 'validate', str(dmg)])
         payload = folder / f'expense-tracker-{name}-macos-update.zip'
         attribute = 'edSignature'
     else:
@@ -156,7 +168,7 @@ def sign(target, dart):
             raise RuntimeError('Restore ignored dsa_priv.pem before signing the Windows updater payload.')
         payload = folder / f'expense-tracker-{name}-windows-x64-setup.exe'
         app = ROOT / 'build/windows/x64/runner/Release/expense_tracker.exe'
-        for path in (app, payload):
+        for path in ((app, payload) if signing_mode() == 'trusted' else ()):
             # Environment avoids PowerShell interpreting spaces/quotes in paths.
             script = 'if ((Get-AuthenticodeSignature -LiteralPath $env:EXPENSE_TRACKER_SIGNED_FILE).Status -ne "Valid") { exit 1 }'
             run(['powershell.exe', '-NoProfile', '-NonInteractive', '-Command', script],

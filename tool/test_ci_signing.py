@@ -34,6 +34,54 @@ class CiSigningTests(unittest.TestCase):
                 'ANDROID_STORE_PASSWORD': 'test-password', 'ANDROID_KEY_ALIAS': 'existing-alias',
                 'ANDROID_KEY_PASSWORD': 'test-key-password'}
 
+    def test_personal_requires_updater_keys_only_and_trusted_keeps_certificate_gate(self):
+        os.environ['DESKTOP_SIGNING_MODE'] = 'personal'
+        for target in ('windows', 'macos'):
+            names = ci_signing.required_inputs(target)
+            self.assertEqual(len(names), 2)
+            os.environ.update({name: 'updater fixture' for name in names})
+            with contextlib.redirect_stdout(io.StringIO()):
+                ci_signing.require_inputs(target)
+        os.environ['DESKTOP_SIGNING_MODE'] = 'trusted'
+        with self.assertRaisesRegex(RuntimeError, 'CERTIFICATE'):
+            ci_signing.require_inputs('macos')
+        os.environ['DESKTOP_SIGNING_MODE'] = 'typo'
+        with self.assertRaisesRegex(RuntimeError, 'personal or trusted'):
+            ci_signing.required_inputs('windows')
+
+    def test_personal_mac_configuration_checks_keys_without_apple_credentials(self):
+        os.environ['DESKTOP_SIGNING_MODE'] = 'personal'
+        public = base64.b64encode(b'x' * 32).decode()
+        os.environ.update(MACOS_SPARKLE_PUBLIC_KEY=public, MACOS_SPARKLE_PRIVATE_KEY=base64.b64encode(b'y' * 32).decode())
+        with patch.object(ci_signing, 'native', return_value=public) as native, contextlib.redirect_stdout(io.StringIO()):
+            ci_signing.configure('macos')
+        self.assertEqual(native.call_count, 1)
+        self.assertEqual(native.call_args.args[0][0], 'swift')
+        self.assertFalse(list(self.root.rglob('*.p12')))
+        self.assertFalse(list(self.root.rglob('*.p8')))
+        self.assertTrue((self.root / 'macos/Runner/Configs/Signing.xcconfig').is_file())
+
+    def test_personal_windows_configuration_checks_keys_without_pfx(self):
+        os.environ['DESKTOP_SIGNING_MODE'] = 'personal'
+        public = '-----BEGIN PUBLIC KEY-----\nfixture\n-----END PUBLIC KEY-----'
+        os.environ.update(WINDOWS_UPDATER_PUBLIC_KEY=public, WINDOWS_UPDATER_PRIVATE_KEY='private fixture', GITHUB_PATH=str(self.root / 'github-path'))
+        with patch.object(ci_signing.shutil, 'which', return_value='/tools/openssl'), patch.object(ci_signing, 'native', return_value=public) as native, contextlib.redirect_stdout(io.StringIO()):
+            ci_signing.configure('windows')
+        self.assertEqual(native.call_count, 1)
+        self.assertEqual(native.call_args.args[0][0], '/tools/openssl')
+        self.assertFalse(list(self.root.rglob('*.pfx')))
+        self.assertFalse(list(self.root.rglob('*.p12')))
+
+    def test_personal_app_and_package_steps_do_not_sign_or_notarize(self):
+        os.environ['DESKTOP_SIGNING_MODE'] = 'personal'
+        with patch.object(ci_signing, 'native') as native:
+            ci_signing.sign_app('windows')
+            ci_signing.sign_package('windows')
+            ci_signing.sign_package('macos')
+            native.assert_not_called()
+            ci_signing.sign_app('macos')
+            self.assertEqual(native.call_args.args[0][:2], ['codesign', '--verify'])
+
     def test_release_branch_pushes_always_select_all_native_hosts(self):
         for ref in ('refs/heads/release', 'refs/heads/release/0.4.9', 'refs/heads/release/android/fix'):
             with self.subTest(ref=ref):
@@ -132,6 +180,18 @@ class CiSigningTests(unittest.TestCase):
         names = [path.relative_to(self.root / 'build/release-upload').as_posix()
                  for path in (self.root / 'build/release-upload').rglob('*') if path.is_file()]
         self.assertEqual(names, ['android/expense-tracker-0.4.8-arm64-release.apk'])
+
+    def test_personal_export_is_labeled_and_does_not_include_private_files(self):
+        os.environ['DESKTOP_SIGNING_MODE'] = 'personal'
+        folder = self.root / 'release/android'
+        folder.mkdir(parents=True)
+        (folder / 'expense-tracker-0.4.8-arm64-release.apk').write_bytes(b'apk fixture')
+        (folder / 'private.jks').write_bytes(b'private fixture')
+        ci_signing.export('android')
+        output = self.root / 'build/release-upload'
+        self.assertIn('no', (output / 'PERSONAL-USE.txt').read_text().lower())
+        self.assertTrue((output / 'android/expense-tracker-0.4.8-arm64-release.apk').is_file())
+        self.assertFalse(list(output.rglob('*.jks')))
 
     def test_private_material_in_public_variable_is_rejected_before_import(self):
         os.environ.update({name: 'fixture' for name in ci_signing.REQUIRED['windows']})

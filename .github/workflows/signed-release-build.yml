@@ -1,4 +1,4 @@
-name: Build signed release files
+name: Build release files with signed updates
 
 on:
   push:
@@ -17,10 +17,20 @@ on:
           - windows
           - macos
           - all
+      desktop_signing:
+        description: Personal skips desktop publisher certificates; update packages remain signed
+        type: choice
+        default: personal
+        options:
+          - personal
+          - trusted
       check_only:
         description: Check configured Variable names without importing credentials or building
         type: boolean
         default: false
+
+env:
+  DESKTOP_SIGNING_MODE: ${{ inputs.desktop_signing || 'personal' }}
 
 permissions:
   contents: read
@@ -153,7 +163,7 @@ jobs:
       - name: Analyze, run focused updater tests, build
         if: ${{ !inputs.check_only }}
         run: python tool/build_release.py ${{ matrix.target }} --stage build
-      - name: Sign/notarize native app
+      - name: Verify personal app or sign trusted app
         if: ${{ !inputs.check_only && matrix.target != 'android' }}
         run: python tool/ci_signing.py sign-app ${{ matrix.target }}
       - name: Package Android or macOS
@@ -162,7 +172,7 @@ jobs:
       - name: Package Windows full bundle and installer
         if: ${{ !inputs.check_only && matrix.target == 'windows' }}
         run: python tool/build_release.py windows --stage package --iscc "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
-      - name: Sign/notarize final native installer
+      - name: Sign and notarize installer in trusted mode
         if: ${{ !inputs.check_only && matrix.target != 'android' }}
         run: python tool/ci_signing.py sign-package ${{ matrix.target }}
       - name: Sign updater payload and create appcast
@@ -174,7 +184,7 @@ jobs:
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: ${{ !inputs.check_only }}
         with:
-          name: signed-release-${{ matrix.target }}
+          name: ${{ env.DESKTOP_SIGNING_MODE }}-release-${{ matrix.target }}
           path: build/release-upload/
           if-no-files-found: error
           retention-days: 14
@@ -192,7 +202,7 @@ jobs:
           persist-credentials: false
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
-          pattern: signed-release-*
+          pattern: ${{ env.DESKTOP_SIGNING_MODE }}-release-*
           merge-multiple: true
           path: release/
       - name: Prepare complete release manifest and checksums
@@ -201,7 +211,7 @@ jobs:
           python tool/ci_signing.py export all
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: complete-signed-release
+          name: complete-${{ env.DESKTOP_SIGNING_MODE }}-release
           path: build/release-upload/
           if-no-files-found: error
           retention-days: 14

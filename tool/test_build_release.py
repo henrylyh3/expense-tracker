@@ -1,6 +1,7 @@
 """Focused checks for release activation, signing gates and APK continuity."""
 import base64
 import json
+import os
 import subprocess
 import tempfile
 import unittest
@@ -102,6 +103,22 @@ class BuildReleaseTests(unittest.TestCase):
         self.assertEqual(run.call_args.args[0][:3], ['dart', 'run', 'auto_updater:sign_update'])
         self.assertEqual(run.call_count, 3)  # App + installer verification, then signing.
 
+    def test_personal_windows_still_signs_updates_without_authenticode_gate(self):
+        folder = self.windows_payload()
+        signature = base64.b64encode(b'x' * 48).decode()
+        with patch.dict(os.environ, {'DESKTOP_SIGNING_MODE': 'personal'}), patch.object(build_release.platform, 'system', return_value='Windows'), patch.object(build_release, 'run', return_value=subprocess.CompletedProcess([], 0, stdout=f'sparkle:dsaSignature="{signature}"')) as run:
+            feed = build_release.sign('windows', 'dart')
+        self.assertTrue(feed.is_file())
+        self.assertEqual(run.call_count, 1)
+        self.assertEqual(run.call_args.args[0][:3], ['dart', 'run', 'auto_updater:sign_update'])
+
+    def test_personal_update_signing_failure_cannot_create_feed(self):
+        folder = self.windows_payload()
+        with patch.dict(os.environ, {'DESKTOP_SIGNING_MODE': 'personal'}), patch.object(build_release.platform, 'system', return_value='Windows'), patch.object(build_release, 'run', side_effect=subprocess.CalledProcessError(1, 'updater signing failed')):
+            with self.assertRaises(subprocess.CalledProcessError):
+                build_release.sign('windows', 'dart')
+        self.assertFalse(list(folder.glob('appcast*')))
+
     def apk_source(self):
         source = self.root / 'build/app/outputs/flutter-apk/app-arm64-v8a-release.apk'
         source.parent.mkdir(parents=True)
@@ -110,19 +127,40 @@ class BuildReleaseTests(unittest.TestCase):
         previous.parent.mkdir(parents=True)
         previous.write_bytes(b'previous signed apk')
 
-    def apk_result(self, command, capture=False, old_digest='same', old_code=2015):
+    def apk_result(self, command, capture=False, old_digest='a' * 64, old_code=2015):
         previous = '0.4.6' in command[-1]
         if 'verify' in command:
-            output = 'Signer #1 certificate SHA-256 digest: ' + (old_digest if previous else 'same')
+            output = 'Signer #1 certificate SHA-256 digest: ' + (old_digest if previous else 'a' * 64)
         else:
             code, name = (old_code, '0.4.6') if previous else (2017, '0.4.8')
             output = f"package: name='com.example.expense_tracker' versionCode='{code}' versionName='{name}'\nnative-code: 'arm64-v8a'\n"
         return subprocess.CompletedProcess(command, 0, stdout=output)
 
+    def test_apksigner_sdk_range_labels_keep_strict_certificate_identity(self):
+        digest = 'a' * 64
+        self.assertEqual(build_release.apk_signers('Signer #1 certificate SHA-256 digest: ' + digest), {digest})
+        sdk_output = 'Signer (minSdkVersion=33, maxSdkVersion=2147483647) certificate SHA-256 digest: ' + digest.upper()
+        sdk_output += '\nSource Stamp Signer certificate SHA-256 digest: ' + 'b' * 64
+        self.assertEqual(build_release.apk_signers(sdk_output), {digest})
+        self.assertFalse(build_release.apk_signers('Signer #1 certificate SHA-256 digest: short'))
+        self.assertFalse(build_release.apk_signers('Source Stamp Signer certificate SHA-256 digest: ' + digest))
+
+    def test_v31_signer_can_stage_with_unchanged_previous_certificate(self):
+        self.apk_source()
+        def result(command, **kwargs):
+            result = self.apk_result(command, **kwargs)
+            if 'verify' in command and '0.4.6' not in command[-1]:
+                result.stdout = result.stdout.replace('Signer #1', 'Signer (minSdkVersion=33, maxSdkVersion=2147483647)')
+            return result
+        with patch.object(build_release, 'android_tools', return_value=(Path('apksigner'), Path('aapt'))), patch.object(build_release, 'run', side_effect=result):
+            output = build_release.stage_android()
+        self.assertEqual(len(output), 1)
+        self.assertEqual(output[0].read_bytes(), b'new signed apk')
+
     def test_apk_signer_change_or_non_increasing_code_blocks_staging(self):
         self.apk_source()
         with patch.object(build_release, 'android_tools', return_value=(Path('apksigner'), Path('aapt'))):
-            for digest, code in [('different', 2015), ('same', 2017)]:
+            for digest, code in [('b' * 64, 2015), ('a' * 64, 2017)]:
                 with self.subTest(digest=digest, code=code), patch.object(build_release, 'run', side_effect=lambda command, **kwargs: self.apk_result(command, old_digest=digest, old_code=code)):
                     with self.assertRaisesRegex(RuntimeError, 'previous release signer'):
                         build_release.stage_android()

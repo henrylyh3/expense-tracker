@@ -37,6 +37,19 @@ PRIVATE_INPUTS = {
 }
 
 
+def signing_mode():
+    mode = os.environ.get('DESKTOP_SIGNING_MODE', 'trusted')
+    if mode not in ('personal', 'trusted'):
+        raise RuntimeError('DESKTOP_SIGNING_MODE must be personal or trusted.')
+    return mode
+
+
+def required_inputs(target):
+    if target != 'android' and signing_mode() == 'personal':
+        return [name for name in REQUIRED[target] if 'UPDATER_' in name or 'SPARKLE_' in name]
+    return REQUIRED[target]
+
+
 def release_matrix(ref, event, selected='android'):
     release_branch = ref == 'refs/heads/release' or ref.startswith('refs/heads/release/')
     if (event not in ('push', 'workflow_dispatch')
@@ -63,7 +76,7 @@ def require_inputs(target):
             if value.strip() not in ('', '-'):
                 escaped = value.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
                 print('::add-mask::' + escaped, flush=True)
-    missing = [name for name in REQUIRED[target] if os.environ.get(name, '').strip() in ('', '-')]
+    missing = [name for name in required_inputs(target) if os.environ.get(name, '').strip() in ('', '-')]
     if missing:
         raise RuntimeError('Missing GitHub Actions Variables: ' + ', '.join(missing))
     if os.environ.get('GITHUB_ACTIONS') != 'true':
@@ -132,22 +145,6 @@ def configure(target):
             raise RuntimeError('WINDOWS_UPDATER_PUBLIC_KEY must contain only a PEM public key.')
         private_file(ROOT / 'dsa_pub.pem', public)
         private_file(ROOT / 'dsa_priv.pem', os.environ['WINDOWS_UPDATER_PRIVATE_KEY'].strip() + '\n')
-        certificate = private_file(work / 'certificate.pfx', decoded('WINDOWS_CERTIFICATE_BASE64'))
-        script = ('$password = ConvertTo-SecureString $env:WINDOWS_CERTIFICATE_PASSWORD -AsPlainText -Force; '
-                  '$cert = Import-PfxCertificate -FilePath $env:CI_CERTIFICATE_FILE -CertStoreLocation Cert:\\CurrentUser\\My -Password $password | '
-                  'Where-Object HasPrivateKey | Select-Object -First 1; '
-                  'if (-not $cert) { exit 1 }; $cert.Thumbprint')
-        thumbprint = native(['powershell.exe', '-NoProfile', '-NonInteractive', '-Command', script],
-                            env={**os.environ, 'CI_CERTIFICATE_FILE': str(certificate)})
-        if not re.fullmatch(r'[A-Fa-f0-9]{40}', thumbprint):
-            raise RuntimeError('Could not identify imported Windows signing certificate.')
-        state['thumbprint'] = thumbprint
-        save_state(work, state)
-        candidates = list((Path(os.environ['ProgramFiles(x86)']) / 'Windows Kits/10/bin').glob('*/x64/signtool.exe'))
-        if not candidates:
-            raise RuntimeError('Windows SDK SignTool is missing.')
-        state['signtool'] = str(max(candidates, key=lambda path: tuple(map(int, path.parent.parent.name.split('.')))))
-        save_state(work, state)
         openssl = shutil.which('openssl') or next((str(path) for path in (
             Path(os.environ['ProgramFiles']) / 'OpenSSL-Win64/bin/openssl.exe',
             Path(os.environ['ProgramFiles']) / 'Git/usr/bin/openssl.exe') if path.is_file()), None)
@@ -158,6 +155,23 @@ def configure(target):
         actual_public = native([openssl, 'dsa', '-in', ROOT / 'dsa_priv.pem', '-pubout'])
         if ''.join(actual_public.split()) != ''.join(public.split()):
             raise RuntimeError('WinSparkle private/public keys do not match.')
+        if signing_mode() == 'trusted':
+            certificate = private_file(work / 'certificate.pfx', decoded('WINDOWS_CERTIFICATE_BASE64'))
+            script = ('$password = ConvertTo-SecureString $env:WINDOWS_CERTIFICATE_PASSWORD -AsPlainText -Force; '
+                      '$cert = Import-PfxCertificate -FilePath $env:CI_CERTIFICATE_FILE -CertStoreLocation Cert:\\CurrentUser\\My -Password $password | '
+                      'Where-Object HasPrivateKey | Select-Object -First 1; '
+                      'if (-not $cert) { exit 1 }; $cert.Thumbprint')
+            thumbprint = native(['powershell.exe', '-NoProfile', '-NonInteractive', '-Command', script],
+                                env={**os.environ, 'CI_CERTIFICATE_FILE': str(certificate)})
+            if not re.fullmatch(r'[A-Fa-f0-9]{40}', thumbprint):
+                raise RuntimeError('Could not identify imported Windows signing certificate.')
+            state['thumbprint'] = thumbprint
+            save_state(work, state)
+            candidates = list((Path(os.environ['ProgramFiles(x86)']) / 'Windows Kits/10/bin').glob('*/x64/signtool.exe'))
+            if not candidates:
+                raise RuntimeError('Windows SDK SignTool is missing.')
+            state['signtool'] = str(max(candidates, key=lambda path: tuple(map(int, path.parent.parent.name.split('.')))))
+            save_state(work, state)
     else:
         public = os.environ['MACOS_SPARKLE_PUBLIC_KEY'].strip()
         if len(base64.b64decode(public, validate=True)) != 32:
@@ -175,18 +189,19 @@ def configure(target):
                  'print(pub.base64EncodedString())')
         if native(['swift', '-e', swift, key_file]) != public:
             raise RuntimeError('Sparkle private/public keys do not match.')
-        private_file(work / 'notary-key.p8', decoded('MACOS_NOTARY_KEY_BASE64'))
-        certificate = private_file(work / 'certificate.p12', decoded('MACOS_CERTIFICATE_BASE64'))
-        keychain = work / 'release.keychain-db'
-        state['keychain'] = str(keychain)
-        save_state(work, state)
-        password = secrets.token_urlsafe(32)
-        native(['security', 'create-keychain', '-p', password, keychain])
-        native(['security', 'set-keychain-settings', '-lut', '21600', keychain])
-        native(['security', 'unlock-keychain', '-p', password, keychain])
-        native(['security', 'import', certificate, '-k', keychain, '-P', os.environ['MACOS_CERTIFICATE_PASSWORD'],
-                '-T', '/usr/bin/codesign', '-T', '/usr/bin/security'])
-        native(['security', 'set-key-partition-list', '-S', 'apple-tool:,apple:,codesign:', '-s', '-k', password, keychain])
+        if signing_mode() == 'trusted':
+            private_file(work / 'notary-key.p8', decoded('MACOS_NOTARY_KEY_BASE64'))
+            certificate = private_file(work / 'certificate.p12', decoded('MACOS_CERTIFICATE_BASE64'))
+            keychain = work / 'release.keychain-db'
+            state['keychain'] = str(keychain)
+            save_state(work, state)
+            password = secrets.token_urlsafe(32)
+            native(['security', 'create-keychain', '-p', password, keychain])
+            native(['security', 'set-keychain-settings', '-lut', '21600', keychain])
+            native(['security', 'unlock-keychain', '-p', password, keychain])
+            native(['security', 'import', certificate, '-k', keychain, '-P', os.environ['MACOS_CERTIFICATE_PASSWORD'],
+                    '-T', '/usr/bin/codesign', '-T', '/usr/bin/security'])
+            native(['security', 'set-key-partition-list', '-S', 'apple-tool:,apple:,codesign:', '-s', '-k', password, keychain])
     clear_outputs(target)
     print(f'{target}: temporary signing configuration ready; private values not logged.')
 
@@ -235,6 +250,11 @@ def windows_sign(path):
 
 
 def sign_app(target):
+    if signing_mode() == 'personal':
+        if target == 'macos':
+            native(['codesign', '--verify', '--deep', '--strict', ROOT / 'build/macos/Build/Products/Release/expense_tracker.app'])
+        print(f'{target}: personal build; no publisher certificate or notarization used.')
+        return
     if target == 'windows':
         windows_sign(ROOT / 'build/windows/x64/runner/Release/expense_tracker.exe')
         return
@@ -260,6 +280,9 @@ def sign_app(target):
 
 
 def sign_package(target):
+    if signing_mode() == 'personal':
+        print(f'{target}: personal installer; updater signature is applied separately.')
+        return
     name, _ = version()
     folder = ROOT / 'release' / PLATFORM_FOLDERS[target]
     if target == 'windows':
@@ -288,6 +311,10 @@ def export(target):
         paths = [folder / f'expense-tracker-{name}{suffix}' for suffix in suffixes]
         if target != 'android':
             paths.append(folder / f'appcast-{target}-{name}.xml')
+    if signing_mode() == 'personal':
+        notice = output / 'PERSONAL-USE.txt'
+        notice.parent.mkdir(parents=True, exist_ok=True)
+        notice.write_text('Personal use: Android retains release signing; desktop update packages are signed, but Windows publisher signing and macOS notarization are omitted. Installation warnings may appear. No GitHub Release was published.\n')
     for path in paths:
         if not path.is_file() or not path.stat().st_size:
             raise RuntimeError(f'Missing finalized artifact: {path.relative_to(ROOT)}')
