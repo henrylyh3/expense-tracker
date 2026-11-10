@@ -66,7 +66,7 @@ The [auto_updater signing guide](https://leanflutter.dev/documentation/auto_upda
 
 ## Release commands
 
-For hosted signing from a Windows laptop, use [GitHub Actions signing setup](SIGNING_CI.md). The manual signed-build workflow supports each platform separately or complete three-platform collection; private credentials belong in Actions Secrets, public configuration in Actions Variables.
+For hosted signing from a Windows laptop, use [GitHub Actions signing setup](SIGNING_CI.md). The manual signed-build workflow supports each platform separately or complete three-platform collection; this repository reads all signing inputs from Actions Variables as explicitly requested, with credential values masked in workflow logs.
 
 Bump `pubspec.yaml` and `lib/core/app_info.dart` together, then run on each native host:
 

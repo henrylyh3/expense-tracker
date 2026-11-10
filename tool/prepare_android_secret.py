@@ -1,4 +1,4 @@
-"""Export the original Android keystore as a local GitHub Secret paste file."""
+"""Export the original Android keystore as a local GitHub Actions Variable paste file."""
 import argparse
 import base64
 import os
@@ -15,13 +15,13 @@ def main():
     if not source.is_file():
         parser.error('Original keystore file does not exist. No replacement key will be generated.')
     os.umask(0o077)
-    folder = ROOT / '.local/signing/github-secrets'
+    folder = ROOT / '.local/signing/github-variables'
     folder.mkdir(parents=True, exist_ok=True)
     output = folder / 'ANDROID_KEYSTORE_BASE64.txt'
     with output.open('x') as stream:
         stream.write(base64.b64encode(source.read_bytes()).decode() + '\n')
     output.chmod(0o600)
-    print(f'Created {output}; paste its contents into ANDROID_KEYSTORE_BASE64. No private value printed.')
+    print(f'Created {output}; paste its contents into the ANDROID_KEYSTORE_BASE64 Actions Variable. No private value printed.')
 
 
 if __name__ == '__main__':

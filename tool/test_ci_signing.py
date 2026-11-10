@@ -1,5 +1,7 @@
 """Focused CI credential handling and artifact-isolation tests; no real secrets."""
 import base64
+import contextlib
+import io
 import json
 import os
 import tempfile
@@ -37,6 +39,15 @@ class CiSigningTests(unittest.TestCase):
             ci_signing.configure('android')
         self.assertNotIn('test-password', str(error.exception))
         self.assertFalse((self.root / 'github-env').exists())
+
+    def test_variable_credentials_are_masked_with_multiline_escaping(self):
+        os.environ.update(self.android())
+        os.environ['ANDROID_KEY_PASSWORD'] = 'line1%\r\nline2'
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            ci_signing.require_inputs('android')
+        self.assertIn('::add-mask::line1%25%0D%0Aline2\n', output.getvalue())
+        self.assertEqual(output.getvalue().count('::add-mask::'), 4)
 
     def test_java_properties_preserve_unicode_backslash_and_line_breaks(self):
         self.assertEqual(ci_signing.property_value(' a\\b\n中😀='), r'\ a\\b\u000a\u4e2d\ud83d\ude00\=')

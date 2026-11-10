@@ -4,18 +4,22 @@ Run **Actions → Build signed release files → Run workflow** on `main`. Selec
 
 The workflow pins official stable Flutter 3.47.9. It runs focused signing/release tests, analyzes the app and runs linked updater tests before native compilation. The existing desktop validation workflow remains available without private credentials and keeps update feeds disabled.
 
+## Actions Variables configuration
+
+This workflow reads all signing values from repository Actions Variables, as explicitly requested. Variables are readable as plaintext in repository settings. Credential values are masked explicitly in workflow logs; their storage remains Variables. No signing Secrets are used.
+
 ## Local generated keys
 
-New desktop updater key pairs were generated under ignored `.local/signing/`. Private files have owner-only permissions on this Mac. They have not been uploaded to GitHub Secrets. Keep a separate secure backup: subsequent releases must retain these keys.
+New desktop updater key pairs were generated under ignored `.local/signing/`. Private files have owner-only permissions on this Mac. Keep a separate secure backup: subsequent releases must retain these keys.
 
-| GitHub Actions Secret | Local file to paste verbatim |
+| GitHub Actions Variable | Local file to paste verbatim |
 | --- | --- |
-| `MACOS_SPARKLE_PRIVATE_KEY` | `.local/signing/github-secrets/MACOS_SPARKLE_PRIVATE_KEY.txt` |
-| `WINDOWS_UPDATER_PRIVATE_KEY` | `.local/signing/github-secrets/WINDOWS_UPDATER_PRIVATE_KEY.txt` |
+| `MACOS_SPARKLE_PRIVATE_KEY` | `.local/signing/github-variables/MACOS_SPARKLE_PRIVATE_KEY.txt` |
+| `WINDOWS_UPDATER_PRIVATE_KEY` | `.local/signing/github-variables/WINDOWS_UPDATER_PRIVATE_KEY.txt` |
 
 The Sparkle file is already Base64; do not encode it again. The Windows file is raw PEM; paste the whole file, including its header/footer. Additional local copies are in `.local/signing/macos/` and `.local/signing/windows/`. Generated updater keys were checked with real native Sparkle signing/verification and WinSparkle-compatible OpenSSL DSA signing/verification.
 
-Only public values are configured as repository Actions Variables:
+Public configuration uses these repository Actions Variables:
 
 | Variable | Value source |
 | --- | --- |
@@ -23,7 +27,7 @@ Only public values are configured as repository Actions Variables:
 | `WINDOWS_UPDATER_PUBLIC_KEY` | `.local/signing/windows/dsa_pub.pem` |
 | `WINDOWS_TIMESTAMP_URL` | `http://timestamp.digicert.com` |
 
-All three values also appear in ignored `.local/signing/github-variables.json`. Public key copies in ignored `dsa_pub.pem` and `macos/Runner/Configs/Signing.xcconfig` support local configuration. The private files will not appear when cloning/pulling this repository on another laptop.
+All three public values also appear in ignored `.local/signing/github-variables.json`. Public key copies in ignored `dsa_pub.pem` and `macos/Runner/Configs/Signing.xcconfig` support local configuration. The private files will not appear when cloning/pulling this repository on another laptop.
 
 ## Android: usable after entering the existing credentials
 
@@ -33,11 +37,11 @@ On your Windows laptop, from the repository, run:
 python tool/prepare_android_secret.py
 ```
 
-Enter the path to your **original** `.jks`/`.keystore` when prompted. It creates ignored `.local/signing/github-secrets/ANDROID_KEYSTORE_BASE64.txt` without printing its contents or changing the original key. Existing output files are never overwritten.
+Enter the path to your **original** `.jks`/`.keystore` when prompted. It creates ignored `.local/signing/github-variables/ANDROID_KEYSTORE_BASE64.txt` without printing its contents or changing the original key. Existing output files are never overwritten.
 
-Open [repository Actions Secrets](https://github.com/henrylyh3/expense-tracker/settings/secrets/actions), choose **New repository secret**, and add:
+Open [repository Actions Variables](https://github.com/henrylyh3/expense-tracker/settings/variables/actions), choose **New repository variable**, and add:
 
-| Secret | Value |
+| Variable | Value |
 | --- | --- |
 | `ANDROID_KEYSTORE_BASE64` | Entire generated Base64 text file |
 | `ANDROID_STORE_PASSWORD` | Existing `storePassword` from your original `android/key.properties` |
@@ -50,9 +54,9 @@ Never generate a replacement Android key for existing installations. The runner 
 
 The generated WinSparkle key signs update packages; it is not a trusted Authenticode certificate. This workflow supports an exportable code-signing certificate with its private key in `.pfx` form. If a certificate provider requires hardware/cloud signing, use that provider's integration rather than exporting a non-exportable key; the current workflow does not implement a cloud/HSM signing provider.
 
-Add these repository Secrets:
+Add these repository Variables:
 
-| Secret | Value |
+| Variable | Value |
 | --- | --- |
 | `WINDOWS_UPDATER_PRIVATE_KEY` | Generated local PEM paste file above |
 | `WINDOWS_CERTIFICATE_BASE64` | Base64 of the provider-issued signing `.pfx` including its private key |
@@ -64,7 +68,7 @@ The runner imports the certificate temporarily, signs/verifies the native app, c
 
 The generated Sparkle key cannot replace an Apple Developer ID certificate. Export **Developer ID Application** with its private key as password-protected `.p12` from your Apple Developer setup. Obtain an App Store Connect API key allowed to submit notarization requests.
 
-| Repository Secret | Value |
+| Repository Variable | Value |
 | --- | --- |
 | `MACOS_SPARKLE_PRIVATE_KEY` | Generated local Base64 paste file above |
 | `MACOS_CERTIFICATE_BASE64` | Base64 of your Developer ID `.p12`, including its private key |
@@ -87,8 +91,10 @@ Single-platform jobs upload only that platform's current-version files as `signe
 
 Choosing `all` requires every platform's credentials. When every job succeeds, the collector prepares Android's manifest and multi-platform checksums and uploads `complete-signed-release`, preserving `android/`, `mac/` and `window/` folders. Extract this bundle into local `release/`, review/test native installations and signed upgrades, commit/push the artifacts and release notes, then use the publisher described in [Desktop releases](DESKTOP.md#publish-the-complete-release). A failed platform blocks complete collection. Individual artifacts are not a complete public release.
 
-Credentials enter workflows through environment variables. Native tool output is captured to avoid logging certificate passwords, and artifact export uses an explicit file list. See [GitHub Secrets](https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/use-secrets), [Sparkle manual code signing](https://sparkle-project.org/documentation/sandboxing/#code-signing) and [Microsoft SignTool](https://learn.microsoft.com/windows/win32/seccrypto/signtool).
+Credentials enter workflows through environment variables. Native tool output is captured to avoid logging certificate passwords, and artifact export uses an explicit file list. See [GitHub Actions Variables](https://docs.github.com/en/actions/learn-github-actions/variables), [Sparkle manual code signing](https://sparkle-project.org/documentation/sandboxing/#code-signing) and [Microsoft SignTool](https://learn.microsoft.com/windows/win32/seccrypto/signtool).
 
-Verification limit: credential-free tests and real updater-key compatibility checks can run now. Full Android signing still needs your original keystore Secrets; full Windows/macOS signed builds, notarization and installed upgrade tests need their provider/Apple credentials. No new app version is needed for this CI/tooling-only change.
+Verification limit: credential-free tests and real updater-key compatibility checks can run now. Full Android signing still needs your original keystore Variables; full Windows/macOS signed builds, notarization and installed upgrade tests need their provider/Apple credentials. No new app version is needed for this CI/tooling-only change.
 
-Local validation passed: actionlint workflow/context checks, 32 focused Python checks (10 CI signing + 22 release-tool checks), 22 Flutter updater checks, and clean analysis on official stable Flutter 3.47.9. Real Sparkle 2.9.6 signing/verification, independent Ed25519 verification, CryptoKit public-key derivation and WinSparkle-compatible DSA signing/verification passed for the generated keys. Full certificate-backed signing/notarization has not been run.
+Local validation passed: actionlint workflow/context checks, 33 focused Python checks (11 CI signing + 22 release-tool checks), 22 Flutter updater checks, and clean analysis on official stable Flutter 3.47.9. Real Sparkle 2.9.6 signing/verification, independent Ed25519 verification, CryptoKit public-key derivation and WinSparkle-compatible DSA signing/verification passed for the generated keys. Full certificate-backed signing/notarization has not been run.
+
+GitHub requires a value when creating a repository Variable. Android credentials and certificate/notarization values cannot be pre-created while their values are unavailable. Missing names are listed locally in `.local/signing/missing-variable-names.txt`; no dummy values are used.

@@ -29,6 +29,12 @@ REQUIRED = {
               'MACOS_SPARKLE_PUBLIC_KEY', 'MACOS_NOTARY_KEY_BASE64',
               'MACOS_NOTARY_KEY_ID', 'MACOS_NOTARY_ISSUER_ID'],
 }
+PRIVATE_INPUTS = {
+    'android': REQUIRED['android'],
+    'windows': ['WINDOWS_CERTIFICATE_BASE64', 'WINDOWS_CERTIFICATE_PASSWORD', 'WINDOWS_UPDATER_PRIVATE_KEY'],
+    'macos': ['MACOS_CERTIFICATE_BASE64', 'MACOS_CERTIFICATE_PASSWORD',
+              'MACOS_SPARKLE_PRIVATE_KEY', 'MACOS_NOTARY_KEY_BASE64'],
+}
 
 
 def native(command, env=None):
@@ -37,9 +43,15 @@ def native(command, env=None):
 
 
 def require_inputs(target):
+    if os.environ.get('GITHUB_ACTIONS') == 'true':
+        for name in PRIVATE_INPUTS[target]:
+            value = os.environ.get(name, '')
+            if value:
+                escaped = value.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+                print('::add-mask::' + escaped, flush=True)
     missing = [name for name in REQUIRED[target] if not os.environ.get(name, '').strip()]
     if missing:
-        raise RuntimeError('Missing GitHub Secrets/Variables: ' + ', '.join(missing))
+        raise RuntimeError('Missing GitHub Actions Variables: ' + ', '.join(missing))
     if os.environ.get('GITHUB_ACTIONS') != 'true':
         raise RuntimeError('Credential installation is restricted to GitHub Actions runners.')
 

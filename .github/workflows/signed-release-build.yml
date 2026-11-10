@@ -14,7 +14,7 @@ on:
           - macos
           - all
       check_only:
-        description: Check configured Secret/Variable names without importing credentials or building
+        description: Check configured Variable names without importing credentials or building
         type: boolean
         default: false
 
@@ -88,25 +88,25 @@ jobs:
       - name: Check Android signing inputs
         if: matrix.target == 'android'
         env:
-          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-          ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
-          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_KEYSTORE_BASE64: ${{ vars.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_STORE_PASSWORD: ${{ vars.ANDROID_STORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ vars.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ vars.ANDROID_KEY_PASSWORD }}
         run: python tool/ci_signing.py check android
       - name: Check Windows signing inputs
         if: matrix.target == 'windows'
         env:
-          WINDOWS_CERTIFICATE_BASE64: ${{ secrets.WINDOWS_CERTIFICATE_BASE64 }}
-          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
-          WINDOWS_UPDATER_PRIVATE_KEY: ${{ secrets.WINDOWS_UPDATER_PRIVATE_KEY }}
+          WINDOWS_CERTIFICATE_BASE64: ${{ vars.WINDOWS_CERTIFICATE_BASE64 }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ vars.WINDOWS_CERTIFICATE_PASSWORD }}
+          WINDOWS_UPDATER_PRIVATE_KEY: ${{ vars.WINDOWS_UPDATER_PRIVATE_KEY }}
         run: python tool/ci_signing.py check windows
       - name: Check macOS signing inputs
         if: matrix.target == 'macos'
         env:
-          MACOS_CERTIFICATE_BASE64: ${{ secrets.MACOS_CERTIFICATE_BASE64 }}
-          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
-          MACOS_SPARKLE_PRIVATE_KEY: ${{ secrets.MACOS_SPARKLE_PRIVATE_KEY }}
-          MACOS_NOTARY_KEY_BASE64: ${{ secrets.MACOS_NOTARY_KEY_BASE64 }}
+          MACOS_CERTIFICATE_BASE64: ${{ vars.MACOS_CERTIFICATE_BASE64 }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ vars.MACOS_CERTIFICATE_PASSWORD }}
+          MACOS_SPARKLE_PRIVATE_KEY: ${{ vars.MACOS_SPARKLE_PRIVATE_KEY }}
+          MACOS_NOTARY_KEY_BASE64: ${{ vars.MACOS_NOTARY_KEY_BASE64 }}
         run: python tool/ci_signing.py check macos
       - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
         if: ${{ !inputs.check_only }}
@@ -125,25 +125,25 @@ jobs:
       - name: Configure Android credentials
         if: ${{ !inputs.check_only && matrix.target == 'android' }}
         env:
-          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-          ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
-          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_KEYSTORE_BASE64: ${{ vars.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_STORE_PASSWORD: ${{ vars.ANDROID_STORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ vars.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ vars.ANDROID_KEY_PASSWORD }}
         run: python tool/ci_signing.py configure android
       - name: Configure Windows credentials
         if: ${{ !inputs.check_only && matrix.target == 'windows' }}
         env:
-          WINDOWS_CERTIFICATE_BASE64: ${{ secrets.WINDOWS_CERTIFICATE_BASE64 }}
-          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
-          WINDOWS_UPDATER_PRIVATE_KEY: ${{ secrets.WINDOWS_UPDATER_PRIVATE_KEY }}
+          WINDOWS_CERTIFICATE_BASE64: ${{ vars.WINDOWS_CERTIFICATE_BASE64 }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ vars.WINDOWS_CERTIFICATE_PASSWORD }}
+          WINDOWS_UPDATER_PRIVATE_KEY: ${{ vars.WINDOWS_UPDATER_PRIVATE_KEY }}
         run: python tool/ci_signing.py configure windows
       - name: Configure macOS credentials
         if: ${{ !inputs.check_only && matrix.target == 'macos' }}
         env:
-          MACOS_CERTIFICATE_BASE64: ${{ secrets.MACOS_CERTIFICATE_BASE64 }}
-          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
-          MACOS_SPARKLE_PRIVATE_KEY: ${{ secrets.MACOS_SPARKLE_PRIVATE_KEY }}
-          MACOS_NOTARY_KEY_BASE64: ${{ secrets.MACOS_NOTARY_KEY_BASE64 }}
+          MACOS_CERTIFICATE_BASE64: ${{ vars.MACOS_CERTIFICATE_BASE64 }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ vars.MACOS_CERTIFICATE_PASSWORD }}
+          MACOS_SPARKLE_PRIVATE_KEY: ${{ vars.MACOS_SPARKLE_PRIVATE_KEY }}
+          MACOS_NOTARY_KEY_BASE64: ${{ vars.MACOS_NOTARY_KEY_BASE64 }}
         run: python tool/ci_signing.py configure macos
       - name: Analyze, run focused updater tests, build
         if: ${{ !inputs.check_only }}
