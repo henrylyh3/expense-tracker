@@ -376,6 +376,9 @@ extension DiscordSharing on SharingService {
       response['error'] =
           'This expense is invalid. Check its fields and try again.';
     }
+    if (data['reply'] == false) {
+      return;
+    }
     final encrypted = await cipher.seal(
       response,
       session['secret'] as String,

@@ -265,7 +265,7 @@ void main() {
       final data = decode(Uri.splitQueryString(link.fragment)['invite']!),
           id = data['id'] as String;
       final connection = DiscordConnection.decode(data['endpoint'] as String);
-      for (var n = 1; n <= 2; n++) {
+      for (var n = 1; n <= 3; n++) {
         final encrypted = await SharingCipher().seal(
           {
             'action': 'add',
@@ -276,7 +276,7 @@ void main() {
             'expense': {
               'category': 'seed-food',
               'currency': 'MYR',
-              'amount': '12.50',
+              'amount': n == 1 ? '-1' : '12.50',
               'rate': '1',
               'date': '2026-11-10',
             },
