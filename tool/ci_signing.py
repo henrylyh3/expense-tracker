@@ -37,6 +37,20 @@ PRIVATE_INPUTS = {
 }
 
 
+def release_matrix(ref, event, selected='android'):
+    release_branch = ref == 'refs/heads/release' or ref.startswith('refs/heads/release/')
+    if (event not in ('push', 'workflow_dispatch')
+            or not (release_branch or event == 'workflow_dispatch' and ref == 'refs/heads/main')):
+        raise RuntimeError('Signed builds require a release branch; manual runs also allow main.')
+    if event == 'push':
+        selected = 'all'
+    hosts = {'android': 'ubuntu-latest', 'windows': 'windows-latest', 'macos': 'macos-latest'}
+    if selected not in (*hosts, 'all'):
+        raise RuntimeError('Choose android, windows, macos or all.')
+    return {'include': [{'target': target, 'os': host} for target, host in hosts.items()
+                        if selected in ('all', target)]}
+
+
 def native(command, env=None):
     return subprocess.run([str(value) for value in command], cwd=ROOT,
                           env=env, text=True, capture_output=True, check=True).stdout.strip()

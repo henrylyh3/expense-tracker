@@ -1,8 +1,16 @@
 # Signed builds from GitHub Actions
 
-Run **Actions → Build signed release files → Run workflow** on `main`. Select `android`, `windows`, `macos` or `all`. Android is the default because the existing Android keystore is currently the only available app-signing credential. Keep `check_only` enabled for a configuration-only check; disable it to build. No job publishes a GitHub Release or pushes generated artifacts.
+Every push to `release` or `release/**` automatically builds Android, Windows and macOS and collects the complete release files when all three succeed. For example, commits pushed to `release/0.4.9` or `release/android/fix` trigger the workflow. The branch must contain this workflow file. Pushes to `main`, unrelated branches and tags do not trigger this signed workflow.
+
+Manual runs remain available through **Actions → Build signed release files → Run workflow** on `main` or a release branch. Select `android`, `windows`, `macos` or `all`; Android is the manual default. Enable `check_only` for a configuration-only check, or disable it to build. Automatic pushes always select all three platforms. No job publishes a GitHub Release or pushes generated artifacts. Existing `-` credential placeholders stop the platform checks before building.
 
 The workflow pins official stable Flutter 3.47.9. It runs focused signing/release tests, analyzes the app and runs linked updater tests before native compilation. The existing desktop validation workflow remains available without private credentials and keeps update feeds disabled.
+
+## Version numbers
+
+Versions do not automatically increase. Both manual and automatic runs use the committed `pubspec.yaml` version and matching `lib/core/app_info.dart` value. The current version is `0.4.8+17`: `0.4.8` is the visible release version, and `17` is the native build number (Android ARM64's actual version code is `2017`). A branch name does not override these values.
+
+For the next release, update both files to `0.4.9+18`, commit and push to a release branch. Unpublished commits on that branch can rebuild the same version; once a version is publicly released, the workflow refuses to rebuild it until you increase the version. The workflow does not commit version bumps or derive versions from Actions run numbers.
 
 ## Actions Variables configuration
 
@@ -91,10 +99,12 @@ Single-platform jobs upload only that platform's current-version files as `signe
 
 Choosing `all` requires every platform's credentials. When every job succeeds, the collector prepares Android's manifest and multi-platform checksums and uploads `complete-signed-release`, preserving `android/`, `mac/` and `window/` folders. Extract this bundle into local `release/`, review/test native installations and signed upgrades, commit/push the artifacts and release notes, then use the publisher described in [Desktop releases](DESKTOP.md#publish-the-complete-release). A failed platform blocks complete collection. Individual artifacts are not a complete public release.
 
+Automatic release-branch builds use the same complete collection. Merge the completed release source/artifacts into `main` before publishing; the publisher still requires the committed release to match `origin/main`.
+
 Credentials enter workflows through environment variables. Native tool output is captured to avoid logging certificate passwords, and artifact export uses an explicit file list. See [GitHub Actions Variables](https://docs.github.com/en/actions/learn-github-actions/variables), [Sparkle manual code signing](https://sparkle-project.org/documentation/sandboxing/#code-signing) and [Microsoft SignTool](https://learn.microsoft.com/windows/win32/seccrypto/signtool).
 
 Verification limit: credential-free tests and real updater-key compatibility checks can run now. Full Android signing still needs your original keystore Variables; full Windows/macOS signed builds, notarization and installed upgrade tests need their provider/Apple credentials. No new app version is needed for this CI/tooling-only change.
 
-Local validation passed: actionlint workflow/context checks, 34 focused Python checks (12 CI signing + 22 release-tool checks), 22 Flutter updater checks, and clean analysis on official stable Flutter 3.47.9. Real Sparkle 2.9.6 signing/verification, independent Ed25519 verification, CryptoKit public-key derivation and WinSparkle-compatible DSA signing/verification passed for the generated keys. Full certificate-backed signing/notarization has not been run.
+Local validation passed: actionlint workflow/context checks, 37 focused Python checks (15 CI signing + 22 release-tool checks), 22 Flutter updater checks, and clean analysis on official stable Flutter 3.47.9. Real Sparkle 2.9.6 signing/verification, independent Ed25519 verification, CryptoKit public-key derivation and WinSparkle-compatible DSA signing/verification passed for the generated keys. Full certificate-backed signing/notarization has not been run.
 
 GitHub requires a value when creating a repository Variable. At Henry's request, unavailable Android/certificate/notarization values use `-` until replaced. The workflow rejects empty values and `-` before installing credentials or building. Missing-value names are listed locally in `.local/signing/missing-variable-names.txt`.

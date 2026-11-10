@@ -34,6 +34,31 @@ class CiSigningTests(unittest.TestCase):
                 'ANDROID_STORE_PASSWORD': 'test-password', 'ANDROID_KEY_ALIAS': 'existing-alias',
                 'ANDROID_KEY_PASSWORD': 'test-key-password'}
 
+    def test_release_branch_pushes_always_select_all_native_hosts(self):
+        for ref in ('refs/heads/release', 'refs/heads/release/0.4.9', 'refs/heads/release/android/fix'):
+            with self.subTest(ref=ref):
+                matrix = ci_signing.release_matrix(ref, 'push', 'android')
+                self.assertEqual({item['target']: item['os'] for item in matrix['include']}, {
+                    'android': 'ubuntu-latest', 'windows': 'windows-latest', 'macos': 'macos-latest'})
+
+    def test_manual_runs_preserve_platform_selection_on_main_and_release(self):
+        for ref in ('refs/heads/main', 'refs/heads/release/0.4.9'):
+            for target in ('android', 'windows', 'macos', 'all'):
+                with self.subTest(ref=ref, target=target):
+                    matrix = ci_signing.release_matrix(ref, 'workflow_dispatch', target)
+                    self.assertEqual(len(matrix['include']), 3 if target == 'all' else 1)
+                    if target != 'all':
+                        self.assertEqual(matrix['include'][0]['target'], target)
+
+    def test_unrelated_branches_tags_events_and_invalid_platforms_are_rejected(self):
+        for ref, event in (('refs/heads/main', 'push'), ('refs/heads/feature/test', 'push'),
+                           ('refs/heads/release-candidate', 'push'), ('refs/tags/v0.4.9', 'workflow_dispatch'),
+                           ('refs/heads/release/0.4.9', 'pull_request')):
+            with self.subTest(ref=ref, event=event), self.assertRaises(RuntimeError):
+                ci_signing.release_matrix(ref, event)
+        with self.assertRaisesRegex(RuntimeError, 'Choose android'):
+            ci_signing.release_matrix('refs/heads/main', 'workflow_dispatch', 'linux')
+
     def test_missing_inputs_report_names_without_creating_files(self):
         with self.assertRaisesRegex(RuntimeError, 'ANDROID_KEYSTORE_BASE64') as error:
             ci_signing.configure('android')

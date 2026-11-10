@@ -1,6 +1,10 @@
 name: Build signed release files
 
 on:
+  push:
+    branches:
+      - release
+      - 'release/**'
   workflow_dispatch:
     inputs:
       platform:
@@ -30,6 +34,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.plan.outputs.matrix }}
+      platform: ${{ steps.plan.outputs.platform }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -41,15 +46,17 @@ jobs:
       - name: Select native hosts and protect published versions
         id: plan
         env:
-          RELEASE_PLATFORM: ${{ inputs.platform }}
+          RELEASE_PLATFORM: ${{ inputs.platform || 'all' }}
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           python - <<'PY'
           import json, os, sys, urllib.error, urllib.request
           sys.path.insert(0, 'tool')
           from package_desktop import version
-          if os.environ['GITHUB_REF'] != 'refs/heads/main':
-              raise SystemExit('Run signed builds from main only.')
+          from ci_signing import release_matrix
+          event = os.environ['GITHUB_EVENT_NAME']
+          selected = 'all' if event == 'push' else os.environ['RELEASE_PLATFORM']
+          matrix = release_matrix(os.environ['GITHUB_REF'], event, selected)
           tag = 'v' + version()[0]
           request = urllib.request.Request(f'https://api.github.com/repos/{os.environ["GITHUB_REPOSITORY"]}/releases/tags/{tag}')
           request.add_unredirected_header('Authorization', 'Bearer ' + os.environ['GITHUB_TOKEN'])
@@ -60,11 +67,9 @@ jobs:
           except urllib.error.HTTPError as error:
               if error.code != 404:
                   raise
-          hosts = {'android': 'ubuntu-latest', 'windows': 'windows-latest', 'macos': 'macos-latest'}
-          selected = os.environ['RELEASE_PLATFORM']
-          matrix = {'include': [{'target': target, 'os': host} for target, host in hosts.items() if selected in ('all', target)]}
           with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
               output.write('matrix=' + json.dumps(matrix) + '\n')
+              output.write('platform=' + selected + '\n')
           PY
 
   build:
@@ -178,8 +183,8 @@ jobs:
         run: python tool/ci_signing.py cleanup
 
   collect:
-    if: ${{ inputs.platform == 'all' && !inputs.check_only }}
-    needs: build
+    if: ${{ needs.plan.outputs.platform == 'all' && !inputs.check_only }}
+    needs: [plan, build]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
