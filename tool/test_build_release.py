@@ -145,6 +145,8 @@ class BuildReleaseTests(unittest.TestCase):
         sdk_output = 'Signer (minSdkVersion=33, maxSdkVersion=2147483647) certificate SHA-256 digest: ' + digest.upper()
         sdk_output += '\nSource Stamp Signer certificate SHA-256 digest: ' + 'b' * 64
         self.assertEqual(build_release.apk_signers(sdk_output), {digest})
+        for scheme in ('V1', 'V2', 'V3.0', 'V3.1', 'V4'):
+            self.assertEqual(build_release.apk_signers(scheme + ' Signer: certificate SHA-256 digest: ' + digest), {digest})
         self.assertFalse(build_release.apk_signers('Signer #1 certificate SHA-256 digest: short'))
         self.assertFalse(build_release.apk_signers('Source Stamp Signer certificate SHA-256 digest: ' + digest))
 
@@ -153,7 +155,7 @@ class BuildReleaseTests(unittest.TestCase):
         def result(command, **kwargs):
             result = self.apk_result(command, **kwargs)
             if 'verify' in command and '0.4.6' not in command[-1]:
-                result.stdout = result.stdout.replace('Signer #1', 'Signer (minSdkVersion=33, maxSdkVersion=2147483647)')
+                result.stdout = result.stdout.replace('Signer #1', 'V2 Signer:')
             return result
         with patch.object(build_release, 'android_tools', return_value=(Path('apksigner'), Path('aapt'))), patch.object(build_release, 'run', side_effect=result):
             output = build_release.stage_android()

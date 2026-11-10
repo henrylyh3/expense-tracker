@@ -150,8 +150,13 @@ def configure(target):
             Path(os.environ['ProgramFiles']) / 'Git/usr/bin/openssl.exe') if path.is_file()), None)
         if not openssl:
             raise RuntimeError('OpenSSL is required by WinSparkle signing.')
+        # Expose only OpenSSL, not Git's usr/bin utilities (which shadow the
+        # Windows find/sort tools used by flutter.bat).
+        tools = work / 'tools'
+        tools.mkdir()
+        private_file(tools / 'openssl.cmd', '@"' + openssl + '" %*\r\n')
         with Path(os.environ['GITHUB_PATH']).open('a') as stream:
-            stream.write(str(Path(openssl).parent) + '\n')
+            stream.write(str(tools) + '\n')
         actual_public = native([openssl, 'dsa', '-in', ROOT / 'dsa_priv.pem', '-pubout'])
         if ''.join(actual_public.split()) != ''.join(public.split()):
             raise RuntimeError('WinSparkle private/public keys do not match.')

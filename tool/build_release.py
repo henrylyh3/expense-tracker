@@ -100,10 +100,10 @@ def android_tools():
 
 
 def apk_signers(output):
-    # apksigner uses SDK-range labels for v3.1 signatures instead of Signer #1.
+    # apksigner supports numbered, SDK-range and Build Tools 37 scheme labels.
     # Source-stamp certificates are not APK signers and must not satisfy continuity.
     return {value.lower() for value in re.findall(
-        r'^Signer (?:#\d+|\([^\r\n]+\)) certificate SHA-256 digest: ([A-Fa-f0-9]{64})\s*$',
+        r'^(?:Signer (?:#\d+|\([^\r\n]+\))|V[1-4](?:\.\d+)? Signer:)\s+certificate SHA-256 digest:\s*([A-Fa-f0-9]{64})\s*$',
         output, re.M)}
 
 

@@ -69,6 +69,9 @@ class CiSigningTests(unittest.TestCase):
             ci_signing.configure('windows')
         self.assertEqual(native.call_count, 1)
         self.assertEqual(native.call_args.args[0][0], '/tools/openssl')
+        tools = Path((self.root / 'github-path').read_text().strip())
+        self.assertNotEqual(str(tools), '/tools')
+        self.assertTrue((tools / 'openssl.cmd').is_file())
         self.assertFalse(list(self.root.rglob('*.pfx')))
         self.assertFalse(list(self.root.rglob('*.p12')))
 
