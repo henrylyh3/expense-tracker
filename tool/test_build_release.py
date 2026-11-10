@@ -15,6 +15,9 @@ import package_desktop
 
 class BuildReleaseTests(unittest.TestCase):
     def setUp(self):
+        mode = patch.dict(os.environ, {'DESKTOP_SIGNING_MODE': 'trusted'})
+        mode.start()
+        self.addCleanup(mode.stop)
         temp = tempfile.TemporaryDirectory()
         self.addCleanup(temp.cleanup)
         self.root = Path(temp.name)
