@@ -8,6 +8,8 @@ In Shared trips, select **Invite guest by web link**, enter the guest name and c
 
 The first sync obtains categories, currencies and the latest trip view. Save expenses to the local queue, then keep the page visible and connected. Pending requests are checked every ten seconds; an idle visible trip refreshes every minute. Both operations stop when hidden. A stable submission ID prevents duplicate ledger inserts after retries. Only an authenticated host acknowledgement removes a queued expense.
 
+Queue changes and sync use the browser’s [Web Locks API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Locks_API) to serialize access across tabs and reload the latest encrypted queue before each operation. Older browsers without this capability cannot submit; use a current Safari/Chrome/Firefox version.
+
 The browser encrypts cached snapshots and pending expenses in local storage with the invitation key. Reopening the original invitation on the same browser/site can recover that queue. Private browsing, clearing site data, changing browsers or switching site domains can lose it. Keep the original link until all expenses are confirmed. This page has no service worker or background sync; loading it initially requires internet. Cached data remains on the guest device after expiry or revocation.
 
 The host stores and enforces expiry independently of the link. Editing a guest link cannot extend access. Existing native internet invitations remain compatible and keep their previous non-expiring behavior. Revoke an invitation from Shared trips to end access sooner. Removing a local queued item does not cancel a message already sent to Discord.

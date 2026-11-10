@@ -105,8 +105,8 @@ async function boundedJson(response) {
   try { return JSON.parse(dec.decode(bytes)); } catch { throw new GuestError('The relay returned an unreadable reply.'); }
 }
 export class RelayClient {
-  constructor(invitation, { fetcher = fetch, storage = localStorage, clock = Date.now } = {}) {
-    this.invite = invitation; this.fetcher = fetcher; this.storage = storage; this.clock = clock;
+  constructor(invitation, { fetcher = fetch, storage = localStorage, clock = Date.now, locks = globalThis.navigator?.locks } = {}) {
+    this.invite = invitation; this.fetcher = fetcher; this.storage = storage; this.clock = clock; this.locks = locks;
     this.state = { snapshot: null, pending: [], read: null }; this.active = null; this.retryUntil = 0;
     this.slot = `expense-guest:${invitation.id}`;
   }
@@ -127,18 +127,30 @@ export class RelayClient {
     const packet = await seal(this.state, this.invite.key, `guest-cache:${this.invite.id}`);
     try { this.storage.setItem(this.slot, JSON.stringify(packet)); } catch { throw new GuestError('Could not save on this device. Free browser storage and try again.'); }
   }
+  async withStateLock(operation) {
+    if (!this.locks?.request) throw new GuestError('This browser cannot safely save shared expenses. Update Safari or use a current browser.');
+    return this.locks.request(this.slot, { mode: 'exclusive' }, async () => {
+      // Another tab may have changed the encrypted queue since this view loaded.
+      await this.load();
+      return operation();
+    });
+  }
   async queue(input) {
-    this.assertActive();
-    if (this.state.pending.length >= 200) throw new GuestError('Sync the pending expenses before adding more.');
-    const item = { id: crypto.randomUUID(), expense: makeExpense(this.state.snapshot, input), createdAt: this.clock(), request: null, error: null };
-    this.state.pending.push(item);
-    try { await this.persist(); } catch (error) { this.state.pending.pop(); throw error; }
-    return item;
+    return this.withStateLock(async () => {
+      this.assertActive();
+      if (this.state.pending.length >= 200) throw new GuestError('Sync the pending expenses before adding more.');
+      const item = { id: crypto.randomUUID(), expense: makeExpense(this.state.snapshot, input), createdAt: this.clock(), request: null, error: null };
+      this.state.pending.push(item);
+      try { await this.persist(); } catch (error) { this.state.pending.pop(); throw error; }
+      return item;
+    });
   }
   async remove(id) {
-    const previous = this.state.pending;
-    this.state.pending = previous.filter(item => item.id !== id);
-    try { await this.persist(); } catch (error) { this.state.pending = previous; throw error; }
+    return this.withStateLock(async () => {
+      const previous = this.state.pending;
+      this.state.pending = previous.filter(item => item.id !== id);
+      try { await this.persist(); } catch (error) { this.state.pending = previous; throw error; }
+    });
   }
   async request(url, { body, signal } = {}) {
     if (this.clock() < this.retryUntil) throw new GuestError('Discord is busy. Your queue is kept; try syncing later.', 'waiting');
@@ -204,7 +216,7 @@ export class RelayClient {
   }
   sync({ signal, onProgress = () => {} } = {}) {
     if (this.active) return this.active;
-    this.active = this.performSync(signal, onProgress).finally(() => { this.active = null; }); return this.active;
+    this.active = this.withStateLock(() => this.performSync(signal, onProgress)).finally(() => { this.active = null; }); return this.active;
   }
   async performSync(signal, onProgress) {
     this.assertActive();

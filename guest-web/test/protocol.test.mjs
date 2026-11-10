@@ -62,3 +62,23 @@ test('expired invitations never send or queue but preserve cached pending data',
   await assert.rejects(client.sync(), error => error.kind === 'expired'); await assert.rejects(client.queue(input));
   assert.equal(fake.calls.length, calls); assert.equal(client.state.pending.length, 1);
 });
+
+test('two tabs retain both queued expenses and serialize acknowledgements', async () => {
+  const fake = new FakeRelay(), storage = memoryStorage();
+  const locks = globalThis.navigator?.locks ?? fake.locks;
+  const first = fake.client(storage, { locks }), second = fake.client(storage, { locks });
+  await first.sync(); await second.load();
+  const [a, b] = await Promise.all([first.queue({ ...input, note: 'First tab' }), second.queue({ ...input, note: 'Second tab' })]);
+  const restored = await fake.client(storage).load();
+  assert.deepEqual(new Set(restored.state.pending.map(row => row.id)), new Set([a.id, b.id]));
+  await Promise.all([first.sync(), second.sync()]);
+  assert.equal((await fake.client(storage).load()).state.pending.length, 0);
+  assert.deepEqual(fake.saved, new Set([a.id, b.id]));
+});
+test('unsupported coordination cannot send or silently replace the queue', async () => {
+  const fake = new FakeRelay(), client = fake.client(undefined, { locks: null });
+  await assert.rejects(client.sync(), /Update Safari/);
+  await assert.rejects(client.queue(input), /Update Safari/);
+  assert.equal(fake.calls.length, 0);
+  assert.equal(client.state.pending.length, 0);
+});

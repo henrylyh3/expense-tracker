@@ -8,8 +8,12 @@ export const invitationCode = `expense-trip:${encode(invitationData)}`;
 export const snapshot = { name: 'Test trip', total_myr_minor: '1250', count: 1, default_currency: 'MYR', categories: [{ id: 'seed-food', name: 'Food' }], currencies: [{ id: 'MYR', code: 'MYR', name: 'Malaysian ringgit', precision: 2, rate: '1' }, { id: 'JPY', code: 'JPY', name: 'Japanese yen', precision: 0, rate: '0.03' }], recent: [{ category: 'Food', amount: 'RM 12.50', date: '2026-11-10', note: 'Test lunch' }], synced_at: '2026-11-10T00:00:00Z' };
 export const input = { category: 'seed-food', currency: 'MYR', amount: '12.50', date: '2026-11-10', note: 'Private lunch note' };
 export function memoryStorage() { const data = new Map(); return { getItem: key => data.get(key) ?? null, setItem: (key, value) => data.set(key, value), data }; }
+function memoryLocks() {
+  let tail = Promise.resolve();
+  return { request(_name, _options, callback) { const result = tail.then(callback); tail = result.catch(() => {}); return result; } };
+}
 export class FakeRelay {
-  constructor() { this.messages = new Map(); this.posts = 0; this.calls = []; this.waiting = false; this.revoked = false; this.rateLimit = false; this.saved = new Set(); this.badAttachment = false; this.wrongId = false; }
+  constructor() { this.locks = memoryLocks(); this.messages = new Map(); this.posts = 0; this.calls = []; this.waiting = false; this.revoked = false; this.rateLimit = false; this.saved = new Set(); this.badAttachment = false; this.wrongId = false; }
   async fetch(url, options) {
     this.calls.push({ url, options });
     if (this.rateLimit) return Response.json({ retry_after: 2 }, { status: 429 });
@@ -33,5 +37,5 @@ export class FakeRelay {
     }
     return Response.json({ id: '123456789012345' });
   }
-  client(storage = memoryStorage(), extra = {}) { return new RelayClient(parseInvitation(invitationCode), { fetcher: this.fetch.bind(this), storage, ...extra }); }
+  client(storage = memoryStorage(), extra = {}) { return new RelayClient(parseInvitation(invitationCode), { fetcher: this.fetch.bind(this), storage, locks: this.locks, ...extra }); }
 }
