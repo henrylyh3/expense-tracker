@@ -20,6 +20,9 @@ class MemorySecrets implements RelaySecretStore {
 }
 
 class FakeDiscord extends DiscordApi {
+  FakeDiscord({DateTime Function()? clock}) : clock = clock ?? DateTime.now;
+  final DateTime Function() clock;
+  bool failPost = false;
   final webhooks = <String>{};
   final inbox = <Map<String, dynamic>>[];
   int next = 100000000000000;
@@ -66,9 +69,11 @@ class FakeDiscord extends DiscordApi {
     Map<String, Object?> packet,
   ) async {
     check(webhook);
+    if (failPost) throw const LedgerException('Offline');
     final message = <String, dynamic>{
       'id': '${++next}',
       'webhook_id': webhook.pathSegments[2],
+      'timestamp': clock().toUtc().toIso8601String(),
       'payload': jsonDecode(jsonEncode(packet)),
     };
     inbox.add(message);

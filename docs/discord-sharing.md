@@ -20,6 +20,12 @@ The guest syncs once to fetch categories, currencies and the latest trip view. T
 
 The host polls every 30 seconds while the app is in the foreground and the ledger is ready. Process internet inbox also triggers a poll. Do not depend on background execution, especially on iOS. Guests see the latest host snapshot, not a live ledger. At most 100 recent expenses are included.
 
+## Browser guests without an online host
+
+Starting with v0.4.10, **Invite guest by web link** stores an encrypted initial trip snapshot in Discord. New links let a fresh browser load the form and send expenses with the desktop closed. The guest sends each queued expense directly to Discord and sees **Sent to Discord** as soon as Discord returns its message receipt. No host acknowledgement or guest revisit is required for successfully sent expenses. Failed/offline uploads stay in the browser until it reconnects while visible. The host validates and inserts received expenses automatically when opened later.
+
+Expiry uses Discord's creation/last-edit timestamp: legitimate pre-expiry messages can be imported after expiry; late posts or edits cannot extend access. Revocation still removes local authorization and the webhook. Existing native guest applications retain their acknowledgement/retry protocol. See [browser guest details](GUEST_WEB.md).
+
 ## Protocol and recovery
 
 Requests and responses are AES-256-GCM encrypted JSON attachments, with authenticated context bound to invitation, trip and request. Host responses replace the original webhook message. This allows guests to retrieve the specific reply using their webhook credentials without getting the bot token or channel history access. Decrypted payloads are validated before insertion. Stable submission IDs and SQLite receipts prevent duplicate inserts after retries, lost acknowledgements or restart. Guest request/message IDs and the host cursor survive restart in secure storage. Multiple inbox pages are fetched after the saved cursor. Rate-limit errors preserve queues and delay subsequent API requests.

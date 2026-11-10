@@ -20,18 +20,18 @@
 <form id="join-form"><label for="invitation">Invitation link or code</label><textarea id="invitation" required rows="4" autocomplete="off" spellcheck="false" maxlength="8192"></textarea><button>Open trip</button></form>
 </section>
 <section id="trip" hidden>
-<div class="trip-heading"><div><h1 id="trip-name"></h1><p id="expiry" class="muted"></p></div><button id="sync" class="secondary" type="button">Sync now</button></div>
-<div id="summary" class="summary" hidden><div><p>Total in MYR</p><strong id="total" class="num"></strong></div><p id="count"></p></div>
-<div class="layout"><section class="panel"><h2>Add expense</h2><p class="muted">Saved on this device first. Keep this page and the host’s app open to sync.</p>
+<div class="trip-heading"><div><h1 id="trip-name"></h1><p id="expiry" class="muted"></p></div><button id="sync" class="secondary" type="button">Send pending</button></div>
+<div id="summary" class="summary" hidden><div><p>Trip total at last host snapshot</p><strong id="total" class="num"></strong></div><p id="count"></p></div>
+<div class="layout"><section class="panel"><h2>Add expense</h2><p class="muted">Send expenses to Discord. The host imports them automatically when their desktop app opens.</p>
 <form id="expense-form"><fieldset id="expense-fields" disabled>
 <div class="form-row"><div><label for="amount">Amount</label><input id="amount" name="amount" inputmode="decimal" required maxlength="40" autocomplete="off"><small>Use a decimal point, for example 12.50.</small></div><div><label for="currency">Currency</label><select id="currency" name="currency" required></select></div></div>
 <label for="category">Category</label><select id="category" name="category" required></select>
 <label for="date">Date</label><input id="date" name="date" type="date" required>
 <label for="note">Note <span class="muted">(optional)</span></label><textarea id="note" name="note" rows="2" maxlength="500"></textarea>
-<button id="add">Save expense</button></fieldset></form><p id="form-status" role="status" class="form-status"></p></section>
-<div><section class="panel"><div class="section-heading"><h2>Pending on this device</h2><span id="pending-count" class="badge">0</span></div><p id="pending-empty" class="muted">No pending expenses.</p><ul id="pending" class="entries"></ul><p class="muted small">Only a host confirmation removes an expense from this queue.</p></section>
-<section class="panel history"><h2>Recent expenses</h2><p id="history-empty" class="muted">Sync to see the latest trip view.</p><ul id="history" class="entries"></ul><p id="synced" class="muted small"></p></section></div></div>
-<details class="privacy"><summary>About guest access</summary><p>Your invitation is a private access link. Share it only with your intended guest. Discord relays encrypted messages; Cloudflare serves this page. The host’s desktop must be open to process requests. Sync runs only while this page is visible. Revocation or expiry stops future access; previously cached trip data stays on this device.</p><button id="leave" class="secondary" type="button">Close trip on this tab</button></details>
+<button id="add">Send expense</button></fieldset></form><p id="form-status" role="status" class="form-status"></p></section>
+<div><section class="panel"><div class="section-heading"><h2>Pending on this device</h2><span id="pending-count" class="badge">0</span></div><p id="pending-empty" class="muted">No pending expenses.</p><ul id="pending" class="entries"></ul><p class="muted small">Expenses leave this queue when Discord confirms receipt. Host import happens later.</p></section>
+<section class="panel history"><h2>Sent from this browser</h2><p id="history-empty" class="muted">No expenses sent from this browser yet.</p><ul id="history" class="entries"></ul><p id="synced" class="muted small"></p></section></div></div>
+<details class="privacy"><summary>About guest access</summary><p>Your invitation is a private access link. Share it only with your intended guest. Discord relays encrypted messages; Cloudflare serves this page. New links load trip details directly from Discord. The host can be closed while you send; it imports received expenses when opened. Sending runs only while this page is visible. After “Sent to Discord”, you can close this page. Discord delivery does not guarantee host acceptance; invalid or revoked submissions can be rejected. Revocation or expiry stops future access; previously cached trip data stays on this device.</p><button id="leave" class="secondary" type="button">Close trip on this tab</button></details>
 </section>
 <p id="status" role="status" aria-live="polite" class="status">An invitation is required to access a trip.</p>
 <noscript>Enable JavaScript to decrypt invitations and submit expenses.</noscript>

@@ -20,7 +20,7 @@ void main() {
     guestDb = AppDatabase.forTesting(NativeDatabase.memory());
     await hostDb.initialize();
     await guestDb.initialize();
-    api = FakeDiscord();
+    api = FakeDiscord(clock: () => hostNow);
     host = SharingService(
       hostDb,
       discordApi: api,
@@ -65,6 +65,18 @@ void main() {
           .customSelect('SELECT endpoint FROM shared_sessions')
           .getSingle();
       expect(row.read<String>('endpoint'), data['endpoint']);
+      expect(link.toString().length, lessThan(4096));
+      final packet = await api.packet(
+        await api.get(endpoint.webhook, data['bootstrap'] as String),
+      );
+      expect(packet!['direction'], 'invite');
+      final view = await SharingCipher().open(
+        packet,
+        data['key'] as String,
+        'discord-invite:${data['id']}:personal',
+      );
+      expect((view['snapshot'] as Map)['categories'], isNotEmpty);
+      expect(jsonEncode(packet), isNot(contains('seed-food')));
       await guest.join(code);
     },
   );
@@ -97,8 +109,8 @@ void main() {
         'amount': '12.50',
         'date': '2026-11-10',
       });
-      await expectLater(guest.sync(id), throwsA(isA<LedgerException>()));
       hostNow = hostNow.add(const Duration(minutes: 2));
+      await expectLater(guest.sync(id), throwsA(isA<LedgerException>()));
       await host.pollDiscord();
       await expectLater(
         guest.sync(id),
@@ -155,6 +167,91 @@ void main() {
       );
     },
   );
+  test(
+    'valid Discord deliveries import once even when host opens after expiry',
+    () async {
+      final code = await host.inviteDiscord(
+        'personal',
+        'Alice',
+        validFor: const Duration(minutes: 1),
+      );
+      final data = decode(code), id = data['id'] as String;
+      await guest.join(code);
+      await expectLater(guest.sync(id), throwsA(isA<LedgerException>()));
+      await host.pollDiscord();
+      await guest.sync(id);
+      await guest.queue(id, {
+        'category': 'seed-food',
+        'currency_id': 'MYR',
+        'amount': '12.50',
+        'date': '2026-11-10',
+      });
+      await expectLater(guest.sync(id), throwsA(isA<LedgerException>()));
+      final connection = DiscordConnection.decode(data['endpoint'] as String);
+      await api.post(
+        connection.webhook,
+        Map<String, Object?>.from(api.inbox.last['payload'] as Map),
+      );
+      hostNow = hostNow.add(const Duration(days: 1));
+      await host.pollDiscord();
+      final count = await hostDb
+          .customSelect('SELECT count(*) AS n FROM transactions')
+          .getSingle();
+      expect(count.read<int>('n'), 1);
+    },
+  );
+  test('editing an old message after expiry cannot extend access', () async {
+    final code = await host.inviteDiscord(
+      'personal',
+      'Alice',
+      validFor: const Duration(minutes: 1),
+    );
+    final id = decode(code)['id'] as String;
+    await guest.join(code);
+    await expectLater(guest.sync(id), throwsA(isA<LedgerException>()));
+    await host.pollDiscord();
+    await guest.sync(id);
+    await guest.queue(id, {
+      'category': 'seed-food',
+      'currency_id': 'MYR',
+      'amount': '12.50',
+      'date': '2026-11-10',
+    });
+    await expectLater(guest.sync(id), throwsA(isA<LedgerException>()));
+    hostNow = hostNow.add(const Duration(minutes: 2));
+    api.inbox.last['edited_timestamp'] = hostNow.toIso8601String();
+    await host.pollDiscord();
+    await expectLater(
+      guest.sync(id),
+      throwsA(
+        isA<LedgerException>().having(
+          (e) => e.message,
+          'message',
+          contains('expired'),
+        ),
+      ),
+    );
+    final count = await hostDb
+        .customSelect('SELECT count(*) AS n FROM transactions')
+        .getSingle();
+    expect(count.read<int>('n'), 0);
+  });
+  test('failed invitation upload revokes its session and webhook', () async {
+    api.failPost = true;
+    await expectLater(
+      host.inviteDiscordWeb(
+        'personal',
+        'Alice',
+        Uri.parse('https://guest.example/'),
+      ),
+      throwsA(isA<LedgerException>()),
+    );
+    expect(api.webhooks, isEmpty);
+    expect(
+      await hostDb.customSelect('SELECT id FROM shared_sessions').get(),
+      isEmpty,
+    );
+  });
   test('WebCrypto packet decrypts with native SharingCipher', () async {
     final fixture =
         jsonDecode(

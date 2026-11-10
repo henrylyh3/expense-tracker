@@ -22,41 +22,43 @@ export function mountApp(doc, { clientFactory = invitation => new RelayClient(in
       $('total').textContent = formatMyr(snapshot.total_myr_minor); $('count').textContent = `${snapshot.count} ${snapshot.count === 1 ? 'expense' : 'expenses'} in the host ledger`;
       options('category', snapshot.categories.map(row => ({ id: row.id, label: row.name })));
       options('currency', snapshot.currencies.map(row => ({ id: row.id, label: `${row.code} · ${row.name}` })), snapshot.default_currency);
-      $('synced').textContent = `Trip view updated ${new Date(snapshot.synced_at).toLocaleString()}`;
+      $('synced').textContent = `Host snapshot from ${new Date(snapshot.synced_at).toLocaleString()}`;
     }
     $('expense-fields').disabled = !snapshot || client.expired || closed || syncing;
-    $('sync').disabled = client.expired || closed || syncing; $('sync').textContent = syncing ? 'Syncing…' : 'Sync now';
+    $('sync').disabled = client.expired || closed || syncing; $('sync').textContent = syncing ? 'Sending…' : 'Send pending';
     $('pending-count').textContent = String(pending.length); $('pending-empty').hidden = pending.length > 0;
     $('pending').replaceChildren(...pending.map(item => {
       const li = doc.createElement('li'), top = text('div', '', 'entry-top');
       top.append(text('strong', `${item.expense.currency} ${item.expense.amount}`, 'num'), text('span', item.expense.date, 'muted small')); li.append(top);
       li.append(text('p', snapshot?.categories.find(row => row.id === item.expense.category)?.name ?? item.expense.category));
       if (item.expense.note) li.append(text('p', item.expense.note, 'muted small'));
-      li.append(text('p', item.error ?? (item.request ? 'Waiting for host confirmation' : 'Saved on this device · not sent'), 'muted small'));
+      li.append(text('p', item.error ?? (item.request ? 'Discord received this expense' : 'Saved on this device · not sent'), 'muted small'));
       const remove = text('button', 'Remove from queue', 'secondary'); remove.type = 'button'; remove.disabled = syncing;
       remove.addEventListener('click', async () => {
         if (!win.confirm('Remove this pending expense? If already sent, the host may still save it.')) return;
         try { await client.remove(item.id); render(); } catch (error) { status(explain(error), true); }
       }); li.append(remove); return li;
     }));
-    const recent = snapshot?.recent ?? []; $('history-empty').hidden = recent.length > 0;
-    $('history-empty').textContent = snapshot ? 'No expenses in this trip yet.' : 'Sync to see the latest trip view.';
+    const recent = client.state.sent ?? []; $('history-empty').hidden = recent.length > 0;
+    $('history-empty').textContent = 'No expenses sent from this browser yet.';
     $('history').replaceChildren(...recent.map(row => {
       const li = doc.createElement('li'), top = text('div', '', 'entry-top');
-      top.append(text('strong', row.category), text('span', row.amount, 'num')); li.append(top, text('p', row.date, 'muted small'));
-      if (row.note) li.append(text('p', row.note, 'muted small')); return li;
+      const expense = row.expense;
+      top.append(text('strong', snapshot?.categories.find(c => c.id === expense.category)?.name ?? expense.category), text('span', `${expense.currency} ${expense.amount}`, 'num')); li.append(top, text('p', expense.date, 'muted small'));
+      if (expense.note) li.append(text('p', expense.note, 'muted small'));
+      li.append(text('p', 'Sent to Discord · host imports later', 'muted small')); return li;
     }));
   }
   function schedule() {
     clearTimeout(timer);
-    if (!client || closed || doc.hidden || client.expired) return;
-    timer = setTimeout(() => sync(), client.state.pending.length || client.state.read ? 10000 : 60000);
+    if (!client || closed || doc.hidden || client.expired || (client.state.snapshot && !client.state.pending.length)) return;
+    timer = setTimeout(() => sync(), 10000);
   }
   async function sync() {
     if (!client || syncing || closed || doc.hidden) return;
     if (!win.navigator.onLine) { status('Offline. Expenses saved on this device will sync when this page is online and visible.'); schedule(); return; }
     syncing = true; controller = new AbortController(); render();
-    try { await client.sync({ signal: controller.signal, onProgress: message => status(message) }); status('Up to date. The host confirmed this trip view.'); if ($('form-status').textContent && !client.state.pending.length) $('form-status').textContent = 'Expense saved and confirmed by the host.'; }
+    try { await client.sync({ signal: controller.signal, onProgress: message => status(message) }); status(client.lastSentCount ? `Sent ${client.lastSentCount} ${client.lastSentCount === 1 ? 'expense' : 'expenses'} to Discord. The host imports them when their app opens.` : 'Ready to send expenses. The host can be offline.'); if ($('form-status').textContent && !client.state.pending.length) $('form-status').textContent = 'Sent to Discord. You can close this page.'; }
     catch (error) { if (error.kind === 'revoked' || error.kind === 'expired') closed = true; status(explain(error), !['waiting', 'offline'].includes(error.kind)); }
     finally { syncing = false; controller = null; render(); schedule(); }
   }
@@ -68,7 +70,7 @@ export function mountApp(doc, { clientFactory = invitation => new RelayClient(in
       if (win.location.hash) win.history.replaceState(null, '', win.location.pathname + win.location.search);
       $('invitation').value = ''; render();
       if (client.expired) { status('This invitation has expired. Ask the host for a new link. Pending expenses remain on this device.', true); return; }
-      status('Connecting to the host. Keep their desktop app open.'); await sync();
+      status('Loading trip details from Discord.'); await sync();
     } catch (error) { status(explain(error), true); }
   }
   $('join-form').addEventListener('submit', event => { event.preventDefault(); join($('invitation').value); });
@@ -78,7 +80,7 @@ export function mountApp(doc, { clientFactory = invitation => new RelayClient(in
     $('add').disabled = true;
     try {
       await client.queue(Object.fromEntries(new FormData($('expense-form'))));
-      $('amount').value = ''; $('note').value = ''; $('form-status').textContent = 'Saved on this device. Waiting for the host to confirm.'; render(); await sync();
+      $('amount').value = ''; $('note').value = ''; $('form-status').textContent = 'Saved on this device. Sending to Discord…'; render(); await sync();
     } catch (error) { $('form-status').textContent = explain(error); }
     finally { $('add').disabled = false; }
   });

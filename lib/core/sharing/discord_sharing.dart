@@ -137,7 +137,41 @@ extension DiscordSharing on SharingService {
       );
     }
     final code = await inviteDiscord(trip, guest, validFor: validFor);
-    return page.replace(fragment: 'invite=$code').toString();
+    final invitation =
+        jsonDecode(utf8.decode(base64Url.decode(code.substring(13))))
+            as Map<String, dynamic>;
+    final id = invitation['id'] as String;
+    final connection = DiscordConnection.decode(
+      invitation['endpoint'] as String,
+    );
+    try {
+      final view = await snapshot(trip);
+      // Discord keeps the encrypted initial view so the host can close immediately.
+      final encrypted = await cipher.seal(
+        {'snapshot': view},
+        invitation['key'] as String,
+        'discord-invite:$id:$trip',
+      );
+      final message = await discordApi.post(connection.webhook, {
+        'direction': 'invite',
+        'id': id,
+        ...encrypted,
+      });
+      final messageId = message['id'];
+      if (messageId is! String ||
+          !RegExp(r'^[0-9]{15,22}$').hasMatch(messageId)) {
+        throw const LedgerException(
+          'Discord did not confirm storing this invitation. Try again.',
+        );
+      }
+      invitation['bootstrap'] = messageId;
+      final webCode =
+          'expense-trip:${base64UrlEncode(utf8.encode(jsonEncode(invitation)))}';
+      return page.replace(fragment: 'invite=$webCode').toString();
+    } catch (_) {
+      await revoke(id);
+      rethrow;
+    }
   }
 
   Future<void> _scheduleWebhookRemoval(String endpoint) async {
@@ -289,12 +323,21 @@ extension DiscordSharing on SharingService {
       if (active['role'] != 'host' || active['trip_id'] != connection.trip) {
         return;
       }
-      if (DiscordConnection.decode(
+      final expiresAt = DiscordConnection.decode(
         active['endpoint'] as String,
-      ).expired(_clock())) {
-        throw const LedgerException(
-          'This invitation has expired. Ask the host for a new invitation.',
-        );
+      ).expiresAt;
+      if (expiresAt != null) {
+        // These timestamps come from Discord, never from the encrypted guest payload.
+        // Checking the last edit also prevents reusing an old message after expiry.
+        final timestamp = message['edited_timestamp'] ?? message['timestamp'];
+        final receivedAt = timestamp is String
+            ? DateTime.tryParse(timestamp)
+            : null;
+        if (receivedAt == null || !receivedAt.isBefore(expiresAt)) {
+          throw const LedgerException(
+            'This invitation has expired. Ask the host for a new invitation.',
+          );
+        }
       }
       if (data['action'] == 'add') {
         final submission = data['submission'];

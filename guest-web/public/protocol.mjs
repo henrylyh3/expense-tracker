@@ -32,7 +32,8 @@ export function parseInvitation(source) {
     if (hook.protocol !== 'https:' || hook.hostname !== 'discord.com' || hook.username || hook.password || hook.port || hook.search || hook.hash || !/^\/api\/webhooks\/\d{15,22}\/[A-Za-z0-9_-]{20,200}$/.test(hook.pathname)) throw new Error();
     const expires = endpoint.expires_at == null ? null : Date.parse(endpoint.expires_at);
     if (expires !== null && (!Number.isFinite(expires) || typeof endpoint.expires_at !== 'string')) throw new Error();
-    return { code: source, id: data.id, key: data.key, name: text(data.name), trip: text(endpoint.trip), webhook: hook.href, expires };
+    if (data.bootstrap != null && (typeof data.bootstrap !== 'string' || !SNOWFLAKE.test(data.bootstrap))) throw new Error();
+    return { bootstrap: data.bootstrap ?? null, code: source, id: data.id, key: data.key, name: text(data.name), trip: text(endpoint.trip), webhook: hook.href, expires };
   } catch { throw new GuestError('This invitation is invalid. Ask the host for a complete web link or internet invitation.'); }
 }
 export async function seal(data, key, context) {
@@ -107,7 +108,7 @@ async function boundedJson(response) {
 export class RelayClient {
   constructor(invitation, { fetcher = fetch, storage = localStorage, clock = Date.now, locks = globalThis.navigator?.locks } = {}) {
     this.invite = invitation; this.fetcher = fetcher; this.storage = storage; this.clock = clock; this.locks = locks;
-    this.state = { snapshot: null, pending: [], read: null }; this.active = null; this.retryUntil = 0;
+    this.state = { snapshot: null, pending: [], sent: [], read: null }; this.active = null; this.retryUntil = 0;
     this.slot = `expense-guest:${invitation.id}`;
   }
   get expired() { return this.invite.expires !== null && this.clock() >= this.invite.expires; }
@@ -119,11 +120,14 @@ export class RelayClient {
       const state = await open(JSON.parse(raw), this.invite.key, `guest-cache:${this.invite.id}`);
       if (!Array.isArray(state.pending) || state.pending.length > 200 || state.pending.some(item => !UUID.test(item.id) || !item.expense)) throw new GuestError('The saved queue is invalid.');
       if (state.snapshot) validateSnapshot(state.snapshot);
-      this.state = state;
+      if (state.sent != null && (!Array.isArray(state.sent) || state.sent.length > 100 || state.sent.some(item => !UUID.test(item.id) || !item.expense || typeof item.message !== 'string' || !SNOWFLAKE.test(item.message)))) throw new GuestError('The saved delivery history is invalid.');
+      this.state = { ...state, sent: state.sent ?? [] };
     }
     return this;
   }
   async persist() {
+    while (enc.encode(JSON.stringify(this.state)).length > MAX_BYTES && this.state.sent.length) this.state.sent.pop();
+    if (enc.encode(JSON.stringify(this.state)).length > MAX_BYTES) throw new GuestError('Trip details and pending expenses exceed browser storage limits. Send pending expenses before adding more.');
     const packet = await seal(this.state, this.invite.key, `guest-cache:${this.invite.id}`);
     try { this.storage.setItem(this.slot, JSON.stringify(packet)); } catch { throw new GuestError('Could not save on this device. Free browser storage and try again.'); }
   }
@@ -172,7 +176,7 @@ export class RelayClient {
       throw new GuestError(controller.signal.aborted ? 'Sync stopped. Your pending expenses are kept.' : 'Connection unavailable. Your pending expenses are kept.', 'offline');
     } finally { clearTimeout(timer); signal?.removeEventListener('abort', abort); }
   }
-  async exchange(data, slot, signal) {
+  async sendRequest(data, slot, signal) {
     this.assertActive();
     if (!slot.request) {
       const request = crypto.randomUUID();
@@ -187,6 +191,9 @@ export class RelayClient {
       slot.request = { message: message.id, id: request }; await this.persist();
     }
     if (typeof slot.request.message !== 'string' || !SNOWFLAKE.test(slot.request.message) || !UUID.test(slot.request.id)) throw new GuestError('The saved relay request is invalid.');
+  }
+  async exchange(data, slot, signal) {
+    await this.sendRequest(data, slot, signal);
     let message;
     try { message = await this.request(`${this.invite.webhook}/messages/${slot.request.message}`, { signal }); }
     catch (error) {
@@ -198,11 +205,7 @@ export class RelayClient {
       }
       throw error;
     }
-    const file = message.attachments?.find(item => item.filename === 'expense-relay.json');
-    if (!file) throw new GuestError('Waiting for the host to open the app and process your request.', 'waiting');
-    const attachment = new URL(file.url);
-    if (attachment.protocol !== 'https:' || !['cdn.discordapp.com', 'media.discordapp.net'].includes(attachment.hostname) || attachment.port || attachment.username || attachment.password || attachment.hash || !attachment.pathname.startsWith('/attachments/') || !Number.isSafeInteger(file.size) || file.size < 0 || file.size > MAX_BYTES) throw new GuestError('The relay attachment is invalid.');
-    const packet = await this.request(attachment.href, { signal });
+    const packet = await this.attachmentPacket(message, signal);
     if (packet.direction !== 'response') throw new GuestError('Waiting for the host to open the app and process your request.', 'waiting');
     if (packet.id !== this.invite.id) throw new GuestError('The reply belongs to a different invitation.');
     const response = await open(packet, this.invite.key, `discord-response:${this.invite.id}:${slot.request.id}`);
@@ -214,26 +217,55 @@ export class RelayClient {
     validateSnapshot(response.snapshot);
     return response;
   }
+  async attachmentPacket(message, signal) {
+    const file = message.attachments?.find(item => item.filename === 'expense-relay.json');
+    if (!file) throw new GuestError('Waiting for the host to open the app and process your request.', 'waiting');
+    const attachment = new URL(file.url);
+    if (attachment.protocol !== 'https:' || !['cdn.discordapp.com', 'media.discordapp.net'].includes(attachment.hostname) || attachment.port || attachment.username || attachment.password || attachment.hash || !attachment.pathname.startsWith('/attachments/') || !Number.isSafeInteger(file.size) || file.size < 0 || file.size > MAX_BYTES) throw new GuestError('The relay attachment is invalid.');
+    return this.request(attachment.href, { signal });
+  }
+  async ensureSnapshot(signal) {
+    if (this.state.snapshot) return;
+    if (this.invite.bootstrap) {
+      let message;
+      try { message = await this.request(`${this.invite.webhook}/messages/${this.invite.bootstrap}`, { signal }); }
+      catch (error) {
+        if (error.kind === 'not-found') throw new GuestError('This invitation is no longer available. Ask the host for a new web link.', 'revoked');
+        throw error;
+      }
+      const packet = await this.attachmentPacket(message, signal);
+      if (packet.direction !== 'invite' || packet.id !== this.invite.id) throw new GuestError('The invitation details could not be verified.');
+      const view = await open(packet, this.invite.key, `discord-invite:${this.invite.id}:${this.invite.trip}`);
+      this.state.snapshot = validateSnapshot(view.snapshot);
+    } else {
+      // Earlier links require one initial host response; newly created web links do not.
+      this.state.read ??= { request: null };
+      const response = await this.exchange({ action: 'read' }, this.state.read, signal);
+      this.state.snapshot = response.snapshot;
+    }
+    this.state.read = null;
+    await this.persist();
+  }
   sync({ signal, onProgress = () => {} } = {}) {
     if (this.active) return this.active;
     this.active = this.withStateLock(() => this.performSync(signal, onProgress)).finally(() => { this.active = null; }); return this.active;
   }
   async performSync(signal, onProgress) {
-    this.assertActive();
-    const hadPending = this.state.pending.length > 0;
+    this.assertActive(); this.lastSentCount = 0;
+    onProgress('Loading invitation details from Discord');
+    await this.ensureSnapshot(signal);
+    const total = this.state.pending.length;
     for (const item of [...this.state.pending]) {
-      onProgress(`Sending pending expense ${this.state.pending.indexOf(item) + 1} of ${this.state.pending.length}`);
-      try {
-        const response = await this.exchange({ action: 'add', submission: item.id, expense: item.expense }, item, signal);
-        if (typeof response.saved !== 'string' || !response.saved) throw new GuestError('The host has not confirmed saving this expense.');
-        this.state.read = null; this.state.snapshot = response.snapshot; this.state.pending = this.state.pending.filter(row => row.id !== item.id); await this.persist();
-      } catch (error) { if (error.kind === 'rejected') { item.error = error.message; await this.persist(); } throw error; }
+      onProgress(`Sending expense ${this.lastSentCount + 1} of ${total} to Discord`);
+      // A Discord message receipt is sufficient; the host can import it later.
+      await this.sendRequest({ action: 'add', submission: item.id, expense: item.expense }, item, signal);
+      const pending = this.state.pending, sent = this.state.sent;
+      this.state.sent = [{ id: item.id, expense: item.expense, message: item.request.message, sentAt: this.clock() }, ...sent].slice(0, 100);
+      this.state.pending = pending.filter(row => row.id !== item.id);
+      try { await this.persist(); }
+      catch (error) { this.state.pending = pending; this.state.sent = sent; throw error; }
+      this.lastSentCount++;
     }
-    if (hadPending) return this.state.snapshot;
-    onProgress('Refreshing the shared trip');
-    this.state.read ??= { request: null };
-    const response = await this.exchange({ action: 'read' }, this.state.read, signal);
-    this.state.snapshot = response.snapshot; this.state.read = null; await this.persist();
     return this.state.snapshot;
   }
 }
