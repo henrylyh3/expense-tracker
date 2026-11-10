@@ -9,6 +9,7 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+PLATFORM_FOLDERS = {'android': 'android', 'macos': 'mac', 'windows': 'window'}
 
 
 def version():
@@ -18,8 +19,8 @@ def version():
 
 def package(target, source=None, iscc='ISCC.exe'):
     name, build = version()
-    output = ROOT / 'release'
-    output.mkdir(exist_ok=True)
+    output = ROOT / 'release' / PLATFORM_FOLDERS[target]
+    output.mkdir(parents=True, exist_ok=True)
     prefix = output / f'expense-tracker-{name}'
     if target == 'macos':
         if platform.system() != 'Darwin':

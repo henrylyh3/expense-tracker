@@ -40,41 +40,64 @@ Stored outputs: `release/window/expense-tracker-<version>-windows-x64.zip` and `
 
 ## Artifact storage folders
 
-Keep macOS installers and update ZIPs in `release/mac/`, and Windows complete bundle ZIPs and setup EXEs in `release/window/`. Android artifacts stay directly under `release/`. These locations also apply to validation builds; moving a file does not change its signing or verification status.
+Packaging, appcast generation, publishing and the native validation workflow use these folders directly:
 
-Current packaging scripts and the native workflow still output directly under `release/`. After packaging, move desktop outputs to the folders above. The appcast and publishing scripts also currently read the root `release/` directory, so stage copies there before using those commands.
+```text
+release/
+  android/  versioned ARM64 APKs and update-<version>.json
+  mac/      DMGs, updater ZIPs and appcast-macos-<version>.xml
+  window/   complete bundle ZIPs, setup EXEs and appcast-windows-<version>.xml
+  SHA256SUMS-<version>.txt
+```
+
+Earlier Android APKs/manifests were moved without changing their contents. Earlier desktop artifacts stay in place. Do not copy artifacts back to the root. GitHub asset names remain flat: `update.json`, `appcast-macos.xml`, `appcast-windows.xml`, versioned binaries and `SHA256SUMS.txt`. Existing installed Android apps keep their current URLs and update contract. Checksums use these download names, so they can verify files downloaded together from GitHub.
 
 ## Prompted desktop updates
 
 Desktop uses `auto_updater` (Sparkle / WinSparkle). It checks on app open/resume using the existing five-minute throttle, with explicit checking from Settings. Native dialogs handle download progress, consent and installation/restart. It does not silently replace a running app. Offline checks never prevent access to the ledger. Android keeps its existing verified APK updater.
 
-Desktop updating is **disabled by default until signing is configured**. Complete this on the native release hosts:
+Direct `flutter build` and CI validation builds keep desktop updates disabled. The release helper enables them after checking the native host and public key configuration. Complete this once on the native release hosts:
 
 1. Run `dart run auto_updater:generate_keys` on each OS. Back up private signing keys outside git. macOS keeps its EdDSA private key in Keychain; Windows generates `dsa_priv.pem` and `dsa_pub.pem`. These are updater keys, separate from Developer ID/Authenticode certificates.
 2. macOS: create ignored `macos/Runner/Configs/Signing.xcconfig` with `SPARKLE_PUBLIC_ED_KEY = <public key>`. The release Info.plist embeds it as `SUPublicEDKey`. Windows: place the generated **public** `dsa_pub.pem` at the repository root; CMake embeds it as the `DSAPub` resource. Retain these public keys across updates.
-3. Build with the appropriate platform feed and explicit signing opt-in, for example:
+3. Retain the original Android keystore and configure ignored `android/key.properties`. Do not generate a replacement Android key. Configure Developer ID/hardened runtime/notarization on macOS and Authenticode on Windows separately from updater signing.
+
+The [auto_updater signing guide](https://leanflutter.dev/documentation/auto_updater/quick-start) documents the native key storage and signing tools used here. Retain established updater keys: existing installs trust their public counterpart. Private keys and OS certificates must never enter git, release folders or logs.
+
+## Release commands
+
+Bump `pubspec.yaml` and `lib/core/app_info.dart` together, then run on each native host:
 
 ```sh
-flutter build macos --release \
-  --dart-define=DESKTOP_UPDATE_SIGNING_CONFIGURED=true \
-  --dart-define=DESKTOP_UPDATE_FEED_URL=https://github.com/henrylyh3/expense-tracker/releases/latest/download/appcast-macos.xml
+python3 tool/build_release.py android
+python3 tool/build_release.py macos
+# On Windows:
+python tool/build_release.py windows --iscc "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
 ```
 
-Use `flutter build windows` and `appcast-windows.xml` on Windows. Never set the signing flag without embedding the real public key. Both constants are build configuration, not private credentials.
+Each build requires an official stable Flutter SDK, resolves the lockfile, runs `flutter analyze` and only the three linked updater test files before building. Override SDK executables with `--flutter`, `--dart` or `FLUTTER_BIN`/`DART_BIN`. Android builds ARM64 only and verifies its signature, package ID, version/build, ABI and signer continuity against the most recent local versioned APK before copying into `release/android/`.
 
-4. Sign/notarize/package the final binaries. Run `dart run auto_updater:sign_update <payload>` on the corresponding host. macOS signs the `-macos-update.zip`, Windows signs the final `-windows-x64-setup.exe`. Do not modify a payload after signing.
-5. Generate each feed using the signature value from that command:
+Desktop builds automatically supply `DESKTOP_UPDATE_SIGNING_CONFIGURED=true` and their HTTPS GitHub feed URL. The helper packages into platform folders, invokes native `auto_updater:sign_update` and generates the versioned appcast. It never invents signatures or publishes. The private updater key must be available in macOS Keychain or ignored Windows `dsa_priv.pem`.
+
+OS signing often needs a pause between steps. Use stages instead of the all-in-one command:
 
 ```sh
-python3 tool/desktop_appcast.py macos --signature '<edSignature value>'
-python tool/desktop_appcast.py windows --signature '<dsaSignature value>'
+python3 tool/build_release.py macos --stage build
+# Developer ID sign, notarize and staple the built .app using your configured identity.
+python3 tool/build_release.py macos --stage package
+# Developer ID sign, notarize and staple the final DMG.
+python3 tool/build_release.py macos --stage sign
 ```
 
-The script writes versioned appcast files, matching payload URLs, sizes and native versions. It validates signature encoding/length; native updater signature verification is the cryptographic check. Keep both appcasts with the release. Test a signed older install upgrading to the new build on actual macOS and Windows before enabling publication. Verify retained ledger, credentials, skipped/offline updates and tampered-payload rejection.
+On Windows, use the same stages with `windows`: Authenticode-sign the native app before `--stage package` (so the complete ZIP includes the signed executable), then sign the generated setup EXE before `--stage sign`. Pass `--iscc` during packaging if needed. Finalization checks macOS app/DMG signatures, notarization staples and DMG integrity, or Windows app/installer Authenticode status, before signing updater payloads. Missing configuration or failed verification stops the command.
+
+Do not modify packages after generating updater signatures/appcasts. Rebuild and re-sign before preparing checksums. The low-level packaging/appcast scripts remain available for CI validation and manual recovery and refuse to overwrite outputs.
+
+Before publication, test a signed older install upgrading on actual macOS and Windows. Verify retained ledger/credentials, skipped/offline updates and tampered-payload rejection. Existing unsigned validation installations need a manual installation of the first configured release; source changes cannot retrofit updates into already-built apps.
 
 ## Publish the complete release
 
-Collect the signed ARM64 APK, DMG, macOS update ZIP, Windows ZIP and setup EXE under `release/`. Prepare both appcasts when updates are enabled. Then:
+Collect the verified ARM64 APK, DMG, macOS update ZIP, complete Windows ZIP, setup EXE and both signed appcasts in their platform folders. Then:
 
 ```sh
 python tool/publish_release.py --prepare
@@ -82,7 +105,7 @@ python tool/publish_release.py --prepare
 python tool/publish_release.py --notes-file docs/releases/v<version>.md
 ```
 
-Add `--desktop-updates` to both publisher commands when signed native updates are enabled; this also requires both appcasts. The publisher requires every platform binary, generates/checks `SHA256SUMS`, preserves Android's `update.json` contract, uploads appcasts when supplied and verifies every GitHub upload digest before publishing. A missing platform keeps publication blocked. It never overwrites a published version. See [AGENTS.md](../AGENTS.md) for the release contract.
+Both signed desktop appcasts are now required by default; `--desktop-updates` remains accepted for compatibility. Preparation creates `release/android/update-<version>.json` and `release/SHA256SUMS-<version>.txt` covering all eight uploaded platform/metadata assets. The publisher preserves Android's `update.json` contract and checks every GitHub upload digest. Commit all files and push to `origin/main` before publishing. Missing platforms/feeds block publication; published versions are never overwritten. See [AGENTS.md](../AGENTS.md) for the release contract.
 
 ## Verification status for 0.4.7
 

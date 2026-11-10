@@ -14,8 +14,10 @@ jobs:
         include:
           - os: macos-latest
             target: macos
+            folder: mac
           - os: windows-latest
             target: windows
+            folder: window
     runs-on: ${{ matrix.os }}
     timeout-minutes: 40
     steps:
@@ -25,9 +27,12 @@ jobs:
           channel: stable
           cache: true
       - run: flutter pub get
+      - name: Read release version
+        id: version
+        run: python -c "import os, sys; sys.path.insert(0, 'tool'); from package_desktop import version; open(os.environ['GITHUB_OUTPUT'], 'a').write('version=' + version()[0] + '\n')"
       - run: flutter analyze
       - name: Release integrity tests
-        run: python -m unittest discover -s tool -p test_desktop_release.py
+        run: python -m unittest discover -s tool -p 'test_*release.py'
       - name: Focused desktop and linked tests
         run: flutter test test/core/database/private_storage_test.dart test/core/updates/desktop_updater_test.dart test/core/sharing/discord_sharing_test.dart test/features/settings/discord_settings_test.dart test/features/settings/update_prompt_test.dart
       - name: Install Inno Setup
@@ -47,6 +52,6 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: expense-tracker-${{ matrix.target }}-validation
-          path: release/*-${{ matrix.target }}*
+          path: release/${{ matrix.folder }}/expense-tracker-${{ steps.version.outputs.version }}-${{ matrix.target }}*
           if-no-files-found: error
           retention-days: 14

@@ -3,6 +3,7 @@
 Uses Git Credential Manager in memory; never embeds credentials in the app.
 """
 import argparse
+import base64
 import hashlib
 import json
 import re
@@ -25,27 +26,31 @@ def git(*args):
 
 def artifact():
     version, build = re.search(r'^version: (\d+\.\d+\.\d+)\+(\d+)$', (ROOT / 'pubspec.yaml').read_text(), re.M).groups()
-    apk = ROOT / 'release' / f'expense-tracker-{version}-arm64-release.apk'
+    apk = ROOT / 'release/android' / f'expense-tracker-{version}-arm64-release.apk'
+    if not apk.is_file() or apk.stat().st_size == 0:
+        raise RuntimeError(f'Missing required release artifact: {apk.relative_to(ROOT)}. Run python tool/build_release.py android.')
     raw = apk.read_bytes()
     manifest = dict(schema=1, version=version, version_code=2000 + int(build), package='com.example.expense_tracker', abi='arm64-v8a', apk=apk.name, size=len(raw), sha256=hashlib.sha256(raw).hexdigest())
-    return apk, ROOT / 'release' / f'update-{version}.json', manifest
+    return apk, apk.parent / f'update-{version}.json', manifest
 
 
 def release_assets(apk, manifest_path, manifest, require_feeds=False):
     version = manifest['version']
-    directory = apk.parent
-    names = [f'expense-tracker-{version}{suffix}' for suffix in (
-        '-macos.dmg', '-macos-update.zip', '-windows-x64.zip', '-windows-x64-setup.exe')]
+    directory = ROOT / 'release'
+    names = [(folder, f'expense-tracker-{version}{suffix}') for folder, suffix in (
+        ('mac', '-macos.dmg'), ('mac', '-macos-update.zip'),
+        ('window', '-windows-x64.zip'), ('window', '-windows-x64-setup.exe'))]
     assets = [(apk.name, apk, 'application/vnd.android.package-archive'),
               ('update.json', manifest_path, 'application/json')]
-    for name in names:
-        path = directory / name
+    for folder, name in names:
+        path = directory / folder / name
         if not path.is_file() or path.stat().st_size == 0:
             raise RuntimeError(f'Missing required release artifact: {name}. Build it on its native host.')
         assets.append((name, path, 'application/octet-stream'))
-    # Feeds are optional while desktop update signing is unconfigured, but must
-    # be supplied together when enabling desktop updates for a release.
-    feeds = [directory / f'appcast-{target}-{version}.xml' for target in ('macos', 'windows')]
+    # Validation callers may inspect unsigned bundles. The publication CLI
+    # always requires both feeds so later releases retain desktop updating.
+    feeds = [directory / folder / f'appcast-{target}-{version}.xml'
+             for target, folder in (('macos', 'mac'), ('windows', 'window'))]
     if require_feeds or any(path.exists() for path in feeds):
         for target, path in zip(('macos', 'windows'), feeds):
             if not path.is_file():
@@ -56,14 +61,25 @@ def release_assets(apk, manifest_path, manifest, require_feeds=False):
                 raise RuntimeError('Malformed desktop appcast XML.') from None
             sparkle = '{http://www.andymatuschak.org/xml-namespaces/sparkle}'
             suffix = '-macos-update.zip' if target == 'macos' else '-windows-x64-setup.exe'
-            payload = directory / f'expense-tracker-{version}{suffix}'
+            payload = path.parent / f'expense-tracker-{version}{suffix}'
             signature_key = sparkle + ('edSignature' if target == 'macos' else 'dsaSignature')
+            expected_build = str(manifest['version_code'] - 2000)
+            if target == 'windows':
+                expected_build = f'{version}+{expected_build}'
             expected_url = f'https://github.com/{REPO}/releases/download/v{version}/{payload.name}'
             if (enclosure is None or not enclosure.get(signature_key)
                     or enclosure.get('url') != expected_url
                     or enclosure.get('length') != str(payload.stat().st_size)
+                    or enclosure.get(sparkle + 'version') != expected_build
                     or enclosure.get(sparkle + 'shortVersionString') != version):
                 raise RuntimeError('Desktop appcast does not match this release payload.')
+            try:
+                signature = base64.b64decode(enclosure.get(signature_key), validate=True)
+            except ValueError:
+                raise RuntimeError('Malformed desktop updater signature.') from None
+            if (target == 'macos' and len(signature) != 64
+                    or target == 'windows' and not 40 <= len(signature) <= 128):
+                raise RuntimeError('Malformed desktop updater signature.')
             assets.append((f'appcast-{target}.xml', path, 'application/xml'))
     return assets
 
@@ -96,7 +112,8 @@ def request(token, url, method='GET', data=None, content_type='application/json'
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--prepare', action='store_true')
-    parser.add_argument('--desktop-updates', action='store_true', help='Require both signed desktop appcasts')
+    parser.add_argument('--desktop-updates', action='store_true', default=True,
+                        help='Require both signed desktop appcasts (always enabled for publication)')
     parser.add_argument('--auth-check', action='store_true')
     parser.add_argument('--notes-file', type=Path)
     args = parser.parse_args()
@@ -108,7 +125,7 @@ def main():
         return
     apk, manifest_path, manifest = artifact()
     assets = release_assets(apk, manifest_path, manifest, args.desktop_updates)
-    sums_path = apk.parent / f'SHA256SUMS-{manifest["version"]}.txt'
+    sums_path = ROOT / 'release' / f'SHA256SUMS-{manifest["version"]}.txt'
     if args.prepare:
         manifest_path.write_text(json.dumps(manifest, indent=2) + '\n', encoding='utf-8')
         sums_path.write_text(checksums(assets), encoding='utf-8')

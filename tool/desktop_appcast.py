@@ -3,7 +3,7 @@ import argparse
 import base64
 import xml.etree.ElementTree as ET
 from pathlib import Path
-from package_desktop import ROOT, version
+from package_desktop import ROOT, PLATFORM_FOLDERS, version
 
 SPARKLE = 'http://www.andymatuschak.org/xml-namespaces/sparkle'
 ET.register_namespace('sparkle', SPARKLE)
@@ -17,7 +17,7 @@ def generate(target, signature):
     if target == 'windows' and not 40 <= len(raw) <= 128:
         raise ValueError('Expected a DSA signature from sign_update.')
     suffix = '-macos-update.zip' if target == 'macos' else '-windows-x64-setup.exe'
-    payload = ROOT / 'release' / f'expense-tracker-{name}{suffix}'
+    payload = ROOT / 'release' / PLATFORM_FOLDERS[target] / f'expense-tracker-{name}{suffix}'
     if not payload.is_file() or payload.stat().st_size == 0:
         raise ValueError('Package and sign the final payload first.')
     rss = ET.Element('rss', version='2.0')

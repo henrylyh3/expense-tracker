@@ -12,7 +12,7 @@ New currency records can [prefill Frankfurter reference rates](docs/CURRENCY_RAT
 
 macOS and Windows targets reuse the existing layout. Use your laptop as the ledger host and keep Android guests on the existing Discord invitations. Sync runs while the app is open/foreground with a visible progress strip. Ledger files live in Application Support/AppData, outside the installed binaries.
 
-See [Desktop setup, packaging and signed updates](docs/DESKTOP.md). Releases now require an Android ARM64 APK, macOS DMG and complete Windows ZIP bundle, with companion updater payloads. Native desktop validation builds are available in [GitHub Actions](https://github.com/henrylyh3/expense-tracker/actions/runs/42628890725). Complete signed release publication, desktop update feeds and device upgrade testing remain pending.
+See [Desktop setup, packaging and signed updates](docs/DESKTOP.md). Release files are grouped under `release/android/`, `release/mac/` and `release/window/`. Run `python tool/build_release.py android`, `macos` or `windows` on each native host; desktop release builds automatically enable the signed update feed. The [release guide](docs/DESKTOP.md#release-commands) covers signing stages and one-command manifest/checksum preparation. Complete signed release publication and device upgrade testing remain pending; existing desktop validation artifacts have no enabled update feeds.
 
 ## Project documentation
 

@@ -1,0 +1,148 @@
+"""Focused checks for release activation, signing gates and APK continuity."""
+import base64
+import json
+import subprocess
+import tempfile
+import unittest
+from pathlib import Path
+from unittest.mock import patch
+
+import build_release
+import desktop_appcast
+import package_desktop
+
+
+class BuildReleaseTests(unittest.TestCase):
+    def setUp(self):
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        self.root = Path(temp.name)
+        (self.root / 'pubspec.yaml').write_text('version: 0.4.8+17\n')
+        for module in (build_release, desktop_appcast, package_desktop):
+            patcher = patch.object(module, 'ROOT', self.root)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    def mac_key(self):
+        config = self.root / 'macos/Runner/Configs/Signing.xcconfig'
+        config.parent.mkdir(parents=True)
+        config.write_text('SPARKLE_PUBLIC_ED_KEY = ' + base64.b64encode(b'x' * 32).decode() + '\n')
+
+    def test_missing_signing_configuration_blocks_build_before_commands(self):
+        with patch.object(build_release.platform, 'system', return_value='Darwin'), patch.object(build_release, 'run') as run:
+            for target in ('macos', 'android'):
+                with self.subTest(target=target), self.assertRaises(RuntimeError):
+                    build_release.build(target, 'flutter')
+            run.assert_not_called()
+
+    def test_desktop_build_enables_correct_feed_after_focused_checks(self):
+        self.mac_key()
+        sdk = json.dumps(dict(channel='stable', frameworkVersion='3.47.9', repositoryUrl='https://github.com/flutter/flutter.git'))
+        with patch.object(build_release.platform, 'system', return_value='Darwin'), patch.object(build_release, 'run', return_value=subprocess.CompletedProcess([], 0, stdout=sdk)) as run:
+            build_release.build('macos', 'flutter')
+        commands = [call.args[0] for call in run.call_args_list]
+        self.assertEqual(commands[2], ['flutter', 'analyze', '--no-pub'])
+        self.assertEqual(commands[3], ['flutter', 'test', '--no-pub', *build_release.FOCUSED_TESTS])
+        self.assertIn('--dart-define=DESKTOP_UPDATE_SIGNING_CONFIGURED=true', commands[4])
+        self.assertIn('--dart-define=DESKTOP_UPDATE_FEED_URL=https://github.com/henrylyh3/expense-tracker/releases/latest/download/appcast-macos.xml', commands[4])
+
+    def test_prerelease_sdk_cannot_produce_release(self):
+        self.mac_key()
+        sdk = json.dumps(dict(channel='stable', frameworkVersion='3.48.0-0.5.pre', repositoryUrl='https://github.com/flutter/flutter.git'))
+        with patch.object(build_release.platform, 'system', return_value='Darwin'), patch.object(build_release, 'run', return_value=subprocess.CompletedProcess([], 0, stdout=sdk)) as run:
+            with self.assertRaisesRegex(RuntimeError, 'official stable'):
+                build_release.build('macos', 'flutter')
+            self.assertEqual(run.call_count, 1)
+
+    def windows_payload(self):
+        (self.root / 'dsa_pub.pem').write_text('-----BEGIN PUBLIC KEY-----\ntest public key\n-----END PUBLIC KEY-----\n')
+        (self.root / 'dsa_priv.pem').write_text('test-only signing fixture')
+        folder = self.root / 'release/window'
+        folder.mkdir(parents=True)
+        (folder / 'expense-tracker-0.4.8-windows-x64-setup.exe').write_bytes(b'test payload')
+        config = self.root / 'windows/flutter/ephemeral/generated_config.cmake'
+        config.parent.mkdir(parents=True)
+        defines = ','.join(base64.b64encode(value.encode()).decode() for value in build_release.update_defines('windows'))
+        config.write_text(f'list(APPEND FLUTTER_TOOL_ENVIRONMENT "DART_DEFINES={defines}")\n')
+        return folder
+
+    def test_validation_build_cannot_be_finalized_as_update_enabled(self):
+        folder = self.windows_payload()
+        (self.root / 'windows/flutter/ephemeral/generated_config.cmake').write_text('')
+        with patch.object(build_release.platform, 'system', return_value='Windows'), patch.object(build_release, 'run') as run:
+            with self.assertRaisesRegex(RuntimeError, 'no configured update feed'):
+                build_release.sign('windows', 'dart')
+            run.assert_not_called()
+        self.assertFalse(list(folder.glob('appcast*')))
+
+    def test_failed_authenticode_verification_cannot_generate_feed(self):
+        folder = self.windows_payload()
+        with patch.object(build_release.platform, 'system', return_value='Windows'), patch.object(build_release, 'run', side_effect=subprocess.CalledProcessError(1, 'verification')):
+            with self.assertRaises(subprocess.CalledProcessError):
+                build_release.sign('windows', 'dart')
+        self.assertFalse(list(folder.glob('appcast*')))
+
+    def test_signing_uses_native_signature_and_platform_folder(self):
+        folder = self.windows_payload()
+        signature = base64.b64encode(b'x' * 48).decode()
+        output = f'sparkle:dsaSignature="{signature}" length="0"'
+        with patch.object(build_release.platform, 'system', return_value='Windows'), patch.object(build_release, 'run', return_value=subprocess.CompletedProcess([], 0, stdout=output)) as run:
+            feed = build_release.sign('windows', 'dart')
+        self.assertEqual(feed, folder / 'appcast-windows-0.4.8.xml')
+        self.assertIn(signature, feed.read_text())
+        self.assertEqual(run.call_args.args[0][:3], ['dart', 'run', 'auto_updater:sign_update'])
+        self.assertEqual(run.call_count, 3)  # App + installer verification, then signing.
+
+    def apk_source(self):
+        source = self.root / 'build/app/outputs/flutter-apk/app-arm64-v8a-release.apk'
+        source.parent.mkdir(parents=True)
+        source.write_bytes(b'new signed apk')
+        previous = self.root / 'release/android/expense-tracker-0.4.6-arm64-release.apk'
+        previous.parent.mkdir(parents=True)
+        previous.write_bytes(b'previous signed apk')
+
+    def apk_result(self, command, capture=False, old_digest='same', old_code=2015):
+        previous = '0.4.6' in command[-1]
+        if 'verify' in command:
+            output = 'Signer #1 certificate SHA-256 digest: ' + (old_digest if previous else 'same')
+        else:
+            code, name = (old_code, '0.4.6') if previous else (2017, '0.4.8')
+            output = f"package: name='com.example.expense_tracker' versionCode='{code}' versionName='{name}'\nnative-code: 'arm64-v8a'\n"
+        return subprocess.CompletedProcess(command, 0, stdout=output)
+
+    def test_apk_signer_change_or_non_increasing_code_blocks_staging(self):
+        self.apk_source()
+        with patch.object(build_release, 'android_tools', return_value=(Path('apksigner'), Path('aapt'))):
+            for digest, code in [('different', 2015), ('same', 2017)]:
+                with self.subTest(digest=digest, code=code), patch.object(build_release, 'run', side_effect=lambda command, **kwargs: self.apk_result(command, old_digest=digest, old_code=code)):
+                    with self.assertRaisesRegex(RuntimeError, 'previous release signer'):
+                        build_release.stage_android()
+        self.assertFalse((self.root / 'release/android/expense-tracker-0.4.8-arm64-release.apk').exists())
+
+    def test_verified_apk_staged_without_overwriting_previous_release(self):
+        self.apk_source()
+        with patch.object(build_release, 'android_tools', return_value=(Path('apksigner'), Path('aapt'))), patch.object(build_release, 'run', side_effect=self.apk_result):
+            [path] = build_release.stage_android()
+            self.assertEqual(path.parent, self.root / 'release/android')
+            self.assertEqual(path.read_bytes(), b'new signed apk')
+            with self.assertRaisesRegex(RuntimeError, 'overwrite'):
+                build_release.stage_android()
+        self.assertEqual((path.parent / 'expense-tracker-0.4.6-arm64-release.apk').read_bytes(), b'previous signed apk')
+
+    def test_apk_with_wrong_package_version_or_abi_cannot_be_staged(self):
+        self.apk_source()
+        for before, after in [("com.example.expense_tracker", "com.other.app"),
+                              ("versionName='0.4.8'", "versionName='0.4.7'"),
+                              ("native-code: 'arm64-v8a'", "native-code: 'x86_64'")]:
+            def result(command, **kwargs):
+                value = self.apk_result(command)
+                value.stdout = value.stdout.replace(before, after)
+                return value
+            with self.subTest(after=after), patch.object(build_release, 'android_tools', return_value=(Path('apksigner'), Path('aapt'))), patch.object(build_release, 'run', side_effect=result):
+                with self.assertRaisesRegex(RuntimeError, 'architecture is incorrect'):
+                    build_release.stage_android()
+        self.assertFalse((self.root / 'release/android/expense-tracker-0.4.8-arm64-release.apk').exists())
+
+
+if __name__ == '__main__':
+    unittest.main()
