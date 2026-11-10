@@ -107,6 +107,14 @@ python tool/publish_release.py --notes-file docs/releases/v<version>.md
 
 Both signed desktop appcasts are now required by default; `--desktop-updates` remains accepted for compatibility. Preparation creates `release/android/update-<version>.json` and `release/SHA256SUMS-<version>.txt` covering all eight uploaded platform/metadata assets. The publisher preserves Android's `update.json` contract and checks every GitHub upload digest. Commit all files and push to `origin/main` before publishing. Missing platforms/feeds block publication; published versions are never overwritten. See [AGENTS.md](../AGENTS.md) for the release contract.
 
+## Verification status for 0.4.8
+
+Official stable Flutter 3.47.9 analysis is clean. The three focused updater test files passed 22 Flutter checks; the release-tool tests passed 21 Python checks, including rejection of private key material in the public-key input. Hosted macOS and Windows analysis, focused linked tests, native release compilation and packaging passed in [run 42743749613](https://github.com/henrylyh3/expense-tracker/actions/runs/42743749613). The workflow uploads only the current version's files from each platform folder, preserving earlier files without mixing them into the artifact.
+
+These remain validation artifacts with desktop updates disabled. No signing secrets are configured in GitHub Actions; the local original Android keystore configuration and desktop public-key configuration are missing, no local Developer ID signing identity is available, and local Xcode is command-line tools only. No complete 0.4.8 GitHub Release or APK has been published. Install/upgrade testing, native signing and notarization remain pending.
+
+The four retrieved 0.4.8 desktop files are stored in `release/mac/` and `release/window/`. DMG integrity, the macOS stable bundle ID/version and Sparkle framework, Windows PE x64/version/full bundle/WinSparkle, and both ZIP CRC checks passed. These are artifact checks, not installed-device or signed-upgrade verification.
+
 ## Verification status for 0.4.7
 
 Both native desktop build jobs passed on GitHub-hosted macOS and Windows using stable Flutter 3.47.9. Their DMG, macOS update ZIP, Windows bundle ZIP and installer are available as validation artifacts in [build run 42628890725](https://github.com/henrylyh3/expense-tracker/actions/runs/42628890725). The downloaded DMG passed `hdiutil verify`; the app identity/version and Windows x64 executable/native bundle contents were checked.

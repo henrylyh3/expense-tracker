@@ -82,6 +82,15 @@ class BuildReleaseTests(unittest.TestCase):
                 build_release.sign('windows', 'dart')
         self.assertFalse(list(folder.glob('appcast*')))
 
+    def test_private_key_material_cannot_be_embedded_in_windows_build(self):
+        self.windows_payload()
+        key = self.root / 'dsa_pub.pem'
+        key.write_text(key.read_text() + '-----BEGIN DSA PRIVATE KEY-----\n')
+        with patch.object(build_release.platform, 'system', return_value='Windows'), patch.object(build_release, 'run') as run:
+            with self.assertRaisesRegex(RuntimeError, 'never embed private'):
+                build_release.build('windows', 'flutter')
+            run.assert_not_called()
+
     def test_signing_uses_native_signature_and_platform_folder(self):
         folder = self.windows_payload()
         signature = base64.b64encode(b'x' * 48).decode()

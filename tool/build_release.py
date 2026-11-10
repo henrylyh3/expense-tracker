@@ -64,6 +64,8 @@ def check_configuration(target):
         key = ROOT / 'dsa_pub.pem'
         if not key.is_file() or '-----BEGIN PUBLIC KEY-----' not in key.read_text():
             raise RuntimeError('Missing dsa_pub.pem public updater key. Generate/restore the Windows updater keys first.')
+        if 'PRIVATE KEY' in key.read_text():
+            raise RuntimeError('dsa_pub.pem must contain only the public updater key; never embed private signing material.')
 
 
 def build(target, flutter):
