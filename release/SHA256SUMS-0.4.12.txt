@@ -1,8 +1,0 @@
-57cde0619dce44515e096c0fbf1052ca7612811b269cf50f6fe885e418b314d5  expense-tracker-0.4.12-arm64-release.apk
-87d72abc8e995d228e4d705879bc5476eb7efcf3616b2bb323bc0663e118b23b  update.json
-3119ddc957e8564adb1ce5f2bf7fef54d9ad07bee761468113aca6a088a9afbd  expense-tracker-0.4.12-macos.dmg
-3e6cfe897ab1bd1526a9481b6334198f65eb3a86c3e47d53f7c6522e1ba2b926  expense-tracker-0.4.12-macos-update.zip
-7ddd256de155e003dc3e1c4b1decfc9f13a2f2fe83fa2c28b1f3118c6d5eefda  expense-tracker-0.4.12-windows-x64.zip
-36125f25e946129e69bc2c01c4e3b94d73ab29bd08c8bc350abab9dc0034d331  expense-tracker-0.4.12-windows-x64-setup.exe
-ae084d954d7819a9a0234df848daae153b38198945ade5dbf6c783522f1ef380  appcast-macos.xml
-c42a352bc4f76b580f3bc02408c754c7600ca4b908936d4e66dca875ef0f21c7  appcast-windows.xml
