@@ -1,0 +1,5 @@
+# Preserve published bytes so release checksums also match a Git checkout.
+SHA256SUMS-*.txt -text
+android/update-*.json -text
+mac/appcast-macos-*.xml -text
+window/appcast-windows-*.xml -text
