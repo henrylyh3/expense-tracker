@@ -25,6 +25,20 @@ test('money preserves exact decimals, foreign fractional units and 64-bit totals
   assert.equal(formatMyr('9007199254740993'), 'RM 90,071,992,547,409.93');
   assert.throws(() => validateSnapshot({ ...snapshot, total_myr_minor: 1250 }), /invalid trip/);
 });
+test('default transport calls browser fetch with its global receiver', async t => {
+  const relay = new FakeRelay();
+  t.mock.method(globalThis, 'fetch', function (url, options) {
+    assert.equal(this, globalThis);
+    return relay.fetch(url, options);
+  });
+  const client = relay.client(memoryStorage(), { fetcher: undefined });
+  await client.sync();
+  assert.equal(client.state.snapshot.name, snapshot.name);
+  await client.queue(input);
+  await client.sync();
+  assert.equal(relay.posts, 1);
+  assert.equal(client.state.pending.length, 0);
+});
 test('fresh link loads with host offline and all expenses send without host replies', async () => {
   const fake = new FakeRelay(), client = fake.client(); fake.waiting = true;
   await client.sync(); assert.equal(client.state.snapshot.name, snapshot.name); assert.equal(fake.posts, 0);

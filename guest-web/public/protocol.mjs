@@ -106,7 +106,12 @@ async function boundedJson(response) {
   try { return JSON.parse(dec.decode(bytes)); } catch { throw new GuestError('The relay returned an unreadable reply.'); }
 }
 export class RelayClient {
-  constructor(invitation, { fetcher = fetch, storage = localStorage, clock = Date.now, locks = globalThis.navigator?.locks } = {}) {
+  constructor(invitation, {
+    fetcher = (url, options) => globalThis.fetch(url, options),
+    storage = localStorage,
+    clock = Date.now,
+    locks = globalThis.navigator?.locks,
+  } = {}) {
     this.invite = invitation; this.fetcher = fetcher; this.storage = storage; this.clock = clock; this.locks = locks;
     this.state = { snapshot: null, pending: [], sent: [], read: null }; this.active = null; this.retryUntil = 0;
     this.slot = `expense-guest:${invitation.id}`;
