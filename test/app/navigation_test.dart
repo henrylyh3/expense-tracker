@@ -137,14 +137,15 @@ void main() {
     await tester.tap(find.text('Shared trips'));
     await tester.pumpAndSettle();
     expect(find.widgetWithText(AppBar, 'Shared trips'), findsOneWidget);
-    expect(find.text('Start hosting'), findsOneWidget);
+    expect(find.text('Start hosting'), findsNothing);
+    expect(find.text('Configure internet sharing'), findsOneWidget);
     await tester.tap(find.text('Join using invitation'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
     expect(find.text('Paste invitation'), findsOneWidget);
     await tester.tap(find.text('Cancel'));
     await tester.pumpAndSettle();
-    expect(find.text('Start hosting'), findsOneWidget);
+    expect(find.text('Configure internet sharing'), findsOneWidget);
   });
   testWidgets('Home report currency does not change the expense default', (
     tester,
