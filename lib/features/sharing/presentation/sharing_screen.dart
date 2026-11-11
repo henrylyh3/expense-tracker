@@ -13,6 +13,7 @@ import '../../../core/models/ledger_types.dart';
 import '../../../core/money/money.dart';
 import '../../../core/dates/calendar_date.dart';
 import '../../../core/sharing/sharing_service.dart';
+import '../../../core/sharing/shared_trip_total.dart';
 import '../../../core/sharing/discord_api.dart';
 import '../../../core/sharing/guest_web.dart';
 import 'discord_settings.dart';
@@ -285,7 +286,8 @@ class _SharingScreenState extends ConsumerState<SharingScreen> {
     return [
       const SizedBox(height: 16),
       Text(
-        data?['name'] as String? ?? session['name'] as String,
+        data?['name'] as String? ??
+            (guest ? 'Shared trip' : session['name'] as String),
         style: Theme.of(context).textTheme.headlineSmall,
       ),
       if (!internet)
@@ -293,6 +295,7 @@ class _SharingScreenState extends ConsumerState<SharingScreen> {
           'This invitation used local sharing. Create a new internet invitation to share this trip.',
         ),
       if (guest) ...[
+        Text('Guest: ${session['name']}'),
         if (internet)
           const Text(
             'Send queued expenses, then sync again after the host processes them. Pending items remain here until confirmed.',
@@ -364,7 +367,7 @@ class _SharingScreenState extends ConsumerState<SharingScreen> {
           ),
         if (data != null) ...[
           Text(
-            'Host total · ${Money.fromMinor(minorUnits: int.parse(data['total_myr_minor'] as String), currencyCode: 'MYR', decimalPlaces: 2).format()}',
+            'Host total · ${formatSharedTripTotal(data)}',
             style: Theme.of(context).textTheme.titleLarge,
           ),
           Text('${data['count']} expenses · Last sync ${data['synced_at']}'),

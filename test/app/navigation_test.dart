@@ -27,51 +27,51 @@ import 'package:flutter_test/flutter_test.dart';
 import '../support/report_overrides.dart';
 
 void main() {
-  testWidgets(
-    'Home and History show date and amount without an expense label',
-    (tester) async {
-      final money = Money.parsePositive(
-        '12.50',
-        currencyCode: 'MYR',
-        decimalPlaces: 2,
-      );
-      final item = LedgerTransaction(
-        id: 'history-item',
-        categoryId: 'food',
-        categoryName: 'Food',
-        categoryIconKey: 'restaurant',
-        categoryColorHex: '#123456',
-        categoryArchived: false,
-        currencyActive: true,
-        type: TransactionType.expense,
-        conversion: ConversionSnapshot(
-          original: money,
-          exchangeRate: '1',
-          myr: money,
-        ),
-        date: CalendarDate.parse('2026-11-09'),
-        note: null,
-        createdAtUtc: 1,
-        updatedAtUtc: 1,
-      );
-      await tester.pumpWidget(_navigationApp(history: [item]));
-      await tester.pumpAndSettle();
-      await tester.scrollUntilVisible(
-        find.text('2026-11-09\nRM 12.50'),
-        300,
-        scrollable: find.byType(Scrollable).first,
-      );
-      await tester.pumpAndSettle();
-      expect(find.text('2026-11-09\nRM 12.50'), findsOneWidget);
-      expect(find.textContaining('· expense'), findsNothing);
-      expect(find.textContaining('Â'), findsNothing);
-      await tester.tap(find.text('History').last);
-      await tester.pumpAndSettle();
-      expect(find.text('2026-11-09\nRM 12.50'), findsOneWidget);
-      expect(find.textContaining('· expense'), findsNothing);
-      expect(find.textContaining('−RM'), findsNothing);
-    },
-  );
+  testWidgets('Home and History show the guest with the date and amount', (
+    tester,
+  ) async {
+    final money = Money.parsePositive(
+      '12.50',
+      currencyCode: 'MYR',
+      decimalPlaces: 2,
+    );
+    final item = LedgerTransaction(
+      id: 'history-item',
+      categoryId: 'food',
+      categoryName: 'Food',
+      categoryIconKey: 'restaurant',
+      categoryColorHex: '#123456',
+      categoryArchived: false,
+      currencyActive: true,
+      type: TransactionType.expense,
+      conversion: ConversionSnapshot(
+        original: money,
+        exchangeRate: '1',
+        myr: money,
+      ),
+      date: CalendarDate.parse('2026-11-09'),
+      note: null,
+      createdAtUtc: 1,
+      updatedAtUtc: 1,
+      submittedByGuest: 'Alice',
+    );
+    await tester.pumpWidget(_navigationApp(history: [item]));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('2026-11-09\nRM 12.50\nGuest: Alice'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('2026-11-09\nRM 12.50\nGuest: Alice'), findsOneWidget);
+    expect(find.textContaining('· expense'), findsNothing);
+    expect(find.textContaining('Â'), findsNothing);
+    await tester.tap(find.text('History').last);
+    await tester.pumpAndSettle();
+    expect(find.text('2026-11-09\nRM 12.50\nGuest: Alice'), findsOneWidget);
+    expect(find.textContaining('· expense'), findsNothing);
+    expect(find.textContaining('−RM'), findsNothing);
+  });
   testWidgets(
     'trip summary shows original currency totals and a fixed MYR total on a narrow screen',
     (tester) async {

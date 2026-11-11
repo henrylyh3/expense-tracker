@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:drift/native.dart';
 import 'package:expense_tracker/core/backup/backup_service.dart';
 import 'package:expense_tracker/core/database/app_database.dart';
+import 'package:expense_tracker/core/sharing/shared_trip_total.dart';
 import 'package:expense_tracker/core/sharing/sharing_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:uuid/uuid.dart';
@@ -186,14 +187,22 @@ void main() {
     await hostDb.customStatement(
       "INSERT INTO app_settings VALUES ('trip_currency:personal','MYR'), ('default_currency','THB'), ('default_rate','thb-2026')",
     );
+    await hostDb.customStatement(
+      "INSERT INTO transactions (id, category_id, type, amount_minor, currency_code, exchange_rate_snapshot, amount_myr_minor, transaction_date, created_at_utc, updated_at_utc, trip_id) VALUES ('12345678-1234-4234-8234-123456789abc','seed-food','expense',1250,'MYR','1',1250,'2026-11-08',0,0,'personal')",
+    );
     await guest.sync(invitation['id'] as String);
     final cache =
         (await guestDb
                 .customSelect('SELECT cache FROM shared_sessions')
                 .getSingle())
             .read<String>('cache');
-    final snapshot = jsonDecode(cache) as Map;
+    final snapshot = jsonDecode(cache) as Map<String, dynamic>;
     expect(snapshot['default_currency'], 'thb-2026');
+    expect(formatSharedTripTotal(snapshot), 'THB 96.15');
+    expect(
+      formatSharedTripTotal({...snapshot, 'default_currency': 'missing'}),
+      'RM 12.50',
+    );
     expect(
       (snapshot['currencies'] as List)
           .where((c) => c['id'] == 'thb-2026')

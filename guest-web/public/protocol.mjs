@@ -93,6 +93,18 @@ export function makeExpense(snapshot, input) {
 export function formatMyr(minor) {
   const number = BigInt(minor); return `RM ${(number / 100n).toLocaleString('en-MY')}.${(number % 100n).toString().padStart(2, '0')}`;
 }
+export function formatSnapshotTotal(snapshot) {
+  const currency = snapshot.currencies.find(row => row.id === snapshot.default_currency);
+  if (!currency || currency.code === 'MYR') return formatMyr(snapshot.total_myr_minor);
+  const [whole, fraction = ''] = currency.rate.split('.');
+  const scale = 10n ** BigInt(currency.precision);
+  const numerator = BigInt(snapshot.total_myr_minor) * scale * 10n ** BigInt(fraction.length);
+  const denominator = BigInt(whole + fraction) * 100n;
+  const rounded = (2n * numerator + denominator) / (2n * denominator);
+  const integer = (rounded / scale).toLocaleString('en-MY');
+  const decimals = currency.precision ? '.' + (rounded % scale).toString().padStart(currency.precision, '0') : '';
+  return `${currency.code} ${integer}${decimals}`;
+}
 async function boundedJson(response) {
   if (Number(response.headers.get('content-length')) > MAX_BYTES) throw new GuestError('The relay reply is too large.');
   const reader = response.body?.getReader();

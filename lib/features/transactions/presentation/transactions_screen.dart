@@ -199,7 +199,8 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
                 title: Text(item.categoryName),
                 subtitle: Text(
                   '${item.date}\n$displayedAmount'
-                  '${originalAmount == displayedAmount ? '' : '\nOriginal: $originalAmount'}',
+                  '${originalAmount == displayedAmount ? '' : '\nOriginal: $originalAmount'}'
+                  '${item.submittedByGuest == null ? '' : '\nGuest: ${item.submittedByGuest}'}',
                 ),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () => context.push('/transactions/${item.id}'),

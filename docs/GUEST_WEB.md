@@ -10,7 +10,7 @@ When the host creates a new web link, the app uploads an encrypted trip snapshot
 
 **Send expense** first saves an encrypted local pending entry, then posts it to Discord. Each successful Discord message receipt moves that entry to **Sent from this browser**. The browser sends every pending expense without waiting for host replies. After all entries say sent, the guest can close the page; the host automatically imports them when next opened/foreground. The browser retries failed uploads every ten seconds while visible and online, and stops retrying when the queue is empty or the page is hidden. Stable submission IDs let the host deduplicate uncertain transport retries.
 
-“Sent to Discord” records transport receipt, rather than a completed SQLite insertion. The host still validates submissions and can reject invalid or revoked requests. Discord/channel/message deletion can prevent later delivery. The last host snapshot is labeled with its timestamp; it is not a live ledger total.
+“Sent to Discord” records transport receipt, rather than a completed SQLite insertion. The host still validates submissions and can reject invalid or revoked requests. Discord/channel/message deletion can prevent later delivery. The page shows the guest's invitation name. The trip total uses the host's default currency and rate from the timestamped snapshot. Create a new web link to share a newer snapshot.
 
 Queue changes and sync use the browser’s [Web Locks API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Locks_API) to serialize access across tabs and reload the latest encrypted queue before each operation. Older browsers without this capability cannot submit; use a current Safari/Chrome/Firefox version.
 

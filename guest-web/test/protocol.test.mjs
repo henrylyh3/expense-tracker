@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseInvitation, seal, open, makeExpense, formatMyr, validateSnapshot, base64url } from '../public/protocol.mjs';
+import { parseInvitation, seal, open, makeExpense, formatMyr, formatSnapshotTotal, validateSnapshot, base64url } from '../public/protocol.mjs';
 import { FakeRelay, snapshot, input, key, invitationCode, invitationData, endpoint, memoryStorage } from './fake-relay.mjs';
 const encode = data => base64url(new TextEncoder().encode(JSON.stringify(data)));
 test('invitation accepts URL fragments and rejects unsafe webhook destinations', () => {
@@ -24,6 +24,12 @@ test('money preserves exact decimals, foreign fractional units and 64-bit totals
   assert.throws(() => makeExpense(snapshot, { ...input, amount: '1'.repeat(100) }), /valid amount/);
   assert.equal(formatMyr('9007199254740993'), 'RM 90,071,992,547,409.93');
   assert.throws(() => validateSnapshot({ ...snapshot, total_myr_minor: 1250 }), /invalid trip/);
+});
+test('snapshot total uses the selected rate record and currency precision', () => {
+  const currencies = [...snapshot.currencies, { id: 'jpy-trip', code: 'JPY', precision: 0, rate: '0.02' }];
+  assert.equal(formatSnapshotTotal({ ...snapshot, currencies, default_currency: 'jpy-trip' }), 'JPY 625');
+  assert.equal(formatSnapshotTotal({ ...snapshot, currencies, default_currency: 'JPY' }), 'JPY 417');
+  assert.equal(formatSnapshotTotal({ ...snapshot, currencies, default_currency: 'missing' }), 'RM 12.50');
 });
 test('default transport calls browser fetch with its global receiver', async t => {
   const relay = new FakeRelay();

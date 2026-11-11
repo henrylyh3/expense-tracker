@@ -1,4 +1,4 @@
-import { parseInvitation, RelayClient, GuestError, formatMyr } from './protocol.mjs';
+import { parseInvitation, RelayClient, GuestError, formatSnapshotTotal } from './protocol.mjs';
 export function mountApp(doc, { clientFactory = invitation => new RelayClient(invitation), initialInvitationCode } = {}) {
   const win = doc.defaultView, $ = id => doc.getElementById(id);
   let client = null, syncing = false, controller = null, timer = null, closed = false;
@@ -15,11 +15,12 @@ export function mountApp(doc, { clientFactory = invitation => new RelayClient(in
     if (!client) return;
     const { snapshot, pending } = client.state;
     $('join').hidden = true; $('trip').hidden = false;
-    $('trip-name').textContent = snapshot?.name ?? client.invite.name;
+    $('trip-name').textContent = snapshot?.name ?? 'Shared trip';
+    $('guest-name').textContent = `Guest: ${client.invite.name}`;
     $('expiry').textContent = client.invite.expires === null ? 'Access can be revoked by the host.' : `${client.expired ? 'Expired' : 'Access expires'} ${new Date(client.invite.expires).toLocaleString()}`;
     $('summary').hidden = !snapshot;
     if (snapshot) {
-      $('total').textContent = formatMyr(snapshot.total_myr_minor); $('count').textContent = `${snapshot.count} ${snapshot.count === 1 ? 'expense' : 'expenses'} in the host ledger`;
+      $('total').textContent = formatSnapshotTotal(snapshot); $('count').textContent = `${snapshot.count} ${snapshot.count === 1 ? 'expense' : 'expenses'} in the host ledger`;
       options('category', snapshot.categories.map(row => ({ id: row.id, label: row.name })));
       options('currency', snapshot.currencies.map(row => ({ id: row.id, label: `${row.code} · ${row.name}` })), snapshot.default_currency);
       $('synced').textContent = `Host snapshot from ${new Date(snapshot.synced_at).toLocaleString()}`;
