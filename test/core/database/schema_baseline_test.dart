@@ -10,6 +10,44 @@ import '../../generated_migrations/schema.dart';
 void main() {
   final verifier = SchemaVerifier(GeneratedHelper());
 
+  test('v6 upgrade recovers guest names from existing receipts', () async {
+    final schema = await verifier.schemaAt(6);
+    addTearDown(schema.rawDatabase.close);
+    final sqlite = schema.rawDatabase;
+    sqlite.execute(
+      "INSERT INTO currencies VALUES ('MYR','Ringgit','RM',2,'1',1,0,0)",
+    );
+    sqlite.execute(
+      "INSERT INTO categories VALUES ('food','Food','expense','restaurant','#123456',0,0)",
+    );
+    sqlite.execute("INSERT INTO trips VALUES ('personal','Personal')");
+    sqlite.execute(
+      "INSERT INTO shared_sessions VALUES ('invite','host','personal','Alice','key','endpoint',NULL)",
+    );
+    const guest = '12345678-1234-4234-8234-123456789abc';
+    const local = '12345678-1234-4234-8234-123456789abd';
+    for (final id in [guest, local]) {
+      sqlite.execute(
+        "INSERT INTO transactions VALUES (?,'food','expense',100,'MYR','1',100,'2026-11-09',NULL,0,0,'personal',2)",
+        [id],
+      );
+    }
+    sqlite.execute(
+      "INSERT INTO shared_receipts VALUES ('invite','request',?)",
+      [guest],
+    );
+    final db = AppDatabase.forTesting(schema.newConnection());
+    addTearDown(db.close);
+    await verifier.migrateAndValidate(db, 7);
+    final rows = await db
+        .customSelect('SELECT submitted_by_guest FROM transactions ORDER BY id')
+        .get();
+    expect(rows.map((row) => row.readNullable<String>('submitted_by_guest')), [
+      'Alice',
+      null,
+    ]);
+  });
+
   test(
     'v5 upgrade preserves the exact units of existing zero-decimal expenses',
     () async {
@@ -33,7 +71,7 @@ void main() {
       final db = AppDatabase.forTesting(schema.newConnection());
       addTearDown(db.close);
       await db.initialize();
-      await verifier.migrateAndValidate(db, 6);
+      await verifier.migrateAndValidate(db, 7);
       final row = await db
           .customSelect(
             'SELECT amount_minor, amount_decimal_places FROM transactions',
@@ -45,13 +83,13 @@ void main() {
   );
 
   test(
-    'fresh schema matches the exported v6 tables, indexes and triggers',
+    'fresh schema matches the exported v7 tables, indexes and triggers',
     () async {
       final db = AppDatabase.forTesting(NativeDatabase.memory());
       addTearDown(db.close);
       await verifier.migrateAndValidate(
         db,
-        6,
+        7,
         options: const ValidationOptions(validateDropped: true),
       );
       await db.initialize();
@@ -77,7 +115,7 @@ void main() {
     final db = AppDatabase.forTesting(schema.newConnection());
     addTearDown(db.close);
     await db.initialize();
-    await verifier.migrateAndValidate(db, 6);
+    await verifier.migrateAndValidate(db, 7);
     expect(
       (await db
               .customSelect('SELECT count(*) AS n FROM categories')
@@ -130,7 +168,7 @@ void main() {
     final db = AppDatabase.forTesting(schema.newConnection());
     addTearDown(db.close);
     await db.initialize();
-    await verifier.migrateAndValidate(db, 6);
+    await verifier.migrateAndValidate(db, 7);
     final row = await db
         .customSelect(
           "SELECT rate_to_myr, name FROM trip_rates WHERE trip_id = 'thailand'",
@@ -173,7 +211,7 @@ void main() {
         expect(
           (await reopened.customSelect('PRAGMA user_version').getSingle())
               .read<int>('user_version'),
-          7,
+          8,
         );
         expect(
           (await reopened
@@ -196,9 +234,9 @@ void main() {
   );
 }
 
-// Synthetic future file only. This does not introduce a production v7 migration.
+// Synthetic future file only. This does not introduce a production v8 migration.
 class _FutureDatabase extends AppDatabase {
   _FutureDatabase(super.executor) : super.forTesting();
   @override
-  int get schemaVersion => 7;
+  int get schemaVersion => 8;
 }

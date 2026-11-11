@@ -11,12 +11,40 @@ import 'package:expense_tracker/features/currencies/presentation/currency_view_m
 import 'package:expense_tracker/features/transactions/domain/conversion_policy.dart';
 import 'package:expense_tracker/features/transactions/domain/ledger_transaction.dart';
 import 'package:expense_tracker/features/transactions/presentation/transaction_editor_screen.dart';
+import 'package:expense_tracker/features/transactions/presentation/transaction_detail_screen.dart';
 import 'package:expense_tracker/features/transactions/presentation/transaction_view_model.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  testWidgets('transaction details identify only guest submissions', (
+    tester,
+  ) async {
+    for (final guest in [null, 'Alice']) {
+      await tester.pumpWidget(
+        ProviderScope(
+          key: ValueKey(guest),
+          overrides: [
+            defaultCurrencyProvider.overrideWith(
+              (ref) => Stream.value(DisplayCurrency.myr),
+            ),
+            transactionProvider(
+              'record',
+            ).overrideWith((ref) => Stream.value(_record(false, guest: guest))),
+          ],
+          child: const MaterialApp(
+            home: TransactionDetailScreen(transactionId: 'record'),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Submitted by: Alice (guest)'),
+        guest == null ? findsNothing : findsOneWidget,
+      );
+    }
+  });
   testWidgets(
     'named rate record is selected independently of its currency code',
     (tester) async {
@@ -191,7 +219,7 @@ Widget _app({
   ),
 );
 
-LedgerTransaction _record(bool archived) => LedgerTransaction(
+LedgerTransaction _record(bool archived, {String? guest}) => LedgerTransaction(
   id: 'record',
   categoryId: 'food',
   categoryName: 'Food',
@@ -217,6 +245,7 @@ LedgerTransaction _record(bool archived) => LedgerTransaction(
   note: null,
   createdAtUtc: 1,
   updatedAtUtc: 1,
+  submittedByGuest: guest,
 );
 
 Finder _field(String label) => find.byWidgetPredicate(

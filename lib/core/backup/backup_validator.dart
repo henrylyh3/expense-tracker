@@ -44,6 +44,7 @@ const backupColumns = <String, List<String>>{
     'updated_at_utc',
     'trip_id',
     'amount_decimal_places',
+    'submitted_by_guest',
   ],
   'trips': ['id', 'name'],
   'trip_rates': ['trip_id', 'currency_code', 'rate_to_myr', 'name', 'rate_id'],
@@ -95,7 +96,7 @@ final class ValidatedBackup {
   Map<String, Object?> toDocument() => {
     'format': 'expense-tracker',
     'format_version': 1,
-    'schema_version': 5,
+    'schema_version': 6,
     'app_version': appVersion,
     'exported_at_utc': exportedAtUtc.toIso8601String(),
     'base_currency': 'MYR',
@@ -188,7 +189,7 @@ abstract final class BackupValidator {
     return fromDocument({
       'format': 'expense-tracker',
       'format_version': 1,
-      'schema_version': 5,
+      'schema_version': 6,
       'app_version': appVersion,
       'exported_at_utc': exportedAtUtc.toUtc().toIso8601String(),
       'base_currency': 'MYR',
@@ -219,7 +220,7 @@ abstract final class BackupValidator {
         root['format_version'] is! int ||
         root['format_version'] != 1 ||
         root['schema_version'] is! int ||
-        !{1, 2, 3, 4, 5}.contains(root['schema_version'])) {
+        !{1, 2, 3, 4, 5, 6}.contains(root['schema_version'])) {
       throw const LedgerException(
         'This backup format or schema version is not supported.',
       );
@@ -264,6 +265,7 @@ abstract final class BackupValidator {
                         (!legacy || column != 'trip_id') &&
                         (schema >= 4 || column != 'rate_id') &&
                         (schema >= 5 || column != 'amount_decimal_places') &&
+                        (schema >= 6 || column != 'submitted_by_guest') &&
                         (schema != 2 ||
                             name != 'trip_rates' ||
                             column != 'name'),
@@ -277,6 +279,11 @@ abstract final class BackupValidator {
     if (schema < 5) {
       for (final row in tables['transactions']!) {
         row['amount_decimal_places'] = null;
+      }
+    }
+    if (schema < 6) {
+      for (final row in tables['transactions']!) {
+        row['submitted_by_guest'] = null;
       }
     }
     if (legacy) {
@@ -438,6 +445,15 @@ abstract final class BackupValidator {
       row['amount_minor'] = amount;
       row['amount_myr_minor'] = myr;
       CalendarDate.parse(_text(row, 'transaction_date', 10));
+      final submitter = row['submitted_by_guest'];
+      if (submitter != null &&
+          (submitter is! String ||
+              submitter.isEmpty ||
+              submitter != submitter.trim() ||
+              submitter.runes.length > 80 ||
+              !_validUnicode(submitter))) {
+        _invalid('The guest submitter name is invalid.');
+      }
       final note = row['note'];
       if (note != null) {
         if (note is! String ||

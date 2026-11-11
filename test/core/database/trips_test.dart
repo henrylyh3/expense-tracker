@@ -160,6 +160,7 @@ void main() {
       }
       for (final row in legacyData['transactions']! as List) {
         (row as Map).remove('amount_decimal_places');
+        row.remove('submitted_by_guest');
       }
       final upgradedBackup = BackupValidator.fromDocument(legacy);
       expect(upgradedBackup.tables['currency_rates']!.length, 2);

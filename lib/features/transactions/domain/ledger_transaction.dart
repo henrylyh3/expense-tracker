@@ -19,6 +19,7 @@ class LedgerTransaction {
     required this.note,
     required this.createdAtUtc,
     required this.updatedAtUtc,
+    this.submittedByGuest,
   });
   final String id;
   final String categoryId;
@@ -33,4 +34,5 @@ class LedgerTransaction {
   final String? note;
   final int createdAtUtc;
   final int updatedAtUtc;
+  final String? submittedByGuest;
 }

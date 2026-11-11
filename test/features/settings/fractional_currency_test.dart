@@ -57,7 +57,7 @@ void main() {
       expect(report.currencyTotals.single.toInput(), '100.125');
       final service = BackupService(db);
       final backup = BackupValidator.decode(await service.exportBytes());
-      expect(backup.toDocument()['schema_version'], 5);
+      expect(backup.toDocument()['schema_version'], 6);
       await service.restore(backup);
       expect(
         (await repo.getById(fractional)).conversion.original.toInput(),

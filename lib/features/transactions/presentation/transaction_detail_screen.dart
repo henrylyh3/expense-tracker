@@ -87,6 +87,8 @@ class TransactionDetailScreen extends ConsumerWidget {
                       const SizedBox(height: 8),
                       Text('Expense · ${item.categoryName}'),
                       Text('Date: ${item.date}'),
+                      if (item.submittedByGuest case final name?)
+                        Text('Submitted by: $name (guest)'),
                       const SizedBox(height: 24),
                       Card(
                         child: Padding(

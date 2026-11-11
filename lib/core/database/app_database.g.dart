@@ -2100,6 +2100,17 @@ class Transactions extends Table with TableInfo<Transactions, Transaction> {
     $customConstraints:
         'CHECK (amount_decimal_places IS NULL OR(typeof(amount_decimal_places) = \'integer\' AND amount_decimal_places BETWEEN 0 AND 6 AND(currency_code <> \'MYR\' OR amount_decimal_places = 2)))',
   );
+  static const VerificationMeta _submittedByGuestMeta = const VerificationMeta(
+    'submittedByGuest',
+  );
+  late final GeneratedColumn<String> submittedByGuest = GeneratedColumn<String>(
+    'submitted_by_guest',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    $customConstraints: '',
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -2115,6 +2126,7 @@ class Transactions extends Table with TableInfo<Transactions, Transaction> {
     updatedAtUtc,
     tripId,
     amountDecimalPlaces,
+    submittedByGuest,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -2247,6 +2259,15 @@ class Transactions extends Table with TableInfo<Transactions, Transaction> {
         ),
       );
     }
+    if (data.containsKey('submitted_by_guest')) {
+      context.handle(
+        _submittedByGuestMeta,
+        submittedByGuest.isAcceptableOrUnknown(
+          data['submitted_by_guest']!,
+          _submittedByGuestMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -2308,6 +2329,10 @@ class Transactions extends Table with TableInfo<Transactions, Transaction> {
         DriftSqlType.int,
         data['${effectivePrefix}amount_decimal_places'],
       ),
+      submittedByGuest: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}submitted_by_guest'],
+      ),
     );
   }
 
@@ -2338,6 +2363,7 @@ class Transaction extends DataClass implements Insertable<Transaction> {
   final int updatedAtUtc;
   final String tripId;
   final int? amountDecimalPlaces;
+  final String? submittedByGuest;
   const Transaction({
     required this.id,
     required this.categoryId,
@@ -2352,6 +2378,7 @@ class Transaction extends DataClass implements Insertable<Transaction> {
     required this.updatedAtUtc,
     required this.tripId,
     this.amountDecimalPlaces,
+    this.submittedByGuest,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -2373,6 +2400,9 @@ class Transaction extends DataClass implements Insertable<Transaction> {
     if (!nullToAbsent || amountDecimalPlaces != null) {
       map['amount_decimal_places'] = Variable<int>(amountDecimalPlaces);
     }
+    if (!nullToAbsent || submittedByGuest != null) {
+      map['submitted_by_guest'] = Variable<String>(submittedByGuest);
+    }
     return map;
   }
 
@@ -2393,6 +2423,9 @@ class Transaction extends DataClass implements Insertable<Transaction> {
       amountDecimalPlaces: amountDecimalPlaces == null && nullToAbsent
           ? const Value.absent()
           : Value(amountDecimalPlaces),
+      submittedByGuest: submittedByGuest == null && nullToAbsent
+          ? const Value.absent()
+          : Value(submittedByGuest),
     );
   }
 
@@ -2419,6 +2452,9 @@ class Transaction extends DataClass implements Insertable<Transaction> {
       amountDecimalPlaces: serializer.fromJson<int?>(
         json['amount_decimal_places'],
       ),
+      submittedByGuest: serializer.fromJson<String?>(
+        json['submitted_by_guest'],
+      ),
     );
   }
   @override
@@ -2438,6 +2474,7 @@ class Transaction extends DataClass implements Insertable<Transaction> {
       'updated_at_utc': serializer.toJson<int>(updatedAtUtc),
       'trip_id': serializer.toJson<String>(tripId),
       'amount_decimal_places': serializer.toJson<int?>(amountDecimalPlaces),
+      'submitted_by_guest': serializer.toJson<String?>(submittedByGuest),
     };
   }
 
@@ -2455,6 +2492,7 @@ class Transaction extends DataClass implements Insertable<Transaction> {
     int? updatedAtUtc,
     String? tripId,
     Value<int?> amountDecimalPlaces = const Value.absent(),
+    Value<String?> submittedByGuest = const Value.absent(),
   }) => Transaction(
     id: id ?? this.id,
     categoryId: categoryId ?? this.categoryId,
@@ -2471,6 +2509,9 @@ class Transaction extends DataClass implements Insertable<Transaction> {
     amountDecimalPlaces: amountDecimalPlaces.present
         ? amountDecimalPlaces.value
         : this.amountDecimalPlaces,
+    submittedByGuest: submittedByGuest.present
+        ? submittedByGuest.value
+        : this.submittedByGuest,
   );
   Transaction copyWithCompanion(TransactionsCompanion data) {
     return Transaction(
@@ -2505,6 +2546,9 @@ class Transaction extends DataClass implements Insertable<Transaction> {
       amountDecimalPlaces: data.amountDecimalPlaces.present
           ? data.amountDecimalPlaces.value
           : this.amountDecimalPlaces,
+      submittedByGuest: data.submittedByGuest.present
+          ? data.submittedByGuest.value
+          : this.submittedByGuest,
     );
   }
 
@@ -2523,7 +2567,8 @@ class Transaction extends DataClass implements Insertable<Transaction> {
           ..write('createdAtUtc: $createdAtUtc, ')
           ..write('updatedAtUtc: $updatedAtUtc, ')
           ..write('tripId: $tripId, ')
-          ..write('amountDecimalPlaces: $amountDecimalPlaces')
+          ..write('amountDecimalPlaces: $amountDecimalPlaces, ')
+          ..write('submittedByGuest: $submittedByGuest')
           ..write(')'))
         .toString();
   }
@@ -2543,6 +2588,7 @@ class Transaction extends DataClass implements Insertable<Transaction> {
     updatedAtUtc,
     tripId,
     amountDecimalPlaces,
+    submittedByGuest,
   );
   @override
   bool operator ==(Object other) =>
@@ -2560,7 +2606,8 @@ class Transaction extends DataClass implements Insertable<Transaction> {
           other.createdAtUtc == this.createdAtUtc &&
           other.updatedAtUtc == this.updatedAtUtc &&
           other.tripId == this.tripId &&
-          other.amountDecimalPlaces == this.amountDecimalPlaces);
+          other.amountDecimalPlaces == this.amountDecimalPlaces &&
+          other.submittedByGuest == this.submittedByGuest);
 }
 
 class TransactionsCompanion extends UpdateCompanion<Transaction> {
@@ -2577,6 +2624,7 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
   final Value<int> updatedAtUtc;
   final Value<String> tripId;
   final Value<int?> amountDecimalPlaces;
+  final Value<String?> submittedByGuest;
   final Value<int> rowid;
   const TransactionsCompanion({
     this.id = const Value.absent(),
@@ -2592,6 +2640,7 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
     this.updatedAtUtc = const Value.absent(),
     this.tripId = const Value.absent(),
     this.amountDecimalPlaces = const Value.absent(),
+    this.submittedByGuest = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   TransactionsCompanion.insert({
@@ -2608,6 +2657,7 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
     required int updatedAtUtc,
     this.tripId = const Value.absent(),
     this.amountDecimalPlaces = const Value.absent(),
+    this.submittedByGuest = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        categoryId = Value(categoryId),
@@ -2633,6 +2683,7 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
     Expression<int>? updatedAtUtc,
     Expression<String>? tripId,
     Expression<int>? amountDecimalPlaces,
+    Expression<String>? submittedByGuest,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -2651,6 +2702,7 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
       if (tripId != null) 'trip_id': tripId,
       if (amountDecimalPlaces != null)
         'amount_decimal_places': amountDecimalPlaces,
+      if (submittedByGuest != null) 'submitted_by_guest': submittedByGuest,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -2669,6 +2721,7 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
     Value<int>? updatedAtUtc,
     Value<String>? tripId,
     Value<int?>? amountDecimalPlaces,
+    Value<String?>? submittedByGuest,
     Value<int>? rowid,
   }) {
     return TransactionsCompanion(
@@ -2685,6 +2738,7 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
       updatedAtUtc: updatedAtUtc ?? this.updatedAtUtc,
       tripId: tripId ?? this.tripId,
       amountDecimalPlaces: amountDecimalPlaces ?? this.amountDecimalPlaces,
+      submittedByGuest: submittedByGuest ?? this.submittedByGuest,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -2733,6 +2787,9 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
     if (amountDecimalPlaces.present) {
       map['amount_decimal_places'] = Variable<int>(amountDecimalPlaces.value);
     }
+    if (submittedByGuest.present) {
+      map['submitted_by_guest'] = Variable<String>(submittedByGuest.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -2755,6 +2812,7 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
           ..write('updatedAtUtc: $updatedAtUtc, ')
           ..write('tripId: $tripId, ')
           ..write('amountDecimalPlaces: $amountDecimalPlaces, ')
+          ..write('submittedByGuest: $submittedByGuest, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -6422,6 +6480,7 @@ typedef $TransactionsCreateCompanionBuilder =
       required int updatedAtUtc,
       Value<String> tripId,
       Value<int?> amountDecimalPlaces,
+      Value<String?> submittedByGuest,
       Value<int> rowid,
     });
 typedef $TransactionsUpdateCompanionBuilder =
@@ -6439,6 +6498,7 @@ typedef $TransactionsUpdateCompanionBuilder =
       Value<int> updatedAtUtc,
       Value<String> tripId,
       Value<int?> amountDecimalPlaces,
+      Value<String?> submittedByGuest,
       Value<int> rowid,
     });
 
@@ -6554,6 +6614,11 @@ class $TransactionsFilterComposer
 
   ColumnFilters<int> get amountDecimalPlaces => $composableBuilder(
     column: $table.amountDecimalPlaces,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get submittedByGuest => $composableBuilder(
+    column: $table.submittedByGuest,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -6686,6 +6751,11 @@ class $TransactionsOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get submittedByGuest => $composableBuilder(
+    column: $table.submittedByGuest,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $CategoriesOrderingComposer get categoryId {
     final $CategoriesOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -6809,6 +6879,11 @@ class $TransactionsAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<String> get submittedByGuest => $composableBuilder(
+    column: $table.submittedByGuest,
+    builder: (column) => column,
+  );
+
   $CategoriesAnnotationComposer get categoryId {
     final $CategoriesAnnotationComposer composer = $composerBuilder(
       composer: this,
@@ -6924,6 +6999,7 @@ class $TransactionsTableManager
                 Value<int> updatedAtUtc = const Value.absent(),
                 Value<String> tripId = const Value.absent(),
                 Value<int?> amountDecimalPlaces = const Value.absent(),
+                Value<String?> submittedByGuest = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => TransactionsCompanion(
                 id: id,
@@ -6939,6 +7015,7 @@ class $TransactionsTableManager
                 updatedAtUtc: updatedAtUtc,
                 tripId: tripId,
                 amountDecimalPlaces: amountDecimalPlaces,
+                submittedByGuest: submittedByGuest,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -6956,6 +7033,7 @@ class $TransactionsTableManager
                 required int updatedAtUtc,
                 Value<String> tripId = const Value.absent(),
                 Value<int?> amountDecimalPlaces = const Value.absent(),
+                Value<String?> submittedByGuest = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => TransactionsCompanion.insert(
                 id: id,
@@ -6971,6 +7049,7 @@ class $TransactionsTableManager
                 updatedAtUtc: updatedAtUtc,
                 tripId: tripId,
                 amountDecimalPlaces: amountDecimalPlaces,
+                submittedByGuest: submittedByGuest,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

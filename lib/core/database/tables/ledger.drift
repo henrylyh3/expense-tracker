@@ -130,6 +130,7 @@ CREATE TABLE transactions (
     (typeof(amount_decimal_places) = 'integer' AND amount_decimal_places BETWEEN 0 AND 6
       AND (currency_code <> 'MYR' OR amount_decimal_places = 2))
   ),
+  submitted_by_guest TEXT,
   CHECK (currency_code <> 'MYR' OR
     (exchange_rate_snapshot = '1' AND amount_myr_minor = amount_minor))
 );

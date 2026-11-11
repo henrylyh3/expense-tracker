@@ -6,6 +6,9 @@ import 'package:expense_tracker/core/models/ledger_types.dart';
 import 'package:expense_tracker/core/sharing/discord_api.dart';
 import 'package:expense_tracker/core/sharing/sharing_cipher.dart';
 import 'package:expense_tracker/core/sharing/sharing_service.dart';
+import 'package:expense_tracker/core/backup/backup_service.dart';
+import 'package:expense_tracker/core/backup/backup_validator.dart';
+import 'package:expense_tracker/features/transactions/data/transaction_repository.dart';
 import 'package:flutter_test/flutter_test.dart';
 import '../../support/fake_discord.dart';
 
@@ -269,7 +272,7 @@ void main() {
     );
   });
   test(
-    'one-way browser expenses import without sending host acknowledgements',
+    'one-way browser expenses retain the invitation name after revocation and restore',
     () async {
       final link = Uri.parse(
         await host.inviteDiscordWeb(
@@ -290,6 +293,7 @@ void main() {
             'request': '12345678-1234-4234-8234-12345678910$n',
             'submission': '12345678-1234-4234-8234-12345678920$n',
             'expense': {
+              'submitted_by_guest': 'Untrusted payload name',
               'category': 'seed-food',
               'currency': 'MYR',
               'amount': n == 1 ? '-1' : '12.50',
@@ -308,10 +312,9 @@ void main() {
       }
       api.failReply = true;
       await host.pollDiscord();
-      final count = await hostDb
-          .customSelect('SELECT count(*) AS n FROM transactions')
-          .getSingle();
-      expect(count.read<int>('n'), 2);
+      final repository = TransactionRepository(hostDb);
+      final items = await repository.watchHistory().first;
+      expect(items.map((item) => item.submittedByGuest), ['Alice', 'Alice']);
       expect(api.failReply, isTrue);
       expect(
         api.inbox
@@ -321,6 +324,18 @@ void main() {
                   (message['payload'] as Map)['direction'] == 'request',
             ),
         isTrue,
+      );
+      await host.revoke(id);
+      expect(
+        (await repository.getById(items.first.id)).submittedByGuest,
+        'Alice',
+      );
+      final backup = BackupService(hostDb);
+      final exported = BackupValidator.decode(await backup.exportBytes());
+      await backup.restore(exported);
+      expect(
+        (await repository.getById(items.first.id)).submittedByGuest,
+        'Alice',
       );
     },
   );

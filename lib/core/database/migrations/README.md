@@ -1,7 +1,7 @@
 # Migration policy
 
 Schema version 1 creates tables/indexes/triggers and seeds defaults once.
-Schemas 1–5 upgrade to schema 6 without reseeding. Schema 6 adds nullable per-expense amount precision; old rows retain the original currency-scale interpretation. Unknown future versions fail safely.
+Schemas 1–6 upgrade to schema 7 without reseeding. Schema 6 adds nullable per-expense amount precision; old rows retain the original currency-scale interpretation. Schema 7 stores the guest name on the expense and recovers it from existing invitation receipts where available. Unknown future versions fail safely.
 
 The real v1 snapshot/helper are now generated and host-tested. Normal checks use
 `bash tool/check_schema.sh` to compare a temporary export without overwriting
@@ -15,7 +15,7 @@ dart run drift_dev schema generate drift_schemas/ test/generated_migrations/
 
 Commit generated `.g.dart`, `pubspec.lock`, exported snapshots and historical
 test helpers with the source. Never handwrite generated code. The baseline tests
-compare fresh creation to exported v6, preserve data from old schemas (including v1, v2 and v5), and reject a synthetic future database without changing its schema/data.
+compare fresh creation to exported v7, preserve data from old schemas (including v1, v2, v5 and v6), and reject a synthetic future database without changing its schema/data.
 
 For each future change, retain snapshots, increment schemaVersion, implement
 ordered migrations using Drift tooling, regenerate and test all supported

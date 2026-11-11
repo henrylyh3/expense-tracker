@@ -51,7 +51,7 @@ class AppDatabase extends _$AppDatabase {
   });
 
   @override
-  int get schemaVersion => 6;
+  int get schemaVersion => 7;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -61,7 +61,7 @@ class AppDatabase extends _$AppDatabase {
       await _seedPersonalTrip();
     }),
     onUpgrade: (migrator, from, to) async {
-      if (from < 1 || from >= 6 || to != 6) {
+      if (from < 1 || from >= 7 || to != 7) {
         throw UnsupportedError('No migration from schema $from to $to.');
       }
       await transaction(() async {
@@ -94,10 +94,19 @@ class AppDatabase extends _$AppDatabase {
             "UPDATE trip_rates SET rate_id = 'trip:' || trip_id || ':' || currency_code",
           );
         }
-        await migrator.addColumn(
-          transactions,
-          transactions.amountDecimalPlaces,
-        );
+        if (from < 6) {
+          await migrator.addColumn(
+            transactions,
+            transactions.amountDecimalPlaces,
+          );
+        }
+        await migrator.addColumn(transactions, transactions.submittedByGuest);
+        await customStatement('''
+          UPDATE transactions AS t SET submitted_by_guest = s.name
+          FROM shared_receipts r JOIN shared_sessions s ON s.id = r.session_id
+          WHERE r.transaction_id = t.id
+            AND s.role = 'host' AND s.trip_id = t.trip_id
+        ''');
       });
     },
     beforeOpen: (details) async {

@@ -88,6 +88,7 @@ class TransactionRepository {
     String? sharedSessionId,
     String? sharedRequestId,
   }) => _database.writeTransaction(() async {
+    String? submittedByGuest;
     if (sharedSessionId != null && sharedRequestId != null) {
       final receipt = await _database
           .customSelect(
@@ -101,7 +102,7 @@ class TransactionRepository {
       if (receipt != null) return receipt.read<String>('transaction_id');
       final session = await _database
           .customSelect(
-            "SELECT 1 FROM shared_sessions WHERE id = ? AND role = 'host' AND trip_id = ?",
+            "SELECT name FROM shared_sessions WHERE id = ? AND role = 'host' AND trip_id = ?",
             variables: [
               Variable.withString(sharedSessionId),
               Variable<String>(sharedTripId),
@@ -115,6 +116,7 @@ class TransactionRepository {
           'This shared trip invitation is no longer active.',
         );
       }
+      submittedByGuest = session.read<String>('name');
     }
     final previous = id == null ? null : await getById(id);
     if (previous != null) _checkRevision(previous, expectedUpdatedAtUtc);
@@ -182,8 +184,8 @@ class TransactionRepository {
       final newId = const Uuid().v4();
       await _database.customInsert(
         '''INSERT INTO transactions (id, category_id, type, amount_minor, currency_code,
-          exchange_rate_snapshot, amount_myr_minor, transaction_date, note, created_at_utc, updated_at_utc, trip_id, amount_decimal_places)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+          exchange_rate_snapshot, amount_myr_minor, transaction_date, note, created_at_utc, updated_at_utc, trip_id, amount_decimal_places, submitted_by_guest)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
         variables: [
           Variable<String>(newId),
           Variable<String>(input.categoryId),
@@ -198,6 +200,7 @@ class TransactionRepository {
           Variable<int>(now),
           Variable.withString(tripId),
           Variable.withInt(conversion.original.decimalPlaces),
+          Variable<String>(submittedByGuest),
         ],
         updates: {_database.transactions},
       );
@@ -290,5 +293,6 @@ class TransactionRepository {
     note: row.readNullable<String>('note'),
     createdAtUtc: row.read<int>('created_at_utc'),
     updatedAtUtc: row.read<int>('updated_at_utc'),
+    submittedByGuest: row.readNullable<String>('submitted_by_guest'),
   );
 }
