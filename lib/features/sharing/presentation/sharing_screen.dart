@@ -77,12 +77,8 @@ class _SharingScreenState extends ConsumerState<SharingScreen> {
   Widget build(BuildContext context) {
     final service = ref.watch(sharingServiceProvider);
     final sessions = ref.watch(sharedSessionsProvider);
-    final active =
-        ref.watch(activeTripProvider).asData?.value ?? personalTripId;
+    final active = ref.watch(activeTripProvider).asData?.value;
     final trips = ref.watch(tripsProvider).asData?.value ?? [];
-    final tripName =
-        trips.where((trip) => trip.id == active).firstOrNull?.name ??
-        'Personal';
     final selected = sessions.asData?.value
         .where((row) => row['id'] == widget.sessionId)
         .firstOrNull;
@@ -96,7 +92,7 @@ class _SharingScreenState extends ConsumerState<SharingScreen> {
             style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
           ),
           const Text(
-            'The host keeps the ledger. Share over local Wi-Fi or through encrypted internet messages relayed by Discord. Keep the host app open to process expenses. Guests can queue offline after their first sync.',
+            'The host keeps the ledger. Encrypted invitations let guests send expenses over the internet. Open the host app to import them.',
           ),
           if (_busy) const LinearProgressIndicator(),
           if (_message != null)
@@ -139,50 +135,27 @@ class _SharingScreenState extends ConsumerState<SharingScreen> {
                     if (ref.watch(discordSettingsProvider).asData?.value !=
                         null) ...[
                       FilledButton(
-                        onPressed: _busy
+                        onPressed: _busy || active == null || trips.isEmpty
                             ? null
-                            : () => _run(() async {
-                                final guest = await _text(
-                                  context,
-                                  'Invite internet guest',
-                                  'Guest name',
-                                );
-                                if (guest == null) return;
-                                final code = await service.inviteDiscord(
-                                  active,
-                                  guest,
-                                );
-                                if (!context.mounted) return;
-                                await _showInvitation(context, code);
-                              }),
+                            : () => _run(
+                                () =>
+                                    _invite(service, trips, active, web: false),
+                              ),
                         child: const Text('Invite guest over internet'),
                       ),
                       OutlinedButton.icon(
                         icon: const Icon(Icons.link),
                         label: const Text('Invite guest by web link'),
-                        onPressed: _busy || guestWebUrl.isEmpty
+                        onPressed:
+                            _busy ||
+                                active == null ||
+                                trips.isEmpty ||
+                                guestWebUrl.isEmpty
                             ? null
-                            : () => _run(() async {
-                                final details = await showDialog<(String, int)>(
-                                  context: context,
-                                  builder: (_) => const _WebInvitationDialog(),
-                                );
-                                if (details == null || !context.mounted) return;
-                                final link = await service.inviteDiscordWeb(
-                                  active,
-                                  details.$1,
-                                  Uri.parse(guestWebUrl),
-                                  validFor: Duration(days: details.$2),
-                                );
-                                if (!context.mounted) return;
-                                await _showInvitation(
-                                  context,
-                                  link,
-                                  expiryLabel: details.$2 == 1
-                                      ? 'Expires after 24 hours. You can revoke access sooner.'
-                                      : 'Expires after ${details.$2} days. You can revoke access sooner.',
-                                );
-                              }),
+                            : () => _run(
+                                () =>
+                                    _invite(service, trips, active, web: true),
+                              ),
                       ),
                       OutlinedButton(
                         onPressed: _busy
@@ -212,95 +185,6 @@ class _SharingScreenState extends ConsumerState<SharingScreen> {
                 ),
               ),
             ),
-            const SizedBox(height: 16),
-            Text(
-              'Host trip: $tripName',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            const Text(
-              'Change the default trip in Trips and profiles to host a different trip.',
-            ),
-            FilledButton.icon(
-              onPressed: _busy
-                  ? null
-                  : () => _run(() async {
-                      if (service.hosting) {
-                        await service.stopHost();
-                      } else {
-                        await service.startHost();
-                      }
-                      if (mounted) setState(() {});
-                    }),
-              icon: Icon(
-                service.hosting
-                    ? Icons.stop_circle_outlined
-                    : Icons.wifi_tethering,
-              ),
-              label: Text(service.hosting ? 'Stop hosting' : 'Start hosting'),
-            ),
-            if (service.hosting)
-              OutlinedButton(
-                onPressed: _busy
-                    ? null
-                    : () => _run(() async {
-                        final addresses = await service.hostAddresses();
-                        if (!context.mounted) return;
-                        final guest = await _text(
-                          context,
-                          'Invite a guest',
-                          'Guest name',
-                        );
-                        if (guest == null || !context.mounted) return;
-                        final endpoint = await _text(
-                          context,
-                          'Host address',
-                          'Host Wi-Fi / hotspot address',
-                          initial: addresses.isEmpty
-                              ? ''
-                              : 'http://${addresses.first}:${service.port}',
-                        );
-                        if (endpoint == null || !context.mounted) return;
-                        final code = await service.invite(
-                          active,
-                          guest,
-                          endpoint,
-                        );
-                        if (!context.mounted) return;
-                        await showDialog<void>(
-                          context: context,
-                          builder: (context) => AlertDialog(
-                            title: const Text('Guest invitation'),
-                            scrollable: true,
-                            content: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Text(
-                                  'Share this code privately with this guest. It grants access to this trip. Create a separate invitation for each person.',
-                                ),
-                                const SizedBox(height: 12),
-                                SelectableText(code),
-                              ],
-                            ),
-                            actions: [
-                              TextButton(
-                                onPressed: () async {
-                                  await Clipboard.setData(
-                                    ClipboardData(text: code),
-                                  );
-                                  if (context.mounted) Navigator.pop(context);
-                                },
-                                child: const Text('Copy invitation'),
-                              ),
-                              TextButton(
-                                onPressed: () => Navigator.pop(context),
-                                child: const Text('Done'),
-                              ),
-                            ],
-                          ),
-                        );
-                      }),
-                child: const Text('Invite guest to this trip'),
-              ),
             OutlinedButton.icon(
               onPressed: _busy
                   ? null
@@ -310,7 +194,9 @@ class _SharingScreenState extends ConsumerState<SharingScreen> {
                         'Join shared trip',
                         'Paste invitation',
                       );
-                      if (code != null) await service.join(code.trim());
+                      if (code != null) {
+                        await service.join(code.trim(), internetOnly: true);
+                      }
                     }),
               icon: const Icon(Icons.group_add_outlined),
               label: const Text('Join using invitation'),
@@ -352,6 +238,37 @@ class _SharingScreenState extends ConsumerState<SharingScreen> {
     );
   }
 
+  Future<void> _invite(
+    SharingService service,
+    List<({String id, String name})> trips,
+    String active, {
+    required bool web,
+  }) async {
+    final details = await showDialog<({String guest, String trip, int days})>(
+      context: context,
+      builder: (_) => _InvitationDialog(trips: trips, active: active, web: web),
+    );
+    if (details == null || !mounted) return;
+    final code = web
+        ? await service.inviteDiscordWeb(
+            details.trip,
+            details.guest,
+            Uri.parse(guestWebUrl),
+            validFor: Duration(days: details.days),
+          )
+        : await service.inviteDiscord(details.trip, details.guest);
+    if (!mounted) return;
+    await _showInvitation(
+      context,
+      code,
+      expiryLabel: web
+          ? details.days == 1
+                ? 'Expires after 24 hours. You can revoke access sooner.'
+                : 'Expires after ${details.days} days. You can revoke access sooner.'
+          : null,
+    );
+  }
+
   List<Widget> _session(
     BuildContext context,
     SharingService service,
@@ -371,24 +288,25 @@ class _SharingScreenState extends ConsumerState<SharingScreen> {
         data?['name'] as String? ?? session['name'] as String,
         style: Theme.of(context).textTheme.headlineSmall,
       ),
+      if (!internet)
+        const Text(
+          'This invitation used local sharing. Create a new internet invitation to share this trip.',
+        ),
       if (guest) ...[
         if (internet)
           const Text(
             'Send queued expenses, then sync again after the host processes them. Pending items remain here until confirmed.',
           ),
-        Text(
-          internet
-              ? 'Internet sharing · encrypted relay via Discord'
-              : 'Host address: ${session['endpoint']}',
-        ),
         Text('${pending.length} expenses waiting to sync'),
         FilledButton.icon(
-          onPressed: _busy ? null : () => _run(() => service.sync(id)),
+          onPressed: _busy || !internet
+              ? null
+              : () => _run(() => service.sync(id)),
           icon: const Icon(Icons.sync),
           label: const Text('Sync with host'),
         ),
         OutlinedButton.icon(
-          onPressed: _busy || data == null
+          onPressed: _busy || !internet || data == null
               ? null
               : () => _run(() async {
                   final expense = await _expense(context, data);
@@ -405,23 +323,6 @@ class _SharingScreenState extends ConsumerState<SharingScreen> {
           icon: const Icon(Icons.add),
           label: const Text('Add shared expense'),
         ),
-        if (!internet)
-          TextButton(
-            onPressed: _busy
-                ? null
-                : () => _run(() async {
-                    final endpoint = await _text(
-                      context,
-                      'Update host address',
-                      'Host Wi-Fi / hotspot address',
-                      initial: session['endpoint'] as String,
-                    );
-                    if (endpoint != null) {
-                      await service.updateEndpoint(id, endpoint.trim());
-                    }
-                  }),
-            child: const Text('Update host address'),
-          ),
         for (final item in pending)
           ListTile(
             title: Text(
@@ -522,19 +423,13 @@ class _SharingScreenState extends ConsumerState<SharingScreen> {
   }
 }
 
-Future<String?> _text(
-  BuildContext context,
-  String title,
-  String label, {
-  String initial = '',
-}) {
-  var value = initial;
+Future<String?> _text(BuildContext context, String title, String label) {
+  var value = '';
   return showDialog<String>(
     context: context,
     builder: (context) => AlertDialog(
       title: Text(title),
       content: TextFormField(
-        initialValue: initial,
         maxLines: null,
         decoration: InputDecoration(labelText: label),
         onChanged: (text) => value = text,
@@ -709,15 +604,27 @@ Future<void> _showInvitation(
   ),
 );
 
-class _WebInvitationDialog extends StatefulWidget {
-  const _WebInvitationDialog();
+class _InvitationDialog extends StatefulWidget {
+  const _InvitationDialog({
+    required this.trips,
+    required this.active,
+    required this.web,
+  });
+
+  final List<({String id, String name})> trips;
+  final String active;
+  final bool web;
+
   @override
-  State<_WebInvitationDialog> createState() => _WebInvitationDialogState();
+  State<_InvitationDialog> createState() => _InvitationDialogState();
 }
 
-class _WebInvitationDialogState extends State<_WebInvitationDialog> {
+class _InvitationDialogState extends State<_InvitationDialog> {
   final _name = TextEditingController();
   int _days = 7;
+  late String _trip = widget.trips.any((trip) => trip.id == widget.active)
+      ? widget.active
+      : widget.trips.first.id;
   @override
   void dispose() {
     _name.dispose();
@@ -726,7 +633,8 @@ class _WebInvitationDialogState extends State<_WebInvitationDialog> {
 
   @override
   Widget build(BuildContext context) => AlertDialog(
-    title: const Text('Invite a web guest'),
+    title: Text(widget.web ? 'Invite a web guest' : 'Invite internet guest'),
+    scrollable: true,
     content: Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -738,16 +646,34 @@ class _WebInvitationDialogState extends State<_WebInvitationDialog> {
           onChanged: (_) => setState(() {}),
         ),
         const SizedBox(height: 12),
-        DropdownButtonFormField<int>(
-          initialValue: _days,
-          decoration: const InputDecoration(labelText: 'Access expires after'),
-          items: const [
-            DropdownMenuItem(value: 1, child: Text('24 hours')),
-            DropdownMenuItem(value: 7, child: Text('7 days')),
-            DropdownMenuItem(value: 30, child: Text('30 days')),
+        DropdownButtonFormField<String>(
+          initialValue: _trip,
+          isExpanded: true,
+          decoration: const InputDecoration(labelText: 'Trip or profile'),
+          items: [
+            for (final trip in widget.trips)
+              DropdownMenuItem(
+                value: trip.id,
+                child: Text(trip.name, overflow: TextOverflow.ellipsis),
+              ),
           ],
-          onChanged: (value) => setState(() => _days = value!),
+          onChanged: (value) => setState(() => _trip = value!),
         ),
+        if (widget.web) ...[
+          const SizedBox(height: 12),
+          DropdownButtonFormField<int>(
+            initialValue: _days,
+            decoration: const InputDecoration(
+              labelText: 'Access expires after',
+            ),
+            items: const [
+              DropdownMenuItem(value: 1, child: Text('24 hours')),
+              DropdownMenuItem(value: 7, child: Text('7 days')),
+              DropdownMenuItem(value: 30, child: Text('30 days')),
+            ],
+            onChanged: (value) => setState(() => _days = value!),
+          ),
+        ],
       ],
     ),
     actions: [
@@ -758,8 +684,12 @@ class _WebInvitationDialogState extends State<_WebInvitationDialog> {
       FilledButton(
         onPressed: _name.text.trim().isEmpty
             ? null
-            : () => Navigator.pop(context, (_name.text.trim(), _days)),
-        child: const Text('Create link'),
+            : () => Navigator.pop(context, (
+                guest: _name.text.trim(),
+                trip: _trip,
+                days: _days,
+              )),
+        child: Text(widget.web ? 'Create link' : 'Create invitation'),
       ),
     ],
   );

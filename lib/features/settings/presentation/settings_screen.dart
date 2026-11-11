@@ -32,9 +32,7 @@ class SettingsScreen extends ConsumerWidget {
             ListTile(
               leading: const Icon(Icons.group_outlined),
               title: const Text('Shared trips'),
-              subtitle: const Text(
-                'Invite guests over internet or local Wi-Fi',
-              ),
+              subtitle: const Text('Invite guests over the internet'),
               onTap: () => context.push('/settings/sharing'),
             ),
             ListTile(
@@ -145,7 +143,7 @@ class SettingsScreen extends ConsumerWidget {
               leading: Icon(Icons.shield_outlined),
               title: Text('Stored on this device'),
               subtitle: Text(
-                'Your ledger stays on this device. Optional sharing uses local Wi-Fi or encrypted messages through Discord. Base currency: MYR. '
+                'Your ledger stays on this device. Optional sharing uses encrypted messages through Discord. Base currency: MYR. '
                 'Backups are saved or shared only when you choose.',
               ),
             ),

@@ -144,7 +144,7 @@ class SharingService {
     return 'expense-trip:${base64UrlEncode(utf8.encode(jsonEncode({'version': 1, 'id': id, 'key': key, 'endpoint': uri.toString(), 'name': name})))}';
   }
 
-  Future<void> join(String invitation) async {
+  Future<void> join(String invitation, {bool internetOnly = false}) async {
     if (invitation.length > 4096 || !invitation.startsWith('expense-trip:')) {
       throw const LedgerException('Paste a complete trip invitation.');
     }
@@ -164,6 +164,11 @@ class SharingService {
           !Uuid.isValidUUID(fromString: id) ||
           base64Url.decode(key).length != 32) {
         throw const FormatException();
+      }
+      if (internetOnly && value['version'] != 2) {
+        throw const LedgerException(
+          'Ask the host for a new internet invitation.',
+        );
       }
       final endpoint = value['version'] == 2
           ? DiscordConnection.decode(value['endpoint'] as String).encode()
@@ -329,13 +334,7 @@ class SharingService {
           {'id': row.read<String>('id'), 'name': row.read<String>('name')},
       ],
       'currencies': [
-        for (final c in currencies.where(
-          (c) =>
-              c.isActive &&
-              (c.recordId == null ||
-                  c.key == defaultCurrency ||
-                  rates[c.code]?.readNullable<String>('rate_id') == c.recordId),
-        ))
+        for (final c in currencies.where((currency) => currency.isActive))
           {
             'id': c.key,
             'code': c.code,

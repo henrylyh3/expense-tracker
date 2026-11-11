@@ -13,11 +13,14 @@ import '../../support/fake_discord.dart';
 
 // Run with --dart-define=GUEST_WEB_URL=https://guest.example/ before deployment.
 void main() {
-  testWidgets('host creates a web link with the selected expiry', (
+  testWidgets('host can share another trip without changing the default', (
     tester,
   ) async {
     final db = AppDatabase.forTesting(NativeDatabase.memory());
     await db.initialize();
+    await db.customStatement(
+      "INSERT INTO trips (id, name) VALUES ('holiday', 'Holiday')",
+    );
     addTearDown(db.close);
     final now = DateTime.utc(2026, 11, 10);
     final service = SharingService(
@@ -34,13 +37,17 @@ void main() {
           sharingServiceProvider.overrideWithValue(service),
           activeTripProvider.overrideWith((ref) => Stream.value('personal')),
           tripsProvider.overrideWith(
-            (ref) => Stream.value([(id: 'personal', name: 'Personal')]),
+            (ref) => Stream.value([
+              (id: 'personal', name: 'Personal'),
+              (id: 'holiday', name: 'Holiday'),
+            ]),
           ),
         ],
         child: const MaterialApp(home: Scaffold(body: SharingScreen())),
       ),
     );
     await tester.pumpAndSettle();
+    expect(find.text('Start hosting'), findsNothing);
     final button = find.widgetWithText(
       OutlinedButton,
       'Invite guest by web link',
@@ -55,6 +62,11 @@ void main() {
     await tester.tap(button);
     await tester.pump(const Duration(milliseconds: 500));
     expect(find.text('Invite a web guest'), findsOneWidget);
+    expect(find.text('Personal'), findsOneWidget);
+    await tester.tap(find.byType(DropdownButtonFormField<String>));
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.tap(find.text('Holiday').last);
+    await tester.pump(const Duration(milliseconds: 500));
     await tester.enterText(
       find.widgetWithText(TextField, 'Guest name'),
       'Alice',
@@ -78,6 +90,10 @@ void main() {
     expect(
       DiscordConnection.decode(payload['endpoint'] as String).expiresAt,
       now.add(const Duration(days: 1)),
+    );
+    expect(
+      DiscordConnection.decode(payload['endpoint'] as String).trip,
+      'holiday',
     );
     expect(link.scheme, 'https');
     expect(link.query, isEmpty);

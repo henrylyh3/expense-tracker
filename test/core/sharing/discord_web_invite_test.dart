@@ -45,8 +45,14 @@ void main() {
       jsonDecode(utf8.decode(base64Url.decode(code.substring(13))))
           as Map<String, dynamic>;
   test(
-    'web link keeps credentials in fragment and persists host expiry',
+    'web invitation carries every active currency and preserves expiry',
     () async {
+      await hostDb.customStatement(
+        "INSERT INTO currencies VALUES ('THB','Thai Baht','THB',2,'0.12',1,0,0)",
+      );
+      await hostDb.customStatement(
+        "INSERT INTO currency_rates (id,currency_code,name,rate_to_myr,is_active) VALUES ('thb-spring','THB','THB Spring','0.14',1), ('thb-old','THB','THB Old','0.10',0)",
+      );
       final link = Uri.parse(
         await host.inviteDiscordWeb(
           'personal',
@@ -76,6 +82,16 @@ void main() {
         'discord-invite:${data['id']}:personal',
       );
       expect((view['snapshot'] as Map)['categories'], isNotEmpty);
+      final currencies = (view['snapshot'] as Map)['currencies'] as List;
+      expect(
+        currencies.map((row) => row['id']),
+        unorderedEquals(['MYR', 'THB', 'thb-spring']),
+      );
+      expect(
+        currencies.singleWhere((row) => row['id'] == 'thb-spring')['rate'],
+        '0.14',
+      );
+
       expect(jsonEncode(packet), isNot(contains('seed-food')));
       await guest.join(code);
     },
