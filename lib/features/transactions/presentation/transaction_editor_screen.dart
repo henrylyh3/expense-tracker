@@ -28,10 +28,6 @@ class TransactionEditorScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final display =
         ref.watch(defaultCurrencyProvider).asData?.value ?? DisplayCurrency.myr;
-    final trip = ref.watch(activeTripProvider).asData?.value ?? personalTripId;
-    final rates =
-        ref.watch(tripRatesProvider(trip)).asData?.value ??
-        const <String, TripCurrencyRate>{};
     final categories = ref.watch(categoriesProvider);
     final currencies = ref.watch(currenciesProvider);
     Widget loading() => const Center(child: CircularProgressIndicator());
@@ -65,7 +61,6 @@ class TransactionEditorScreen extends ConsumerWidget {
                 key: ValueKey(transactionId ?? 'new'),
                 original: original,
                 display: display,
-                tripRates: rates,
                 categories: allCategories,
                 currencies: allCurrencies,
               );
@@ -93,14 +88,12 @@ class _TransactionForm extends ConsumerStatefulWidget {
   const _TransactionForm({
     required this.original,
     required this.display,
-    required this.tripRates,
     required this.categories,
     required this.currencies,
     super.key,
   });
   final LedgerTransaction? original;
   final DisplayCurrency display;
-  final Map<String, TripCurrencyRate> tripRates;
   final List<LedgerCategory> categories;
   final List<ConfiguredCurrency> currencies;
   @override
@@ -115,6 +108,7 @@ class _TransactionFormState extends ConsumerState<_TransactionForm> {
   late final TextEditingController _rate;
   late String _currencyCode;
   late CalendarDate _date;
+  String? _targetTripId;
   String? _categoryId;
   bool _changedSelection = false;
   bool _customRate = false;
@@ -127,6 +121,7 @@ class _TransactionFormState extends ConsumerState<_TransactionForm> {
     // Retain the revision actually opened by this editor. A stream refresh must
     // not silently overwrite user input or authorize a stale save.
     _original = widget.original;
+    _targetTripId = _original?.tripId;
     _amount = TextEditingController(
       text: _original?.conversion.original.toInput() ?? '',
     );
@@ -251,6 +246,7 @@ class _TransactionFormState extends ConsumerState<_TransactionForm> {
         currencyCode: currency.code,
         amountText: _amount.text,
         date: _date,
+        targetTripId: _targetTripId,
         note: _note.text,
         rateOverride:
             _original == null ||
@@ -318,6 +314,15 @@ class _TransactionFormState extends ConsumerState<_TransactionForm> {
 
   @override
   Widget build(BuildContext context) {
+    final original = _original;
+    final trips = original == null
+        ? const <({String id, String name})>[]
+        : ref.watch(tripsProvider).asData?.value ??
+              [(id: original.tripId, name: original.tripName)];
+    final tripRates = _targetTripId == null
+        ? const <String, TripCurrencyRate>{}
+        : ref.watch(tripRatesProvider(_targetTripId!)).asData?.value ??
+              const <String, TripCurrencyRate>{};
     final busy = ref.watch(transactionActionsProvider).isLoading;
     final currency = _currency;
     final categories = widget.categories
@@ -345,6 +350,26 @@ class _TransactionFormState extends ConsumerState<_TransactionForm> {
       onSave: _save,
       includeKeyboardInsets: false,
       fields: [
+        if (original != null)
+          DropdownButtonFormField<String>(
+            key: const ValueKey('edit-profile'),
+            initialValue: trips.any((trip) => trip.id == _targetTripId)
+                ? _targetTripId
+                : null,
+            decoration: const InputDecoration(labelText: 'Profile'),
+            isExpanded: true,
+            items: [
+              for (final trip in trips)
+                DropdownMenuItem(
+                  value: trip.id,
+                  child: Text(trip.name, overflow: TextOverflow.ellipsis),
+                ),
+            ],
+            onChanged: busy ? null : (id) => setState(() => _targetTripId = id),
+            validator: (_) => trips.any((trip) => trip.id == _targetTripId)
+                ? null
+                : 'Choose a profile.',
+          ),
         DropdownButtonFormField<String>(
           key: ValueKey('category:$categoryId'),
           initialValue: categoryId,
@@ -448,8 +473,7 @@ class _TransactionFormState extends ConsumerState<_TransactionForm> {
                 _customRate = true;
                 _rate.text = currency.recordId != null
                     ? currency.rateToMyr
-                    : widget.tripRates[currency.code]?.rate ??
-                          currency.rateToMyr;
+                    : tripRates[currency.code]?.rate ?? currency.rateToMyr;
               }),
               child: const Text('Use current configured rate'),
             ),

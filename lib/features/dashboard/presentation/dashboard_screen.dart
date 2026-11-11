@@ -20,12 +20,7 @@ class DashboardScreen extends ConsumerWidget {
     final display = ref.watch(reportDisplayCurrencyProvider);
     final active =
         ref.watch(activeTripProvider).asData?.value ?? personalTripId;
-    final trip = ref
-        .watch(tripsProvider)
-        .asData
-        ?.value
-        .where((item) => item.id == active)
-        .firstOrNull;
+    final trips = ref.watch(tripsProvider).asData?.value ?? [];
     final used =
         ref.watch(tripUsedCurrenciesProvider(active)).asData?.value ??
         const <String>{};
@@ -68,6 +63,7 @@ class DashboardScreen extends ConsumerWidget {
             SizedBox(
               width: 88,
               child: DropdownButton<String>(
+                key: const ValueKey('home-currency'),
                 isExpanded: true,
                 value: codes.contains(display.key) ? display.key : null,
                 hint: Text(display.code),
@@ -96,9 +92,36 @@ class DashboardScreen extends ConsumerWidget {
             ),
           ],
         ),
-        Text(
-          trip?.name ?? 'Personal',
-          style: Theme.of(context).textTheme.titleMedium,
+        Semantics(
+          label: 'Active profile',
+          child: DropdownButton<String>(
+            key: const ValueKey('home-profile'),
+            value: trips.any((trip) => trip.id == active) ? active : null,
+            hint: const Text('Profile'),
+            isExpanded: true,
+            items: [
+              for (final trip in trips)
+                DropdownMenuItem(
+                  value: trip.id,
+                  child: Text(trip.name, overflow: TextOverflow.ellipsis),
+                ),
+            ],
+            onChanged: trips.isEmpty
+                ? null
+                : (id) async {
+                    if (id == null || id == active) return;
+                    try {
+                      await ref.read(tripActionsProvider).activate(id);
+                    } catch (error) {
+                      if (context.mounted) {
+                        showManagementMessage(
+                          context,
+                          ledgerErrorMessage(error),
+                        );
+                      }
+                    }
+                  },
+          ),
         ),
         const SizedBox(height: 16),
         report.when(

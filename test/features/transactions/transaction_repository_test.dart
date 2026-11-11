@@ -27,6 +27,66 @@ void main() {
   });
   tearDown(() => database.close());
 
+  test(
+    'moving a guest expense changes its profile without changing money or authorship',
+    () async {
+      await database.customStatement(
+        "INSERT INTO trips VALUES ('thailand','Thailand')",
+      );
+      await database.customStatement(
+        "INSERT INTO trip_rates (trip_id, currency_code, rate_to_myr) VALUES ('thailand','USD','5')",
+      );
+      await database.customStatement(
+        "INSERT INTO shared_sessions VALUES ('invite','host','personal','Alice','key','endpoint',NULL)",
+      );
+      final id = await transactions.save(
+        _input(note: 'Guest lunch'),
+        sharedTripId: 'personal',
+        sharedSessionId: 'invite',
+        sharedRequestId: 'request',
+      );
+      final before = await transactions.getById(id);
+      await expectLater(
+        transactions.save(
+          _input(targetTripId: 'missing'),
+          id: id,
+          expectedUpdatedAtUtc: before.updatedAtUtc,
+        ),
+        throwsA(isA<LedgerException>()),
+      );
+      await transactions.save(
+        _input(note: before.note, targetTripId: 'thailand'),
+        id: id,
+        expectedUpdatedAtUtc: before.updatedAtUtc,
+      );
+      expect(
+        await transactions.watchHistory(tripId: 'personal').first,
+        isEmpty,
+      );
+      final moved =
+          (await transactions.watchHistory(tripId: 'thailand').first).single;
+      expect(moved.id, id);
+      expect(moved.tripName, 'Thailand');
+      expect(moved.conversion.exchangeRate, '4.5');
+      expect(moved.conversion.myr.minorUnits, 5625);
+      expect(moved.note, 'Guest lunch');
+      expect(moved.submittedByGuest, 'Alice');
+      expect(
+        await transactions.save(
+          _input(),
+          sharedTripId: 'personal',
+          sharedSessionId: 'invite',
+          sharedRequestId: 'request',
+        ),
+        id,
+      );
+      expect(
+        await transactions.watchHistory(tripId: 'personal').first,
+        isEmpty,
+      );
+    },
+  );
+
   test('persists original amount, currency, rate and MYR equivalent', () async {
     final id = await transactions.save(_input());
     final item = await transactions.getById(id);
@@ -331,6 +391,7 @@ TransactionInput _input({
   String date = '2026-11-05',
   String? note,
   String? rate,
+  String? targetTripId,
   bool confirmed = false,
   TransactionType type = TransactionType.expense,
 }) => TransactionInput(
@@ -339,6 +400,7 @@ TransactionInput _input({
   currencyCode: currency,
   amountText: amount,
   date: CalendarDate.parse(date),
+  targetTripId: targetTripId,
   note: note,
   rateOverride: rate,
   currencyChangeConfirmed: confirmed,

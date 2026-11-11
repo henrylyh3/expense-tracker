@@ -18,6 +18,27 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  testWidgets('edit lets you choose another profile while retaining the rate', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_app(edit: true));
+    await tester.pumpAndSettle();
+    final picker = find.byKey(const ValueKey('edit-profile'));
+    expect(
+      find.descendant(of: picker, matching: find.text('Personal')),
+      findsOneWidget,
+    );
+    await tester.tap(picker);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Thailand').last);
+    await tester.pumpAndSettle();
+    expect(
+      find.descendant(of: picker, matching: find.text('Thailand')),
+      findsOneWidget,
+    );
+    expect(find.text('1 USD = 4.5 MYR'), findsOneWidget);
+  });
+
   testWidgets('transaction details identify only guest submissions', (
     tester,
   ) async {
@@ -151,6 +172,12 @@ Widget _app({
   DisplayCurrency display = DisplayCurrency.myr,
 }) => ProviderScope(
   overrides: [
+    tripsProvider.overrideWith(
+      (ref) => Stream.value([
+        (id: personalTripId, name: 'Personal'),
+        (id: 'thailand', name: 'Thailand'),
+      ]),
+    ),
     activeTripProvider.overrideWith((ref) => Stream.value(personalTripId)),
     tripRatesProvider.overrideWith((ref, id) => Stream.value(const {})),
     defaultCurrencyProvider.overrideWith((ref) => Stream.value(display)),
@@ -221,6 +248,8 @@ Widget _app({
 
 LedgerTransaction _record(bool archived, {String? guest}) => LedgerTransaction(
   id: 'record',
+  tripId: personalTripId,
+  tripName: 'Personal',
   categoryId: 'food',
   categoryName: 'Food',
   categoryIconKey: 'restaurant',

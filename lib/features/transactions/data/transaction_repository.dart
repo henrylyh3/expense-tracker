@@ -18,9 +18,10 @@ class TransactionRepository {
   static const _projection = '''SELECT t.*, c.name AS category_name,
     c.icon_key AS category_icon_key, c.color_hex AS category_color_hex,
     c.is_archived AS category_archived, COALESCE(t.amount_decimal_places, u.decimal_places) AS decimal_places,
-    u.is_active AS currency_active
+    u.is_active AS currency_active, p.name AS trip_name
     FROM transactions t JOIN categories c ON c.id = t.category_id
-    JOIN currencies u ON u.code = t.currency_code''';
+    JOIN currencies u ON u.code = t.currency_code
+    JOIN trips p ON p.id = t.trip_id''';
 
   /// Returns one look-ahead row for the History screen's Load more action.
   Stream<List<LedgerTransaction>> watchHistory({
@@ -45,6 +46,7 @@ class TransactionRepository {
             _database.transactions,
             _database.categories,
             _database.currencies,
+            _database.trips,
           },
         )
         .watch()
@@ -62,6 +64,7 @@ class TransactionRepository {
           _database.transactions,
           _database.categories,
           _database.currencies,
+          _database.trips,
         },
       )
       .watchSingleOrNull()
@@ -137,15 +140,31 @@ class TransactionRepository {
         'Archived categories cannot be selected for new transactions.',
       );
     }
-    final trip = await _database
-        .customSelect(
-          id == null
-              ? """SELECT COALESCE((SELECT value FROM app_settings WHERE key = 'active_trip'), 'personal') AS trip_id"""
-              : 'SELECT trip_id FROM transactions WHERE id = ?',
-          variables: [if (id != null) Variable.withString(id)],
-        )
-        .getSingle();
-    final tripId = sharedTripId ?? trip.read<String>('trip_id');
+    final target = input.targetTripId;
+    if (target != null && previous == null) {
+      throw const LedgerException('Only existing transactions can be moved.');
+    }
+    if (target != null && target != previous?.tripId) {
+      final destination = await _database
+          .customSelect(
+            'SELECT 1 FROM trips WHERE id = ?',
+            variables: [Variable.withString(target)],
+          )
+          .getSingleOrNull();
+      if (destination == null) {
+        throw const LedgerException('Choose an existing profile.');
+      }
+    }
+    final tripId =
+        target ??
+        sharedTripId ??
+        previous?.tripId ??
+        (await _database
+                .customSelect(
+                  "SELECT COALESCE((SELECT value FROM app_settings WHERE key = 'active_trip'), 'personal') AS trip_id",
+                )
+                .getSingle())
+            .read<String>('trip_id');
     final currency = await _database
         .customSelect(
           '''SELECT c.decimal_places, COALESCE(n.rate_to_myr, r.rate_to_myr, c.rate_to_myr) AS rate_to_myr, c.is_active
@@ -226,7 +245,7 @@ class TransactionRepository {
           );
     await _database.customUpdate(
       '''UPDATE transactions SET category_id = ?, type = ?, amount_minor = ?, currency_code = ?,
-         exchange_rate_snapshot = ?, amount_myr_minor = ?, transaction_date = ?, note = ?, updated_at_utc = ?, amount_decimal_places = ?
+         exchange_rate_snapshot = ?, amount_myr_minor = ?, transaction_date = ?, note = ?, updated_at_utc = ?, amount_decimal_places = ?, trip_id = ?
          WHERE id = ?''',
       variables: [
         Variable<String>(input.categoryId),
@@ -239,6 +258,7 @@ class TransactionRepository {
         Variable<String>(input.note),
         Variable<int>(updatedAt),
         Variable.withInt(conversion.original.decimalPlaces),
+        Variable.withString(tripId),
         Variable<String>(previous.id),
       ],
       updates: {_database.transactions},
@@ -269,6 +289,8 @@ class TransactionRepository {
 
   static LedgerTransaction _fromRow(QueryRow row) => LedgerTransaction(
     id: row.read<String>('id'),
+    tripId: row.read<String>('trip_id'),
+    tripName: row.read<String>('trip_name'),
     categoryId: row.read<String>('category_id'),
     categoryName: row.read<String>('category_name'),
     categoryIconKey: row.read<String>('category_icon_key'),

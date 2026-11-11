@@ -54,11 +54,7 @@ final transactionProvider = StreamProvider.autoDispose
     .family<LedgerTransaction?, String>(
       (ref, id) => ref
           .watch(transactionRepositoryProvider)
-          .watchById(
-            id,
-            tripId:
-                ref.watch(activeTripProvider).asData?.value ?? personalTripId,
-          )
+          .watchById(id)
           .map((item) => item?.type == TransactionType.expense ? item : null),
       retry: (count, error) => null,
     );

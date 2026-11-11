@@ -1,4 +1,6 @@
 import 'package:expense_tracker/app/router.dart';
+import 'package:drift/native.dart';
+import 'package:expense_tracker/core/database/app_database.dart';
 import 'package:expense_tracker/core/providers/database_providers.dart';
 import 'package:expense_tracker/app/theme.dart';
 import 'package:expense_tracker/core/models/ledger_types.dart';
@@ -27,6 +29,32 @@ import 'package:flutter_test/flutter_test.dart';
 import '../support/report_overrides.dart';
 
 void main() {
+  testWidgets('Home switches the active profile', (tester) async {
+    final db = AppDatabase.forTesting(NativeDatabase.memory());
+    addTearDown(db.close);
+    await db.initialize();
+    await db.customStatement(
+      "INSERT INTO trips VALUES ('thailand','Thailand')",
+    );
+    await tester.pumpWidget(_navigationApp(db: db));
+    await tester.pumpAndSettle();
+    final picker = find.byKey(const ValueKey('home-profile'));
+    expect(tester.widget<DropdownButton<String>>(picker).value, personalTripId);
+    await tester.tap(picker);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Thailand').last);
+    await tester.pumpAndSettle();
+    expect(tester.widget<DropdownButton<String>>(picker).value, 'thailand');
+    final saved = await db
+        .customSelect(
+          "SELECT value FROM app_settings WHERE key = 'active_trip'",
+        )
+        .getSingle();
+    expect(saved.read<String>('value'), 'thailand');
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 1));
+  });
+
   testWidgets('Home and History show the guest with the date and amount', (
     tester,
   ) async {
@@ -37,6 +65,8 @@ void main() {
     );
     final item = LedgerTransaction(
       id: 'history-item',
+      tripId: personalTripId,
+      tripName: 'Personal',
       categoryId: 'food',
       categoryName: 'Food',
       categoryIconKey: 'restaurant',
@@ -68,7 +98,10 @@ void main() {
     expect(find.textContaining('Â'), findsNothing);
     await tester.tap(find.text('History').last);
     await tester.pumpAndSettle();
-    expect(find.text('2026-11-09\nRM 12.50\nGuest: Alice'), findsOneWidget);
+    expect(
+      find.text('2026-11-09\nRM 12.50\nProfile: Personal\nGuest: Alice'),
+      findsOneWidget,
+    );
     expect(find.textContaining('· expense'), findsNothing);
     expect(find.textContaining('−RM'), findsNothing);
   });
@@ -152,7 +185,7 @@ void main() {
   ) async {
     await tester.pumpWidget(_navigationApp());
     await tester.pumpAndSettle();
-    final dropdown = find.byType(DropdownButton<String>);
+    final dropdown = find.byKey(const ValueKey('home-currency'));
     expect(tester.widget<DropdownButton<String>>(dropdown).value, 'MYR');
     expect(
       tester
@@ -295,6 +328,7 @@ void main() {
 }
 
 Widget _navigationApp({
+  AppDatabase? db,
   double textScale = 1,
   FinancialReport? tripReport,
   List<LedgerTransaction> history = const [],
@@ -302,10 +336,13 @@ Widget _navigationApp({
   overrides: [
     databaseReadyProvider.overrideWith((ref) async {}),
     sharedSessionsProvider.overrideWith((ref) => Stream.value(const [])),
-    activeTripProvider.overrideWith((ref) => Stream.value(personalTripId)),
-    tripsProvider.overrideWith(
-      (ref) => Stream.value([(id: personalTripId, name: 'Personal')]),
-    ),
+    if (db != null) databaseProvider.overrideWithValue(db),
+    if (db == null) ...[
+      activeTripProvider.overrideWith((ref) => Stream.value(personalTripId)),
+      tripsProvider.overrideWith(
+        (ref) => Stream.value([(id: personalTripId, name: 'Personal')]),
+      ),
+    ],
     tripRatesProvider.overrideWith((ref, id) => Stream.value(const {})),
     tripUsedCurrenciesProvider.overrideWith(
       (ref, id) => Stream.value({'MYR', 'USD'}),

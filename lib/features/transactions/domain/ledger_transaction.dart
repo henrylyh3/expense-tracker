@@ -7,6 +7,8 @@ import 'conversion_policy.dart';
 class LedgerTransaction {
   const LedgerTransaction({
     required this.id,
+    required this.tripId,
+    required this.tripName,
     required this.categoryId,
     required this.categoryName,
     required this.categoryIconKey,
@@ -22,6 +24,8 @@ class LedgerTransaction {
     this.submittedByGuest,
   });
   final String id;
+  final String tripId;
+  final String tripName;
   final String categoryId;
   final String categoryName;
   final String categoryIconKey;

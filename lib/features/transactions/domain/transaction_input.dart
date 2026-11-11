@@ -10,6 +10,7 @@ class TransactionInput {
     required String currencyCode,
     required String amountText,
     required this.date,
+    this.targetTripId,
     String? note,
     String? rateOverride,
     this.currencyChangeConfirmed = false,
@@ -30,6 +31,7 @@ class TransactionInput {
   final String currencyCode;
   final String amountText;
   final CalendarDate date;
+  final String? targetTripId;
   final String? note;
   final String? rateOverride;
   final bool currencyChangeConfirmed;

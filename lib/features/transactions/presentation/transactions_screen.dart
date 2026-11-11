@@ -199,6 +199,7 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
                 title: Text(item.categoryName),
                 subtitle: Text(
                   '${item.date}\n$displayedAmount'
+                  '\nProfile: ${item.tripName}'
                   '${originalAmount == displayedAmount ? '' : '\nOriginal: $originalAmount'}'
                   '${item.submittedByGuest == null ? '' : '\nGuest: ${item.submittedByGuest}'}',
                 ),
