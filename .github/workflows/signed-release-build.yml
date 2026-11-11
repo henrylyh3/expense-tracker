@@ -28,6 +28,10 @@ on:
         description: Check configured Variable names without importing credentials or building
         type: boolean
         default: false
+      publish_release:
+        description: Publish the complete release after building
+        type: boolean
+        default: true
 
 env:
   DESKTOP_SIGNING_MODE: ${{ inputs.desktop_signing || 'personal' }}
@@ -193,6 +197,7 @@ jobs:
         run: python tool/ci_signing.py cleanup
 
   publish:
+    if: ${{ github.event_name == 'push' || inputs.publish_release }}
     needs: collect
     runs-on: ubuntu-latest
     permissions:

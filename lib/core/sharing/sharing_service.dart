@@ -61,8 +61,12 @@ class SharingService {
 
   Stream<List<Map<String, Object?>>> watchSessions() => db
       .customSelect(
-        'SELECT id, role, name, endpoint, cache FROM shared_sessions ORDER BY name, id',
-        readsFrom: {db.sharedSessions},
+        '''SELECT s.id, s.role, s.name, s.endpoint,
+                  CASE WHEN s.role = 'guest' THEN s.cache END AS cache,
+                  t.name AS trip_name
+           FROM shared_sessions s LEFT JOIN trips t ON t.id = s.trip_id
+           ORDER BY s.name, s.id''',
+        readsFrom: {db.sharedSessions, db.trips},
       )
       .watch()
       .map((rows) => [for (final row in rows) row.data]);

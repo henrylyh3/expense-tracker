@@ -214,9 +214,10 @@ class _SharingScreenState extends ConsumerState<SharingScreen> {
                     title: Text(item['name'] as String),
                     subtitle: Text(
                       item['role'] == 'host'
-                          ? 'Invited guest · access can be revoked'
+                          ? 'Invited to ${item['trip_name'] ?? 'Shared trip'}'
                           : 'Joined trip · tap to sync or add expenses',
                     ),
+                    trailing: const Icon(Icons.chevron_right),
                     onTap: _busy
                         ? null
                         : () => context.push('/settings/sharing/${item['id']}'),
@@ -278,6 +279,11 @@ class _SharingScreenState extends ConsumerState<SharingScreen> {
     final id = session['id'] as String;
     final guest = session['role'] == 'guest';
     final internet = DiscordConnection.matches(session['endpoint'] as String);
+    final web =
+        !guest &&
+        internet &&
+        DiscordConnection.decode(session['endpoint'] as String).expiresAt !=
+            null;
     final cache = session['cache'] as String?;
     final data = cache == null
         ? null
@@ -382,10 +388,29 @@ class _SharingScreenState extends ConsumerState<SharingScreen> {
               ),
             ),
         ],
-      ] else
+      ] else ...[
+        Text('Trip: ${session['trip_name'] ?? 'Shared trip'}'),
         const Text(
           'This invitation grants read and add access to one trip. Removing it immediately revokes access. Existing submitted expenses stay in your ledger.',
         ),
+        if (internet)
+          OutlinedButton.icon(
+            onPressed: _busy
+                ? null
+                : () => _run(() async {
+                    final invitation = await service.copyDiscordInvitation(
+                      id,
+                      Uri.parse(guestWebUrl),
+                    );
+                    await Clipboard.setData(ClipboardData(text: invitation));
+                    if (mounted) {
+                      setState(() => _message = 'Invitation copied.');
+                    }
+                  }),
+            icon: const Icon(Icons.copy_outlined),
+            label: Text(web ? 'Copy invitation link' : 'Copy invitation code'),
+          ),
+      ],
       TextButton(
         onPressed: _busy
             ? null

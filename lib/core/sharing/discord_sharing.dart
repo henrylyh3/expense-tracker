@@ -117,7 +117,7 @@ extension DiscordSharing on SharingService {
       await _scheduleWebhookRemoval(endpoint);
       rethrow;
     }
-    return 'expense-trip:${base64UrlEncode(utf8.encode(jsonEncode({'version': 2, 'id': id, 'key': key, 'endpoint': endpoint, 'name': name})))}';
+    return _discordInvitationCode(id, key, endpoint, name);
   }
 
   Future<String> inviteDiscordWeb(
@@ -126,16 +126,7 @@ extension DiscordSharing on SharingService {
     Uri page, {
     Duration validFor = const Duration(days: 7),
   }) async {
-    if (page.scheme != 'https' ||
-        page.host.isEmpty ||
-        page.userInfo.isNotEmpty ||
-        page.hasQuery ||
-        page.hasFragment ||
-        page.port != 443) {
-      throw const LedgerException(
-        'Configure an HTTPS guest page URL without a query or fragment.',
-      );
-    }
+    _validateGuestPage(page);
     final code = await inviteDiscord(trip, guest, validFor: validFor);
     final invitation =
         jsonDecode(utf8.decode(base64Url.decode(code.substring(13))))
@@ -164,14 +155,116 @@ extension DiscordSharing on SharingService {
           'Discord did not confirm storing this invitation. Try again.',
         );
       }
-      invitation['bootstrap'] = messageId;
-      final webCode =
-          'expense-trip:${base64UrlEncode(utf8.encode(jsonEncode(invitation)))}';
+      await _saveWebInvitation(id, page, messageId);
+      final webCode = _discordInvitationCode(
+        id,
+        invitation['key'] as String,
+        invitation['endpoint'] as String,
+        invitation['name'] as String,
+        bootstrap: messageId,
+      );
       return page.replace(fragment: 'invite=$webCode').toString();
     } catch (_) {
       await revoke(id);
       rethrow;
     }
+  }
+
+  Future<String> copyDiscordInvitation(String id, Uri legacyPage) async {
+    final session = await _session(id);
+    final endpoint = session['endpoint'] as String;
+    if (session['role'] != 'host' || !DiscordConnection.matches(endpoint)) {
+      throw const LedgerException('This is not an internet guest invitation.');
+    }
+    final connection = DiscordConnection.decode(endpoint);
+    if (connection.expired(_clock().toUtc())) {
+      throw const LedgerException('This invitation has expired.');
+    }
+    final key = session['secret'] as String;
+    final name = session['name'] as String;
+    if (connection.expiresAt == null) {
+      return _discordInvitationCode(id, key, endpoint, name);
+    }
+    final saved = session['cache'] as String?;
+    final metadata = saved == null
+        ? null
+        : jsonDecode(saved) as Map<String, dynamic>;
+    final page = metadata == null
+        ? legacyPage
+        : Uri.parse(metadata['page'] as String);
+    _validateGuestPage(page);
+    final bootstrap = metadata == null
+        ? await _recoverWebBootstrap(id, connection)
+        : metadata['bootstrap'] as String;
+    if (metadata == null) {
+      if (connection.expired(_clock().toUtc())) {
+        throw const LedgerException('This invitation has expired.');
+      }
+      await _saveWebInvitation(id, page, bootstrap);
+    }
+    final code = _discordInvitationCode(
+      id,
+      key,
+      endpoint,
+      name,
+      bootstrap: bootstrap,
+    );
+    return page.replace(fragment: 'invite=$code').toString();
+  }
+
+  Future<void> _saveWebInvitation(String id, Uri page, String bootstrap) async {
+    // Host cache holds only the page and message reference. Session credentials
+    // remain in their existing fields and are never duplicated in the cache.
+    final updated = await db.writeTransaction(
+      () => db.customUpdate(
+        "UPDATE shared_sessions SET cache = ? WHERE id = ? AND role = 'host'",
+        variables: [
+          Variable.withString(
+            jsonEncode({'page': page.toString(), 'bootstrap': bootstrap}),
+          ),
+          Variable.withString(id),
+        ],
+        updates: {db.sharedSessions},
+      ),
+    );
+    if (updated != 1) {
+      throw const LedgerException('This invitation has been removed.');
+    }
+  }
+
+  Future<String> _recoverWebBootstrap(
+    String id,
+    DiscordConnection connection,
+  ) async {
+    final config = await discordSettings();
+    if (config == null) {
+      throw const LedgerException('Set up internet sharing first.');
+    }
+    final webhookId = connection.webhook.pathSegments[2];
+    // The original snapshot was posted after this invitation's webhook existed.
+    var cursor = ((BigInt.parse(webhookId) >> 22) << 22) - BigInt.one;
+    while (true) {
+      final messages = await discordApi.messages(
+        config['channel'] as String,
+        config['token'] as String,
+        cursor.toString(),
+      );
+      final previous = cursor;
+      for (final message in messages) {
+        final messageId = message['id'] as String;
+        final number = BigInt.parse(messageId);
+        if (number > cursor) cursor = number;
+        if (message['webhook_id'] != webhookId) continue;
+        final packet = await discordApi.packet(message);
+        if (packet?['direction'] == 'invite' && packet?['id'] == id) {
+          return messageId;
+        }
+      }
+      if (messages.length < 100 || cursor == previous) break;
+    }
+    throw const LedgerException(
+      'The original invitation message could not be found in Discord.',
+    );
   }
 
   Future<void> _scheduleWebhookRemoval(String endpoint) async {
@@ -466,5 +559,27 @@ extension DiscordSharing on SharingService {
         'The relay message was removed. Your expense is kept; tap Sync to retry.',
       );
     }
+  }
+}
+
+String _discordInvitationCode(
+  String id,
+  String key,
+  String endpoint,
+  String name, {
+  String? bootstrap,
+}) =>
+    'expense-trip:${base64UrlEncode(utf8.encode(jsonEncode({'version': 2, 'id': id, 'key': key, 'endpoint': endpoint, 'name': name, 'bootstrap': ?bootstrap})))}';
+
+void _validateGuestPage(Uri page) {
+  if (page.scheme != 'https' ||
+      page.host.isEmpty ||
+      page.userInfo.isNotEmpty ||
+      page.hasQuery ||
+      page.hasFragment ||
+      page.port != 443) {
+    throw const LedgerException(
+      'Configure an HTTPS guest page URL without a query or fragment.',
+    );
   }
 }

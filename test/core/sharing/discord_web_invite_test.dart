@@ -48,6 +48,56 @@ void main() {
       jsonDecode(utf8.decode(base64Url.decode(code.substring(13))))
           as Map<String, dynamic>;
   test(
+    'host copies original web link, including invites made before caching',
+    () async {
+      final page = Uri.parse('https://guest.example/');
+      final original = await host.inviteDiscordWeb('personal', 'Alice', page);
+      final id =
+          decode(
+                Uri.splitQueryString(Uri.parse(original).fragment)['invite']!,
+              )['id']
+              as String;
+      expect(
+        await host.copyDiscordInvitation(
+          id,
+          Uri.parse('https://other.example/'),
+        ),
+        original,
+      );
+
+      // Old web sessions have no saved page or bootstrap message reference.
+      await hostDb.customStatement('UPDATE shared_sessions SET cache = NULL');
+      expect(await host.copyDiscordInvitation(id, page), original);
+      expect(api.webhooks, hasLength(1));
+      expect(api.inbox, hasLength(1));
+      expect(
+        await host.copyDiscordInvitation(
+          id,
+          Uri.parse('https://other.example/'),
+        ),
+        original,
+      );
+
+      hostNow = hostNow.add(const Duration(days: 7));
+      await expectLater(
+        host.copyDiscordInvitation(id, page),
+        throwsA(isA<LedgerException>()),
+      );
+      await host.revoke(id);
+      await expectLater(
+        host.copyDiscordInvitation(id, page),
+        throwsA(isA<LedgerException>()),
+      );
+    },
+  );
+
+  test('host copies the original native invitation code', () async {
+    final original = await host.inviteDiscord('personal', 'Alice');
+    final id = decode(original)['id'] as String;
+    expect(await host.copyDiscordInvitation(id, Uri()), original);
+    expect(api.webhooks, hasLength(1));
+  });
+  test(
     'web invitation carries every active currency and preserves expiry',
     () async {
       await hostDb.customStatement(
