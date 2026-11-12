@@ -78,6 +78,11 @@ class StartupRecoveryActions extends Notifier<StartupRecoveryState> {
       return;
     }
     final preview = await BackupValidator.decodeInBackground(bytes);
+    if (preview.isTripExport) {
+      throw const LedgerException(
+        'Recovery requires an all-trips backup. Import selected trips from Settings after recovery.',
+      );
+    }
     if (ref.mounted) state = StartupRecoveryState(preview: preview);
   });
 

@@ -5,9 +5,6 @@ import '../../../core/providers/trip_provider.dart';
 import '../../../core/providers/default_currency_provider.dart';
 import '../../../core/money/display_currency.dart';
 import '../../currencies/presentation/currency_view_model.dart';
-import '../../transactions/domain/ledger_transaction.dart';
-import '../../transactions/domain/transaction_filter.dart';
-import '../../transactions/presentation/transaction_view_model.dart';
 import '../data/report_repository.dart';
 import '../domain/financial_report.dart';
 import '../domain/report_period.dart';
@@ -27,19 +24,6 @@ final financialReportProvider = StreamProvider.autoDispose
           ),
       retry: (count, error) => null,
     );
-final dashboardRecentProvider = StreamProvider.autoDispose
-    .family<List<LedgerTransaction>, ReportPeriod>(
-      (ref, period) => ref
-          .watch(transactionRepositoryProvider)
-          .watchHistory(
-            limit: 5,
-            tripId:
-                ref.watch(activeTripProvider).asData?.value ?? personalTripId,
-            filter: const TransactionFilter.empty().expensesOnly,
-          ),
-      retry: (count, error) => null,
-    );
-
 final reportCurrencyChoiceProvider =
     NotifierProvider<ReportCurrencyChoice, String?>(ReportCurrencyChoice.new);
 

@@ -30,6 +30,80 @@ void main() {
     expect(backup.count('transactions'), 0);
     expect(backup.count('settings'), 1);
   });
+
+  test(
+    'selected-trip export includes only its ledger and dependencies',
+    () async {
+      await db.customStatement(
+        "INSERT INTO trips VALUES ('thai','Thailand'), ('japan','Japan')",
+      );
+      await db.customStatement(
+        """INSERT INTO transactions (id,category_id,type,amount_minor,currency_code,
+        exchange_rate_snapshot,amount_myr_minor,transaction_date,note,created_at_utc,updated_at_utc,trip_id)
+        VALUES ('20000000-0000-4000-8000-000000000001','seed-food','expense',400,'MYR','1',400,'2026-11-12','Lunch',0,0,'thai'),
+        ('20000000-0000-4000-8000-000000000002','seed-shopping','expense',500,'MYR','1',500,'2026-11-12','Other trip',0,0,'japan')""",
+      );
+      final selected = BackupValidator.decode(
+        await service.exportBytes(tripIds: {'thai'}),
+      );
+      expect(selected.isTripExport, isTrue);
+      expect(selected.tables['trips']!.single['name'], 'Thailand');
+      expect(selected.tables['transactions']!.single['note'], 'Lunch');
+      expect(selected.tables['categories']!.single['id'], 'seed-food');
+      expect(
+        (await service.exportBytes()).length,
+        greaterThan(selected.encode().length),
+      );
+      await expectLater(
+        service.restore(selected),
+        throwsA(isA<LedgerException>()),
+      );
+    },
+  );
+
+  test(
+    'merge deduplicates a repeated import and numbered copies keep their own expenses',
+    () async {
+      final backup = BackupValidator.fromDocument(backupDocument());
+      await db.customStatement(
+        "INSERT INTO currencies VALUES ('USD','Local dollar','USD',0,'5',1,0,0)",
+      );
+      await expectLater(
+        service.importTrips(backup, {}),
+        throwsA(isA<LedgerException>()),
+      );
+      expect(await rows('transactions'), isEmpty);
+      await service.importTrips(backup, {'personal': 'personal'});
+      await service.importTrips(backup, {'personal': 'personal'});
+      await service.importTrips(backup, {'personal': null});
+      await service.importTrips(backup, {'personal': null});
+      final trips = await rows('trips');
+      expect(
+        trips.map((row) => row['name']),
+        unorderedEquals(['Personal', 'Personal (1)', 'Personal (2)']),
+      );
+      final transactions = await rows('transactions');
+      expect(
+        transactions.map((row) => row['trip_id']),
+        unorderedEquals(trips.map((row) => row['id'])),
+      );
+      expect(transactions.map((row) => row['id']).toSet(), hasLength(3));
+      expect(transactions.map((row) => row['exchange_rate_snapshot']).toSet(), {
+        '4.5000',
+      });
+      expect(transactions.map((row) => row['amount_decimal_places']).toSet(), {
+        2,
+      });
+      expect(
+        (await rows(
+          'currencies',
+        )).singleWhere((row) => row['code'] == 'USD')['decimal_places'],
+        0,
+      );
+      expect((await rows('app_settings')).single['value'], 'system');
+      expect(await db.customSelect('PRAGMA foreign_key_check').get(), isEmpty);
+    },
+  );
   test(
     'replace all preserves archived references, rates, settings and MYR metadata',
     () async {

@@ -55,56 +55,49 @@ void main() {
     await tester.pump(const Duration(milliseconds: 1));
   });
 
-  testWidgets('Home and History show the guest with the date and amount', (
-    tester,
-  ) async {
-    final money = Money.parsePositive(
-      '12.50',
-      currencyCode: 'MYR',
-      decimalPlaces: 2,
-    );
-    final item = LedgerTransaction(
-      id: 'history-item',
-      tripId: personalTripId,
-      tripName: 'Personal',
-      categoryId: 'food',
-      categoryName: 'Food',
-      categoryIconKey: 'restaurant',
-      categoryColorHex: '#123456',
-      categoryArchived: false,
-      currencyActive: true,
-      type: TransactionType.expense,
-      conversion: ConversionSnapshot(
-        original: money,
-        exchangeRate: '1',
-        myr: money,
-      ),
-      date: CalendarDate.parse('2026-11-09'),
-      note: null,
-      createdAtUtc: 1,
-      updatedAtUtc: 1,
-      submittedByGuest: 'Alice',
-    );
-    await tester.pumpWidget(_navigationApp(history: [item]));
-    await tester.pumpAndSettle();
-    await tester.scrollUntilVisible(
-      find.text('2026-11-09\nRM 12.50\nGuest: Alice'),
-      300,
-      scrollable: find.byType(Scrollable).first,
-    );
-    await tester.pumpAndSettle();
-    expect(find.text('2026-11-09\nRM 12.50\nGuest: Alice'), findsOneWidget);
-    expect(find.textContaining('· expense'), findsNothing);
-    expect(find.textContaining('Â'), findsNothing);
-    await tester.tap(find.text('History').last);
-    await tester.pumpAndSettle();
-    expect(
-      find.text('2026-11-09\nRM 12.50\nProfile: Personal\nGuest: Alice'),
-      findsOneWidget,
-    );
-    expect(find.textContaining('· expense'), findsNothing);
-    expect(find.textContaining('−RM'), findsNothing);
-  });
+  testWidgets(
+    'History shows the guest after removal of Home recent transactions',
+    (tester) async {
+      final money = Money.parsePositive(
+        '12.50',
+        currencyCode: 'MYR',
+        decimalPlaces: 2,
+      );
+      final item = LedgerTransaction(
+        id: 'history-item',
+        tripId: personalTripId,
+        tripName: 'Personal',
+        categoryId: 'food',
+        categoryName: 'Food',
+        categoryIconKey: 'restaurant',
+        categoryColorHex: '#123456',
+        categoryArchived: false,
+        currencyActive: true,
+        type: TransactionType.expense,
+        conversion: ConversionSnapshot(
+          original: money,
+          exchangeRate: '1',
+          myr: money,
+        ),
+        date: CalendarDate.parse('2026-11-09'),
+        note: null,
+        createdAtUtc: 1,
+        updatedAtUtc: 1,
+        submittedByGuest: 'Alice',
+      );
+      await tester.pumpWidget(_navigationApp(history: [item]));
+      await tester.pumpAndSettle();
+      expect(find.text('Recent transactions'), findsNothing);
+      await tester.tap(find.text('History').last);
+      await tester.pumpAndSettle();
+      expect(
+        find.text('2026-11-09\nRM 12.50\nProfile: Personal\nGuest: Alice'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('· expense'), findsNothing);
+      expect(find.textContaining('−RM'), findsNothing);
+    },
+  );
   testWidgets(
     'trip summary shows original currency totals and a fixed MYR total on a narrow screen',
     (tester) async {
@@ -215,9 +208,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Transaction history'), findsOneWidget);
 
-    await tester.tap(find.byIcon(Icons.bar_chart_outlined));
-    await tester.pumpAndSettle();
-    expect(find.text('Understand your spending'), findsOneWidget);
+    expect(find.byIcon(Icons.bar_chart_outlined), findsNothing);
 
     await tester.tap(find.byIcon(Icons.settings_outlined));
     await tester.pumpAndSettle();
@@ -358,7 +349,7 @@ Widget _navigationApp({
     defaultCurrencyProvider.overrideWith(
       (ref) => Stream.value(DisplayCurrency.myr),
     ),
-    ...emptyReportOverrides(recent: history),
+    ...emptyReportOverrides(),
     transactionsProvider.overrideWith((ref) => Stream.value(history)),
     categoriesProvider.overrideWith(
       (ref) => Stream.value(const [

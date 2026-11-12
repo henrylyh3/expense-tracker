@@ -21,7 +21,7 @@ class AppShell extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final busy = ref.watch(ledgerTransferBusyProvider);
-    const titles = ['Home', 'History', 'Reports', 'Settings'];
+    const titles = ['Home', 'History', 'Settings'];
     final title = location.startsWith('/settings/sharing')
         ? 'Shared trips'
         : location.endsWith('/currencies') && tripId != null
@@ -47,7 +47,7 @@ class AppShell extends ConsumerWidget {
             : null,
       ),
       body: SafeArea(child: navigationShell),
-      floatingActionButton: navigationShell.currentIndex == 3
+      floatingActionButton: navigationShell.currentIndex == 2
           ? null
           : FloatingActionButton.extended(
               onPressed: busy ? null : () => context.push('/transactions/new'),
@@ -72,11 +72,6 @@ class AppShell extends ConsumerWidget {
             icon: Icon(Icons.receipt_long_outlined),
             selectedIcon: Icon(Icons.receipt_long),
             label: 'History',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.bar_chart_outlined),
-            selectedIcon: Icon(Icons.bar_chart),
-            label: 'Reports',
           ),
           NavigationDestination(
             icon: Icon(Icons.settings_outlined),

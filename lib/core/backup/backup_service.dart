@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:isolate';
 
 import 'package:drift/drift.dart';
@@ -7,6 +8,7 @@ import '../database/app_database.dart';
 import '../models/ledger_types.dart';
 import 'backup_validator.dart';
 import 'restore_plan.dart';
+import 'trip_import.dart';
 
 enum RestoreOutcome { restored, cancelled }
 
@@ -14,13 +16,15 @@ class BackupService {
   BackupService(this._database);
   final AppDatabase _database;
 
-  Future<Uint8List> exportBytes() =>
+  Future<Uint8List> exportBytes({Set<String>? tripIds}) =>
       _database.exclusiveLedgerOperation(() async {
-        final snapshot = await _snapshot();
+        final snapshot = await _snapshot(tripIds: tripIds);
         return Isolate.run(snapshot.encode);
       });
 
-  Future<ValidatedBackup> _snapshot() => _database.transaction(() async {
+  Future<ValidatedBackup> _snapshot({
+    Set<String>? tripIds,
+  }) => _database.transaction(() async {
     const tableNames = {
       'categories': 'categories',
       'currencies': 'currencies',
@@ -41,11 +45,40 @@ class BackupService {
     };
     var payload = 0;
     final tables = <String, List<Map<String, Object?>>>{};
+    final scopes = tripIds == null
+        ? const <String, String>{}
+        : {
+            'trips': 'id IN selected',
+            'transactions': 'trip_id IN selected',
+            'trip_rates': 'trip_id IN selected',
+            'categories':
+                'id IN (SELECT category_id FROM transactions WHERE trip_id IN selected)',
+            'currencies':
+                "code = 'MYR' OR code IN (SELECT currency_code FROM transactions WHERE trip_id IN selected UNION SELECT currency_code FROM trip_rates WHERE trip_id IN selected)",
+            'currency_rates':
+                'id IN (SELECT rate_id FROM trip_rates WHERE trip_id IN selected)',
+            'settings': "key = 'theme_mode'",
+          };
+    Selectable<QueryRow> select(
+      String table,
+      String projection, {
+      String order = '',
+    }) {
+      final filter = scopes[table];
+      final usesSelection = filter?.contains('IN selected') ?? false;
+      return _database.customSelect(
+        '${usesSelection ? 'WITH selected AS (SELECT value FROM json_each(?)) ' : ''}'
+        'SELECT $projection FROM ${tableNames[table]}'
+        '${filter == null ? '' : ' WHERE $filter'}$order',
+        variables: [
+          if (usesSelection) Variable.withString(jsonEncode(tripIds!.toList())),
+        ],
+      );
+    }
+
     // Bound raw payload before fetching full rows. This SUM counts bytes, never money.
     for (final table in tableNames.entries) {
-      final count = await _database
-          .customSelect('SELECT count(*) AS n FROM ${table.value}')
-          .getSingle();
+      final count = await select(table.key, 'count(*) AS n').getSingle();
       if (count.read<int>('n') > backupMaxRowsPerTable) {
         throw const LedgerException(
           'The ledger exceeds the supported backup row limit.',
@@ -54,11 +87,10 @@ class BackupService {
       final sizes = backupColumns[table.key]!
           .map((column) => 'COALESCE(length(CAST($column AS BLOB)), 0)')
           .join(' + ');
-      final size = await _database
-          .customSelect(
-            'SELECT COALESCE(SUM($sizes), 0) AS bytes FROM ${table.value}',
-          )
-          .getSingle();
+      final size = await select(
+        table.key,
+        'COALESCE(SUM($sizes), 0) AS bytes',
+      ).getSingle();
       payload += size.read<int>('bytes');
       if (payload > backupMaxBytes) {
         throw const LedgerException(
@@ -67,20 +99,25 @@ class BackupService {
       }
     }
     for (final table in tableNames.entries) {
-      final rows = await _database
-          .customSelect(
-            'SELECT * FROM ${table.value} ORDER BY ${primaryKeys[table.key]}',
-          )
-          .get();
+      final rows = await select(
+        table.key,
+        '*',
+        order: ' ORDER BY ${primaryKeys[table.key]}',
+      ).get();
       tables[table.key] = rows
           .map((row) => Map<String, Object?>.from(row.data))
           .toList();
+    }
+    if (tripIds != null &&
+        (tripIds.isEmpty || tables['trips']!.length != tripIds.length)) {
+      throw const LedgerException('Choose existing trips to export.');
     }
     final exportedAt = DateTime.now().toUtc();
     return BackupValidator.snapshotInBackground(
       tables: tables,
       appVersion: appVersion,
       exportedAtUtc: exportedAt,
+      isTripExport: tripIds != null,
     );
   });
 
@@ -90,6 +127,11 @@ class BackupService {
     ValidatedBackup backup, {
     Future<bool> Function(Uint8List bytes)? saveSafetyBackup,
   }) => _database.exclusiveLedgerOperation(() async {
+    if (backup.isTripExport) {
+      throw const LedgerException(
+        'A selected-trip export must be imported into an existing ledger.',
+      );
+    }
     if (saveSafetyBackup != null) {
       final snapshot = await _snapshot();
       final bytes = await Isolate.run(snapshot.encode);
@@ -137,4 +179,24 @@ class BackupService {
     });
     return RestoreOutcome.restored;
   });
+
+  Future<void> importTrips(
+    ValidatedBackup backup,
+    Map<String, String?> destinations,
+  ) async {
+    await _database.writeTransaction(
+      () => importBackupTrips(_database, backup, destinations),
+    );
+    _database.notifyUpdates({
+      for (final table in [
+        'trips',
+        'categories',
+        'currencies',
+        'currency_rates',
+        'trip_rates',
+        'transactions',
+      ])
+        TableUpdate(table),
+    });
+  }
 }

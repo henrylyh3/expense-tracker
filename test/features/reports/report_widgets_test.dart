@@ -1,7 +1,8 @@
 import 'package:expense_tracker/core/models/ledger_types.dart';
+import 'package:expense_tracker/core/providers/trip_provider.dart';
 import 'package:expense_tracker/features/reports/domain/financial_report.dart';
 import 'package:expense_tracker/features/reports/presentation/report_view_model.dart';
-import 'package:expense_tracker/features/reports/presentation/reports_screen.dart';
+import 'package:expense_tracker/features/dashboard/presentation/dashboard_screen.dart';
 import 'package:expense_tracker/features/transactions/domain/transaction_filter.dart';
 import 'package:expense_tracker/features/transactions/presentation/transaction_view_model.dart';
 import 'package:expense_tracker/features/transactions/presentation/transactions_screen.dart';
@@ -17,12 +18,22 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            tripsProvider.overrideWith(
+              (ref) =>
+                  Stream.value(const [(id: personalTripId, name: 'Personal')]),
+            ),
+            activeTripProvider.overrideWith(
+              (ref) => Stream.value(personalTripId),
+            ),
+            tripUsedCurrenciesProvider.overrideWith(
+              (ref, id) => Stream.value(const {}),
+            ),
             financialReportProvider.overrideWith(
               (ref, period) =>
                   Stream.value(FinancialReport.calculate(period, const [])),
             ),
           ],
-          child: const MaterialApp(home: Scaffold(body: ReportsScreen())),
+          child: const MaterialApp(home: Scaffold(body: DashboardScreen())),
         ),
       );
       await tester.pumpAndSettle();
@@ -37,11 +48,12 @@ void main() {
     'category drill-down opens history with category and no date constraints',
     (tester) async {
       final router = GoRouter(
-        initialLocation: '/reports',
+        initialLocation: '/home',
         routes: [
           GoRoute(
-            path: '/reports',
-            builder: (context, state) => const Scaffold(body: ReportsScreen()),
+            path: '/home',
+            builder: (context, state) =>
+                const Scaffold(body: DashboardScreen()),
           ),
           GoRoute(
             path: '/history',
@@ -54,6 +66,16 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            tripsProvider.overrideWith(
+              (ref) =>
+                  Stream.value(const [(id: personalTripId, name: 'Personal')]),
+            ),
+            activeTripProvider.overrideWith(
+              (ref) => Stream.value(personalTripId),
+            ),
+            tripUsedCurrenciesProvider.overrideWith(
+              (ref, id) => Stream.value(const {}),
+            ),
             transactionsProvider.overrideWith((ref) => Stream.value(const [])),
             financialReportProvider.overrideWith(
               (ref, period) => Stream.value(

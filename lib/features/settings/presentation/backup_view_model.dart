@@ -66,8 +66,10 @@ class BackupActions extends Notifier<BackupViewState> {
     state = BackupViewState(preview: preview);
   });
 
-  Future<void> save() => _run(() async {
-    final bytes = await ref.read(backupServiceProvider).exportBytes();
+  Future<void> save({Set<String>? tripIds}) => _run(() async {
+    final bytes = await ref
+        .read(backupServiceProvider)
+        .exportBytes(tripIds: tripIds);
     if (!ref.mounted) return;
     final saved = await ref.read(backupFilesProvider).save(bytes);
     if (!ref.mounted) return;
@@ -77,8 +79,10 @@ class BackupActions extends Notifier<BackupViewState> {
     );
   });
 
-  Future<void> share(Rect origin) => _run(() async {
-    final bytes = await ref.read(backupServiceProvider).exportBytes();
+  Future<void> share(Rect origin, {Set<String>? tripIds}) => _run(() async {
+    final bytes = await ref
+        .read(backupServiceProvider)
+        .exportBytes(tripIds: tripIds);
     if (!ref.mounted) return;
     final status = await ref.read(backupFilesProvider).share(bytes, origin);
     if (!ref.mounted) return;
@@ -92,6 +96,15 @@ class BackupActions extends Notifier<BackupViewState> {
           'Share result unavailable. Check the destination before relying on this backup.',
       },
     );
+  });
+
+  Future<void> importTrips(Map<String, String?> destinations) => _run(() async {
+    final preview = state.preview;
+    if (preview == null) {
+      throw const LedgerException('Choose and validate a backup first.');
+    }
+    await ref.read(backupServiceProvider).importTrips(preview, destinations);
+    if (ref.mounted) state = const BackupViewState(message: 'Trips imported.');
   });
 
   Future<void> restore({required bool safetyBackup}) => _run(() async {

@@ -4,6 +4,7 @@ import 'package:expense_tracker/core/backup/backup_files.dart';
 import 'package:expense_tracker/core/backup/backup_service.dart';
 import 'package:expense_tracker/core/backup/backup_validator.dart';
 import 'package:expense_tracker/core/providers/ledger_operation_providers.dart';
+import 'package:expense_tracker/core/providers/trip_provider.dart';
 import 'package:expense_tracker/features/settings/presentation/backup_screen.dart';
 import 'package:expense_tracker/features/settings/presentation/backup_view_model.dart';
 import 'package:flutter/material.dart';
@@ -23,6 +24,12 @@ void main() {
         overrides: [
           backupFilesProvider.overrideWithValue(files),
           backupServiceProvider.overrideWithValue(service),
+          tripsProvider.overrideWith(
+            (ref) => Stream.value(const [
+              (id: 'personal', name: 'Personal'),
+              (id: 'trip-a', name: 'Trip A'),
+            ]),
+          ),
         ],
         child: const MaterialApp(home: Scaffold(body: BackupScreen())),
       ),
@@ -36,6 +43,8 @@ void main() {
     final files = _Files();
     await open(tester, files, _Service());
     await tester.tap(find.text('Export JSON'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('All trips'));
     await tester.pumpAndSettle();
     expect(files.exportedBytes, isNotNull);
     expect(
@@ -59,9 +68,9 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Validated backup'), findsOneWidget);
     expect(service.restores, 0);
-    await tester.ensureVisible(find.text('Import this backup'));
+    await tester.ensureVisible(find.text('Replace entire ledger'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Import this backup'));
+    await tester.tap(find.text('Replace entire ledger'));
     await tester.pumpAndSettle();
     expect(
       tester
@@ -76,6 +85,35 @@ void main() {
     await tester.pumpAndSettle();
     expect(service.restores, 0);
   });
+
+  testWidgets(
+    'export passes selected trip IDs and import asks about a matching name',
+    (tester) async {
+      final service = _Service();
+      await open(tester, _Files(), service);
+      await tester.tap(find.text('Export JSON'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Trip A'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Selected trips'));
+      await tester.pumpAndSettle();
+      expect(service.selected, {'trip-a'});
+
+      await tester.runAsync(
+        ProviderScope.containerOf(
+          tester.element(find.byType(BackupScreen)),
+        ).read(backupActionsProvider.notifier).chooseBackup,
+      );
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Import trips'));
+      await tester.tap(find.text('Import trips'));
+      await tester.pumpAndSettle();
+      expect(find.text('Merge into Personal'), findsOneWidget);
+      await tester.tap(find.text('Create a separate copy'));
+      await tester.pumpAndSettle();
+      expect(service.imported, {'personal': null});
+    },
+  );
   testWidgets('failed selection clears the previous preview', (tester) async {
     final files = _Files();
     await open(tester, files, _Service());
@@ -90,7 +128,7 @@ void main() {
     await tester.tap(find.text('Choose JSON file'));
     await tester.pumpAndSettle();
     expect(find.text('Validated backup'), findsNothing);
-    expect(find.text('Import this backup'), findsNothing);
+    expect(find.text('Import trips'), findsNothing);
   });
   testWidgets('cancelled safety save does not reset navigation', (
     tester,
@@ -141,9 +179,22 @@ class _Files extends BackupFiles {
 
 class _Service implements BackupService {
   int restores = 0;
+  Map<String, String?>? imported;
+  Set<String>? selected;
   @override
-  Future<Uint8List> exportBytes() async =>
-      BackupValidator.fromDocument(backupDocument()).encode();
+  Future<Uint8List> exportBytes({Set<String>? tripIds}) async {
+    selected = tripIds;
+    return BackupValidator.fromDocument(backupDocument()).encode();
+  }
+
+  @override
+  Future<void> importTrips(
+    ValidatedBackup backup,
+    Map<String, String?> destinations,
+  ) async {
+    imported = destinations;
+  }
+
   @override
   Future<RestoreOutcome> restore(
     ValidatedBackup backup, {

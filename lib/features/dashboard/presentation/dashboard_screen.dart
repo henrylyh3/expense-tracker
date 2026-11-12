@@ -35,7 +35,6 @@ class DashboardScreen extends ConsumerWidget {
     final codes = options.map((item) => item.key).toList();
     final period = ReportPeriod.trip();
     final report = ref.watch(financialReportProvider(period));
-    final recent = ref.watch(dashboardRecentProvider(period));
     void history({String? category}) {
       ref
           .read(historyFilterProvider.notifier)
@@ -162,43 +161,6 @@ class DashboardScreen extends ConsumerWidget {
             currency: display,
             title: 'Trip spending by day',
           ),
-        ),
-        const SizedBox(height: 16),
-        Text(
-          'Recent transactions',
-          style: Theme.of(context).textTheme.titleLarge,
-        ),
-        TextButton(
-          onPressed: () => history(),
-          child: const Text('View trip history'),
-        ),
-        recent.when(
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (error, stack) => ManagementLoadError(
-            message: 'Unable to load recent transactions.',
-            onRetry: () => ref.invalidate(dashboardRecentProvider(period)),
-          ),
-          data: (items) => items.isEmpty
-              ? const Padding(
-                  padding: EdgeInsets.all(16),
-                  child: Text('No transactions in this trip.'),
-                )
-              : Column(
-                  children: [
-                    for (final item in items.take(5))
-                      Card(
-                        child: ListTile(
-                          title: Text(item.categoryName),
-                          subtitle: Text(
-                            '${item.date}\n${display.format(item.conversion.myr.minorUnits)}'
-                            '${item.submittedByGuest == null ? '' : '\nGuest: ${item.submittedByGuest}'}',
-                          ),
-                          trailing: const Icon(Icons.chevron_right),
-                          onTap: () => context.push('/transactions/${item.id}'),
-                        ),
-                      ),
-                  ],
-                ),
         ),
       ],
     );

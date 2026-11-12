@@ -5,7 +5,6 @@ import 'package:go_router/go_router.dart';
 import '../features/categories/presentation/categories_screen.dart';
 import '../features/currencies/presentation/currencies_screen.dart';
 import '../features/dashboard/presentation/dashboard_screen.dart';
-import '../features/reports/presentation/reports_screen.dart';
 import '../features/settings/presentation/settings_screen.dart';
 import '../features/sharing/presentation/sharing_screen.dart';
 import '../features/settings/presentation/trips_screen.dart';
@@ -53,14 +52,6 @@ final routerProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: '/history',
                 builder: (context, state) => const TransactionsScreen(),
-              ),
-            ],
-          ),
-          StatefulShellBranch(
-            routes: [
-              GoRoute(
-                path: '/reports',
-                builder: (context, state) => const ReportsScreen(),
               ),
             ],
           ),

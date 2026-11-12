@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/providers/ledger_operation_providers.dart';
+import '../../../core/providers/trip_provider.dart';
+import '../../../core/backup/backup_validator.dart';
 import 'backup_view_model.dart';
 
 class BackupScreen extends ConsumerWidget {
@@ -13,6 +15,7 @@ class BackupScreen extends ConsumerWidget {
     final state = ref.watch(backupActionsProvider);
     final actions = ref.read(backupActionsProvider.notifier);
     final preview = state.preview;
+    final trips = ref.watch(tripsProvider).asData?.value;
     return PopScope(
       canPop: !busy,
       child: ListView(
@@ -24,9 +27,7 @@ class BackupScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 12),
           const Text(
-            'Backups contain your full financial history and notes as unencrypted JSON. '
-            'Choose a private destination. Files or sharing apps you select may store copies outside this device. '
-            'Invitations, shared-trip caches and unsent guest expenses are excluded from exports. Import removes them from this device.',
+            'Export all trips or choose which trips to include. JSON files contain unencrypted expenses and notes. Choose a private destination.',
           ),
           const SizedBox(height: 16),
           Wrap(
@@ -34,20 +35,33 @@ class BackupScreen extends ConsumerWidget {
             runSpacing: 12,
             children: [
               FilledButton.icon(
-                onPressed: busy ? null : actions.save,
+                onPressed: busy || trips == null
+                    ? null
+                    : () async {
+                        final choice = await _chooseExport(context, trips);
+                        if (choice != null && context.mounted) {
+                          await actions.save(tripIds: choice.tripIds);
+                        }
+                      },
                 icon: const Icon(Icons.save_alt),
                 label: const Text('Export JSON'),
               ),
               Builder(
                 builder: (buttonContext) => OutlinedButton.icon(
-                  onPressed: busy
+                  onPressed: busy || trips == null
                       ? null
-                      : () {
+                      : () async {
                           final box =
                               buttonContext.findRenderObject()! as RenderBox;
-                          actions.share(
-                            box.localToGlobal(Offset.zero) & box.size,
-                          );
+                          final origin =
+                              box.localToGlobal(Offset.zero) & box.size;
+                          final choice = await _chooseExport(context, trips);
+                          if (choice != null && context.mounted) {
+                            await actions.share(
+                              origin,
+                              tripIds: choice.tripIds,
+                            );
+                          }
                         },
                   icon: const Icon(Icons.share_outlined),
                   label: const Text('Share JSON'),
@@ -61,8 +75,7 @@ class BackupScreen extends ConsumerWidget {
           Text('Import JSON', style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 8),
           const Text(
-            'Import replaces all expenses, trips, categories, currency records and settings. '
-            'There is no merge. Choose a JSON file to validate and preview it first.',
+            'Import adds trips to this ledger. For each matching name, choose whether to merge into the existing trip or create a separate copy.',
           ),
           const SizedBox(height: 12),
           OutlinedButton.icon(
@@ -123,17 +136,33 @@ class BackupScreen extends ConsumerWidget {
                       ),
                     const SizedBox(height: 16),
                     FilledButton.icon(
-                      onPressed: busy
+                      onPressed: busy || trips == null
                           ? null
                           : () async {
-                              final safety = await _confirmRestore(context);
-                              if (safety != null && context.mounted) {
-                                await actions.restore(safetyBackup: safety);
+                              final choices = await _chooseDestinations(
+                                context,
+                                preview,
+                                trips,
+                              );
+                              if (choices != null && context.mounted) {
+                                await actions.importTrips(choices);
                               }
                             },
-                      icon: const Icon(Icons.restore),
-                      label: const Text('Import this backup'),
+                      icon: const Icon(Icons.file_download_outlined),
+                      label: const Text('Import trips'),
                     ),
+                    if (!preview.isTripExport)
+                      TextButton(
+                        onPressed: busy
+                            ? null
+                            : () async {
+                                final safety = await _confirmRestore(context);
+                                if (safety != null && context.mounted) {
+                                  await actions.restore(safetyBackup: safety);
+                                }
+                              },
+                        child: const Text('Replace entire ledger'),
+                      ),
                   ],
                 ),
               ),
@@ -142,6 +171,105 @@ class BackupScreen extends ConsumerWidget {
       ),
     );
   }
+}
+
+Future<({Set<String>? tripIds})?> _chooseExport(
+  BuildContext context,
+  List<({String id, String name})> trips,
+) {
+  final selected = <String>{};
+  return showDialog<({Set<String>? tripIds})>(
+    context: context,
+    builder: (context) => StatefulBuilder(
+      builder: (context, setState) => AlertDialog(
+        title: const Text('Choose trips to export'),
+        content: SizedBox(
+          width: 400,
+          height: 240,
+          child: ListView(
+            shrinkWrap: true,
+            children: [
+              for (final trip in trips)
+                CheckboxListTile(
+                  title: Text(trip.name),
+                  value: selected.contains(trip.id),
+                  onChanged: (checked) => setState(() {
+                    if (checked == true) {
+                      selected.add(trip.id);
+                    } else {
+                      selected.remove(trip.id);
+                    }
+                  }),
+                ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          OutlinedButton(
+            onPressed: () =>
+                Navigator.pop(context, (tripIds: null as Set<String>?)),
+            child: const Text('All trips'),
+          ),
+          FilledButton(
+            onPressed: selected.isEmpty
+                ? null
+                : () => Navigator.pop(context, (
+                    tripIds: Set<String>.of(selected) as Set<String>?,
+                  )),
+            child: const Text('Selected trips'),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+Future<Map<String, String?>?> _chooseDestinations(
+  BuildContext context,
+  ValidatedBackup backup,
+  List<({String id, String name})> trips,
+) async {
+  final destinations = <String, String?>{};
+  for (final row in backup.tables['trips']!) {
+    final name = row['name'] as String;
+    final matches = trips
+        .where((trip) => trip.name.toLowerCase() == name.toLowerCase())
+        .toList();
+    if (matches.isEmpty) continue;
+    final choice = await showDialog<({String? tripId})>(
+      context: context,
+      builder: (context) => SimpleDialog(
+        title: Text('“$name” already exists'),
+        children: [
+          for (final match in matches)
+            SimpleDialogOption(
+              onPressed: () =>
+                  Navigator.pop(context, (tripId: match.id as String?)),
+              child: Text(
+                matches.length == 1
+                    ? 'Merge into ${match.name}'
+                    : 'Merge into ${match.name} (${match.id})',
+              ),
+            ),
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(context, (tripId: null as String?)),
+            child: const Text('Create a separate copy'),
+          ),
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel import'),
+          ),
+        ],
+      ),
+    );
+    if (choice == null || !context.mounted) return null;
+    destinations[row['id'] as String] = choice.tripId;
+  }
+  return destinations;
 }
 
 Future<bool?> _confirmRestore(BuildContext context) {
@@ -157,7 +285,7 @@ Future<bool?> _confirmRestore(BuildContext context) {
             mainAxisSize: MainAxisSize.min,
             children: [
               const Text(
-                'All current ledger data and settings will be replaced. This cannot be undone without another backup.',
+                'All current ledger data and settings will be replaced. Invitations, guest caches and unsent guest expenses on this device will be removed.',
               ),
               CheckboxListTile(
                 contentPadding: EdgeInsets.zero,

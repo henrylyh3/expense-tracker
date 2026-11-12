@@ -67,16 +67,18 @@ final class ValidatedBackup {
   ValidatedBackup._(
     this.appVersion,
     this.exportedAtUtc,
-    Map<String, List<Map<String, Object?>>> tables,
-  ) : tables = Map.unmodifiable({
-        for (final table in tables.entries)
-          table.key: List<Map<String, Object?>>.unmodifiable(
-            table.value.map((row) => Map<String, Object?>.unmodifiable(row)),
-          ),
-      });
+    Map<String, List<Map<String, Object?>>> tables, {
+    required this.isTripExport,
+  }) : tables = Map.unmodifiable({
+         for (final table in tables.entries)
+           table.key: List<Map<String, Object?>>.unmodifiable(
+             table.value.map((row) => Map<String, Object?>.unmodifiable(row)),
+           ),
+       });
 
   final String appVersion;
   final DateTime exportedAtUtc;
+  final bool isTripExport;
   final Map<String, List<Map<String, Object?>>> tables;
   int count(String table) => tables[table]!.length;
   String? get firstTransactionDate => _edgeDate(false);
@@ -94,7 +96,7 @@ final class ValidatedBackup {
   }
 
   Map<String, Object?> toDocument() => {
-    'format': 'expense-tracker',
+    'format': isTripExport ? 'expense-tracker-trips' : 'expense-tracker',
     'format_version': 1,
     'schema_version': 6,
     'app_version': appVersion,
@@ -152,11 +154,13 @@ abstract final class BackupValidator {
     required Map<String, List<Map<String, Object?>>> tables,
     required DateTime exportedAtUtc,
     required String appVersion,
+    bool isTripExport = false,
   }) => Isolate.run(
     () => fromDatabaseRows(
       tables: tables,
       appVersion: appVersion,
       exportedAtUtc: exportedAtUtc,
+      isTripExport: isTripExport,
     ),
   );
 
@@ -179,6 +183,7 @@ abstract final class BackupValidator {
     required Map<String, List<Map<String, Object?>>> tables,
     required String appVersion,
     required DateTime exportedAtUtc,
+    bool isTripExport = false,
   }) {
     _object(tables, backupColumns.keys.toSet());
     for (final table in tables.entries) {
@@ -187,7 +192,7 @@ abstract final class BackupValidator {
       }
     }
     return fromDocument({
-      'format': 'expense-tracker',
+      'format': isTripExport ? 'expense-tracker-trips' : 'expense-tracker',
       'format_version': 1,
       'schema_version': 6,
       'app_version': appVersion,
@@ -216,7 +221,9 @@ abstract final class BackupValidator {
       'counts',
       'data',
     });
-    if (root['format'] != 'expense-tracker' ||
+    final isTripExport = root['format'] == 'expense-tracker-trips';
+    if ((!isTripExport && root['format'] != 'expense-tracker') ||
+        (isTripExport && root['schema_version'] != 6) ||
         root['format_version'] is! int ||
         root['format_version'] != 1 ||
         root['schema_version'] is! int ||
@@ -300,7 +307,12 @@ abstract final class BackupValidator {
       if (!trips.add(_text(row, 'id', 64))) _invalid('Duplicate trip ID.');
       _text(row, 'name', 80);
     }
-    if (!trips.contains('personal')) _invalid('The Personal trip is missing.');
+    if (isTripExport && trips.isEmpty) {
+      _invalid('The export must contain at least one trip.');
+    }
+    if (!isTripExport && !trips.contains('personal')) {
+      _invalid('The Personal trip is missing.');
+    }
 
     final categories = <String, Map<String, Object?>>{};
     final categoryNames = <(String, String)>{};
@@ -489,7 +501,12 @@ abstract final class BackupValidator {
     if (!settingKeys.contains('theme_mode')) {
       _invalid('The appearance setting is missing.');
     }
-    return ValidatedBackup._(version, exported, tables);
+    return ValidatedBackup._(
+      version,
+      exported,
+      tables,
+      isTripExport: isTripExport,
+    );
   }
 }
 
