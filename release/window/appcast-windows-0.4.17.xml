@@ -1,0 +1,10 @@
+<?xml version='1.0' encoding='utf-8'?>
+<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+  <channel>
+    <title>Expense Tracker windows</title>
+    <item>
+      <title>Expense Tracker 0.4.17</title>
+      <enclosure url="https://github.com/henrylyh3/expense-tracker/releases/download/v0.4.17/expense-tracker-0.4.17-windows-x64-setup.exe" length="13068510" type="application/octet-stream" sparkle:version="0.4.17+26" sparkle:shortVersionString="0.4.17" sparkle:os="windows" sparkle:dsaSignature="MD4CHQCA8fR5cwpmD1ZQZlA001ubwf9Z7YnlYiaPz/IfAh0A7pAC7hC8reh4sny2lM9oGPXa/+i2ypXUzcKtjg==" />
+    </item>
+  </channel>
+</rss>
