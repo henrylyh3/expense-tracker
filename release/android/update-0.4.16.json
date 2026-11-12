@@ -1,0 +1,10 @@
+{
+  "schema": 1,
+  "version": "0.4.16",
+  "version_code": 2025,
+  "package": "com.example.expense_tracker",
+  "abi": "arm64-v8a",
+  "apk": "expense-tracker-0.4.16-arm64-release.apk",
+  "size": 22348912,
+  "sha256": "178b725fcb50b8e9cab9e6980ba995585dd8a5fac9f433e4e76fde9e33d837bc"
+}

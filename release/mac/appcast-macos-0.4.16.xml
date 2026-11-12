@@ -1,0 +1,10 @@
+<?xml version='1.0' encoding='utf-8'?>
+<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+  <channel>
+    <title>Expense Tracker macos</title>
+    <item>
+      <title>Expense Tracker 0.4.16</title>
+      <enclosure url="https://github.com/henrylyh3/expense-tracker/releases/download/v0.4.16/expense-tracker-0.4.16-macos-update.zip" length="23154866" type="application/octet-stream" sparkle:version="25" sparkle:shortVersionString="0.4.16" sparkle:os="macos" sparkle:edSignature="WjNEPnqwmBIMlEAgqQtw8X3+vWlFG/++pERA2LWa/G9rVn8luIxahD3UA0bo4uKHIRIRJI5dzBe0oMaoKQvPBw==" />
+    </item>
+  </channel>
+</rss>
