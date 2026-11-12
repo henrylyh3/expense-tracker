@@ -1,4 +1,4 @@
-import { parseInvitation, RelayClient, GuestError, formatSnapshotTotal } from './protocol.mjs';
+import { parseInvitation, RelayClient, GuestError, formatMyr, formatMinor, formatSnapshotTotal } from './protocol.mjs';
 export function mountApp(doc, { clientFactory = invitation => new RelayClient(invitation), initialInvitationCode } = {}) {
   const win = doc.defaultView, $ = id => doc.getElementById(id);
   let client = null, syncing = false, controller = null, timer = null, closed = false;
@@ -11,6 +11,42 @@ export function mountApp(doc, { clientFactory = invitation => new RelayClient(in
     if (rows.some(row => row.id === before)) field.value = before;
     else if (rows.some(row => row.id === selected)) field.value = selected;
   }
+  function renderBreakdown(summary) {
+    $('breakdown').hidden = !summary;
+    $('breakdown-unavailable').hidden = !!summary;
+    if (!summary) return;
+    const item = (label, amount) => {
+      const row = text('li', '', 'entry-top');
+      row.append(text('span', label), text('strong', amount, 'num'));
+      return row;
+    };
+    $('currency-totals').replaceChildren(...summary.currencies.map(row =>
+      item(row.code, formatMinor(row.minor, row.code, row.precision))));
+    if (!summary.currencies.length) $('currency-totals').append(text('li', 'No expenses yet.'));
+    const chart = $('category-chart'), ctx = chart.getContext('2d');
+    const total = summary.categories.reduce((sum, row) => sum + Number(row.minor), 0);
+    chart.hidden = total === 0;
+    ctx.clearRect(0, 0, chart.width, chart.height);
+    ctx.lineWidth = 42;
+    let angle = -Math.PI / 2;
+    $('category-totals').replaceChildren(...summary.categories.map(row => {
+      const color = '#' + row.color.replace(/^#/, '');
+      if (total && Number(row.minor)) {
+        const end = angle + 2 * Math.PI * Number(row.minor) / total;
+        ctx.beginPath(); ctx.strokeStyle = color;
+        ctx.arc(chart.width / 2, chart.height / 2, 78, angle, end);
+        ctx.stroke(); angle = end;
+      }
+      const entry = item(`${row.name} · ${row.count} ${row.count === 1 ? 'expense' : 'expenses'}`, formatMyr(row.minor));
+      const dot = text('canvas', '', 'category-marker');
+      dot.width = dot.height = 10; dot.setAttribute('aria-hidden', 'true');
+      const marker = dot.getContext('2d');
+      marker.fillStyle = color; marker.fillRect(0, 0, 10, 10);
+      entry.firstElementChild.prepend(dot);
+      return entry;
+    }));
+    if (!summary.categories.length) $('category-totals').append(text('li', 'No category spending yet.'));
+  }
   function render() {
     if (!client) return;
     const { snapshot, pending } = client.state;
@@ -20,11 +56,16 @@ export function mountApp(doc, { clientFactory = invitation => new RelayClient(in
     $('expiry').textContent = client.invite.expires === null ? 'Access can be revoked by the host.' : `${client.expired ? 'Expired' : 'Access expires'} ${new Date(client.invite.expires).toLocaleString()}`;
     $('summary').hidden = !snapshot;
     if (snapshot) {
-      $('total').textContent = formatSnapshotTotal(snapshot); $('count').textContent = `${snapshot.count} ${snapshot.count === 1 ? 'expense' : 'expenses'} in the host ledger`;
+      const myr = formatMyr(snapshot.total_myr_minor), display = formatSnapshotTotal(snapshot);
+      $('total').textContent = myr;
+      $('display-total').hidden = myr === display;
+      $('display-total').textContent = display;
+      renderBreakdown(snapshot.breakdown); $('count').textContent = `${snapshot.count} ${snapshot.count === 1 ? 'expense' : 'expenses'} in the host ledger`;
       options('category', snapshot.categories.map(row => ({ id: row.id, label: row.name })));
       options('currency', snapshot.currencies.map(row => ({ id: row.id, label: `${row.code} · ${row.name}` })), snapshot.default_currency);
       $('synced').textContent = `Host snapshot from ${new Date(snapshot.synced_at).toLocaleString()}`;
     }
+    $('refresh-summary').disabled = client.expired || closed || syncing;
     $('expense-fields').disabled = !snapshot || client.expired || closed || syncing;
     $('sync').disabled = client.expired || closed || syncing; $('sync').textContent = syncing ? 'Sending…' : 'Send pending';
     $('pending-count').textContent = String(pending.length); $('pending-empty').hidden = pending.length > 0;
@@ -52,16 +93,27 @@ export function mountApp(doc, { clientFactory = invitation => new RelayClient(in
   }
   function schedule() {
     clearTimeout(timer);
-    if (!client || closed || doc.hidden || client.expired || (client.state.snapshot && !client.state.pending.length)) return;
+    if (!client || closed || doc.hidden || client.expired || (client.state.snapshot && !client.state.pending.length && !client.state.read)) return;
     timer = setTimeout(() => sync(), 10000);
   }
-  async function sync() {
+  async function sync(refreshSnapshot = false) {
     if (!client || syncing || closed || doc.hidden) return;
     if (!win.navigator.onLine) { status('Offline. Expenses saved on this device will sync when this page is online and visible.'); schedule(); return; }
     syncing = true; controller = new AbortController(); render();
-    try { await client.sync({ signal: controller.signal, onProgress: message => status(message) }); status(client.lastSentCount ? `Sent ${client.lastSentCount} ${client.lastSentCount === 1 ? 'expense' : 'expenses'} to Discord. The host imports them when their app opens.` : 'Ready to send expenses. The host can be offline.'); if ($('form-status').textContent && !client.state.pending.length) $('form-status').textContent = 'Sent to Discord. You can close this page.'; }
+    const refreshing = refreshSnapshot || !!client.state.read;
+    try {
+      await client.sync({ refreshSnapshot, signal: controller.signal, onProgress: message => status(message) });
+      status(client.lastSentCount
+        ? `Sent ${client.lastSentCount} ${client.lastSentCount === 1 ? 'expense' : 'expenses'} to Discord. The host imports them when their app opens.`
+        : refreshing ? 'Trip summary refreshed.' : 'Ready to send expenses. The host can be offline.');
+    }
     catch (error) { if (error.kind === 'revoked' || error.kind === 'expired') closed = true; status(explain(error), !['waiting', 'offline'].includes(error.kind)); }
-    finally { syncing = false; controller = null; render(); schedule(); }
+    finally {
+      if (client?.lastSentCount && !client.state.pending.length && $('form-status').textContent) {
+        $('form-status').textContent = 'Sent to Discord. You can close this page.';
+      }
+      syncing = false; controller = null; render(); schedule();
+    }
   }
   async function join(code) {
     try {
@@ -75,7 +127,8 @@ export function mountApp(doc, { clientFactory = invitation => new RelayClient(in
     } catch (error) { status(explain(error), true); }
   }
   $('join-form').addEventListener('submit', event => { event.preventDefault(); join($('invitation').value); });
-  $('sync').addEventListener('click', sync);
+  $('sync').addEventListener('click', () => sync());
+  $('refresh-summary').addEventListener('click', () => sync(true));
   $('expense-form').addEventListener('submit', async event => {
     event.preventDefault(); if (!client || syncing) return;
     $('add').disabled = true;
@@ -92,7 +145,7 @@ export function mountApp(doc, { clientFactory = invitation => new RelayClient(in
     $('trip').hidden = true; $('join').hidden = false; status('Trip closed. Encrypted pending expenses remain on this device.');
   });
   doc.addEventListener('visibilitychange', () => { if (doc.hidden) { clearTimeout(timer); controller?.abort(); } else sync(); });
-  win.addEventListener('online', sync);
+  win.addEventListener('online', () => sync());
   win.addEventListener('offline', () => { controller?.abort(); status('Offline. Pending expenses remain on this device.'); });
   const now = new Date(); $('date').value = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
   let code = initialInvitationCode;

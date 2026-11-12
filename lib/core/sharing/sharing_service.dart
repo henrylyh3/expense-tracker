@@ -17,6 +17,7 @@ import '../../features/reports/domain/report_period.dart';
 import '../../features/transactions/data/transaction_repository.dart';
 import '../../features/transactions/domain/transaction_input.dart';
 import 'sharing_cipher.dart';
+import 'shared_trip_breakdown.dart';
 import 'discord_api.dart';
 
 part 'discord_sharing.dart';
@@ -288,9 +289,14 @@ class SharingService {
                 )
                 .getSingle())
             .read<String>('name');
-    final report = await ReportRepository(
-      db,
-    ).watchPeriod(ReportPeriod.trip(), expensesOnly: true, tripId: trip).first;
+    final report = await ReportRepository(db)
+        .watchPeriod(
+          ReportPeriod.trip(),
+          expensesOnly: true,
+          tripId: trip,
+          includeCurrencyTotals: true,
+        )
+        .first;
     final categories = await db
         .customSelect(
           "SELECT id, name FROM categories WHERE type = 'expense' AND is_archived = 0 ORDER BY sort_order LIMIT 5000",
@@ -332,6 +338,7 @@ class SharingService {
       'name': name,
       'total_myr_minor': report.expenseMinor.toString(),
       'count': report.expenseCount,
+      'breakdown': SharedTripBreakdown.encode(report),
       'default_currency': defaultCurrency,
       'categories': [
         for (final row in categories)
@@ -618,6 +625,7 @@ class SharingService {
       throw const FormatException('Invalid host totals');
     }
     Money.checkedMinorUnits(BigInt.parse(total));
+    SharedTripBreakdown.fromSnapshot(snapshot);
     if (DateTime.tryParse(text(snapshot['synced_at'], 40)) == null) {
       throw const FormatException('Invalid sync date');
     }

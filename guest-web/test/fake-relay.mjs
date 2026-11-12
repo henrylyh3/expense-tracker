@@ -30,9 +30,9 @@ export class FakeRelay {
     }
     if (url.startsWith('https://cdn.discordapp.com/')) {
       const row = this.messages.get(new URL(url).pathname.split('/').at(-1));
-      if (row.invite) return Response.json({ direction: 'invite', id: this.wrongId ? 'wrong-id' : invitationData.id, ...await seal({ snapshot: structuredClone(snapshot) }, key, `discord-invite:${invitationData.id}:${endpoint.trip}`) });
+      if (row.invite) return Response.json({ direction: 'invite', id: this.wrongId ? 'wrong-id' : invitationData.id, ...await seal({ snapshot: structuredClone(this.bootstrapSnapshot ?? snapshot) }, key, `discord-invite:${invitationData.id}:${endpoint.trip}`) });
       if (this.waiting) return Response.json(row.packet);
-      const response = { request: row.request.request, snapshot: structuredClone(snapshot) };
+      const response = { request: row.request.request, snapshot: structuredClone(this.responseSnapshot ?? snapshot) };
       if (row.request.action === 'add') { this.saved.add(row.request.submission); response.saved = 'transaction-id'; }
       return Response.json({ direction: 'response', id: this.wrongId ? 'wrong-id' : invitationData.id, ...await seal(response, key, `discord-response:${invitationData.id}:${row.request.request}`) });
     }

@@ -14,6 +14,8 @@ import '../../../core/money/money.dart';
 import '../../../core/dates/calendar_date.dart';
 import '../../../core/sharing/sharing_service.dart';
 import '../../../core/sharing/shared_trip_total.dart';
+import '../../../core/sharing/shared_trip_breakdown.dart';
+import '../../reports/presentation/report_widgets.dart';
 import '../../../core/sharing/discord_api.dart';
 import '../../../core/sharing/guest_web.dart';
 import 'discord_settings.dart';
@@ -288,6 +290,16 @@ class _SharingScreenState extends ConsumerState<SharingScreen> {
     final data = cache == null
         ? null
         : jsonDecode(cache) as Map<String, dynamic>;
+    final breakdown = data == null
+        ? null
+        : SharedTripBreakdown.fromSnapshot(data);
+    final myrTotal = data == null
+        ? null
+        : Money.fromMinor(
+            minorUnits: int.parse(data['total_myr_minor'] as String),
+            currencyCode: 'MYR',
+            decimalPlaces: 2,
+          );
     final pending = ref.watch(sharedPendingProvider(id)).asData?.value ?? [];
     return [
       const SizedBox(height: 16),
@@ -372,11 +384,23 @@ class _SharingScreenState extends ConsumerState<SharingScreen> {
             ),
           ),
         if (data != null) ...[
-          Text(
-            'Host total · ${formatSharedTripTotal(data)}',
-            style: Theme.of(context).textTheme.titleLarge,
-          ),
-          Text('${data['count']} expenses · Last sync ${data['synced_at']}'),
+          if (breakdown == null)
+            Text(
+              'Host total · ${formatSharedTripTotal(data)}',
+              style: Theme.of(context).textTheme.titleLarge,
+            )
+          else ...[
+            TripCurrencySummary(
+              expenseCount: data['count'] as int,
+              currencyTotals: breakdown.currencyTotals,
+              expenses: myrTotal!,
+            ),
+            if (formatSharedTripTotal(data) != myrTotal.format())
+              Text('Host display total · ${formatSharedTripTotal(data)}'),
+            const SizedBox(height: 16),
+            SpendingBreakdown(categories: breakdown.categories),
+          ],
+          Text('Last sync ${data['synced_at']}'),
           const Text(
             'Queued expenses are not included until the host accepts them.',
           ),

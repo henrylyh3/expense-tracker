@@ -2,5 +2,5 @@
 // Release builds may override this with --dart-define=APP_VERSION=<version+build>.
 const appVersion = String.fromEnvironment(
   'APP_VERSION',
-  defaultValue: '0.4.16+25',
+  defaultValue: '0.4.17+26',
 );

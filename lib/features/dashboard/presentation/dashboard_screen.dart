@@ -141,7 +141,7 @@ class DashboardScreen extends ConsumerWidget {
               const SizedBox(height: 16),
               SpendingBreakdown(
                 currency: display,
-                report: value,
+                categories: value.categories,
                 onCategory: (category) => history(category: category.id),
               ),
             ],

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseInvitation, seal, open, makeExpense, formatMyr, formatSnapshotTotal, validateSnapshot, base64url } from '../public/protocol.mjs';
+import { parseInvitation, seal, open, makeExpense, formatMyr, formatMinor, formatSnapshotTotal, validateSnapshot, base64url } from '../public/protocol.mjs';
 import { FakeRelay, snapshot, input, key, invitationCode, invitationData, endpoint, memoryStorage } from './fake-relay.mjs';
 const encode = data => base64url(new TextEncoder().encode(JSON.stringify(data)));
 test('invitation accepts URL fragments and rejects unsafe webhook destinations', () => {
@@ -126,4 +126,25 @@ test('unsupported coordination cannot send or silently replace the queue', async
   await assert.rejects(client.queue(input), /Update Safari/);
   assert.equal(fake.calls.length, 0);
   assert.equal(client.state.pending.length, 0);
+});
+
+
+test('older browser links can refresh an authenticated trip breakdown without reposting', async () => {
+  const fake = new FakeRelay(), client = fake.client();
+  await client.sync();
+  assert.equal(client.state.snapshot.breakdown, undefined);
+  const breakdown = {
+    currencies: [{ code: 'JPY', precision: 3, minor: '100125' }],
+    categories: [{ id: 'food', name: 'Food', color: '#EF6C00', minor: '1250', count: 1 }],
+  };
+  fake.responseSnapshot = { ...snapshot, breakdown };
+  fake.waiting = true;
+  await assert.rejects(client.sync({ refreshSnapshot: true }), /Waiting for the host/);
+  assert.equal(client.state.snapshot.breakdown, undefined);
+  fake.waiting = false;
+  await client.sync();
+  assert.deepEqual(client.state.snapshot.breakdown, breakdown);
+  assert.equal(fake.posts, 1);
+  assert.equal(formatMinor('100125', 'JPY', 3), 'JPY 100.125');
+  assert.throws(() => validateSnapshot({ ...fake.responseSnapshot, total_myr_minor: '999' }), /invalid trip summary/);
 });

@@ -2,6 +2,9 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:drift/native.dart';
 import 'package:expense_tracker/core/database/app_database.dart';
+import 'package:expense_tracker/core/dates/calendar_date.dart';
+import 'package:expense_tracker/core/sharing/shared_trip_breakdown.dart';
+import 'package:expense_tracker/features/transactions/domain/transaction_input.dart';
 import 'package:expense_tracker/core/models/ledger_types.dart';
 import 'package:expense_tracker/core/sharing/discord_api.dart';
 import 'package:expense_tracker/core/sharing/sharing_cipher.dart';
@@ -47,6 +50,75 @@ void main() {
   Map<String, dynamic> decode(String code) =>
       jsonDecode(utf8.decode(base64Url.decode(code.substring(13))))
           as Map<String, dynamic>;
+  test(
+    'encrypted guest summary uses saved rates and only the invited profile',
+    () async {
+      await hostDb.customStatement(
+        "INSERT INTO trips (id, name) VALUES ('holiday', 'Holiday')",
+      );
+      await hostDb.customStatement(
+        "INSERT INTO currencies VALUES ('THB','Thai Baht','THB',2,'0.12',1,0,0)",
+      );
+      final repository = TransactionRepository(hostDb);
+      Future<void> expense(
+        String trip,
+        String code,
+        String amount,
+        String category, {
+        String? rate,
+      }) async {
+        await repository.save(
+          TransactionInput(
+            type: TransactionType.expense,
+            categoryId: category,
+            currencyCode: code,
+            amountText: amount,
+            date: CalendarDate.parse('2026-11-10'),
+            rateOverride: rate,
+          ),
+          sharedTripId: trip,
+        );
+      }
+
+      await expense('holiday', 'THB', '100', 'seed-food', rate: '0.15');
+      await expense('holiday', 'THB', '50', 'seed-food', rate: '0.12');
+      await expense('holiday', 'MYR', '10', 'seed-shopping');
+      await expense('personal', 'MYR', '999', 'seed-shopping');
+
+      final link = Uri.parse(
+        await host.inviteDiscordWeb(
+          'holiday',
+          'Alice',
+          Uri.parse('https://guest.example/'),
+        ),
+      );
+      final data = decode(Uri.splitQueryString(link.fragment)['invite']!);
+      final webhook = DiscordConnection.decode(
+        data['endpoint'] as String,
+      ).webhook;
+      final packet = await api.packet(
+        await api.get(webhook, data['bootstrap'] as String),
+      );
+      final envelope = await SharingCipher().open(
+        packet!,
+        data['key'] as String,
+        'discord-invite:${data['id']}:holiday',
+      );
+      final snapshot = envelope['snapshot'] as Map<String, dynamic>;
+      final summary = SharedTripBreakdown.fromSnapshot(snapshot)!;
+      expect(snapshot['total_myr_minor'], '3100');
+      expect(snapshot['count'], 3);
+      expect(summary.currencyTotals.map((money) => money.format()), [
+        'RM 10.00',
+        'THB 150.00',
+      ]);
+      expect(
+        summary.categories.map((row) => (row.name, row.amountMinor, row.count)),
+        [('Food', 2100, 2), ('Shopping', 1000, 1)],
+      );
+    },
+  );
+
   test(
     'host copies original web link, including invites made before caching',
     () async {

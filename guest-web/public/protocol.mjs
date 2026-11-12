@@ -66,6 +66,36 @@ export function validateSnapshot(value) {
       }
     }
   }
+  if (Object.hasOwn(value, 'breakdown')) {
+    const summary = value.breakdown;
+    const invalid = () => new GuestError('The host sent an invalid trip summary.');
+    if (!summary || !Array.isArray(summary.currencies) || !Array.isArray(summary.categories) ||
+        summary.currencies.length > 5000 || summary.categories.length > 5000) throw invalid();
+    const amount = minor => {
+      if (typeof minor !== 'string' || !/^\d{1,19}$/.test(minor) || BigInt(minor) > MAX_INT) throw invalid();
+      return BigInt(minor);
+    };
+    const codes = new Set();
+    for (const row of summary.currencies) {
+      if (!row || typeof row.code !== 'string' || !/^[A-Z]{3}$/.test(row.code) || codes.has(row.code) ||
+          !Number.isInteger(row.precision) || row.precision < 0 || row.precision > 6 || (row.code === 'MYR' && row.precision !== 2)) throw invalid();
+      codes.add(row.code);
+      amount(row.minor);
+    }
+    const ids = new Set();
+    let total = 0n, count = 0;
+    for (const row of summary.categories) {
+      if (!row || typeof row.color !== 'string' || !/^#?[a-f\d]{6}$/i.test(row.color) ||
+          !Number.isSafeInteger(row.count) || row.count <= 0 || row.count > value.count - count) throw invalid();
+      text(row.name);
+      text(row.id);
+      if (ids.has(row.id)) throw invalid();
+      ids.add(row.id);
+      total += amount(row.minor);
+      count += row.count;
+    }
+    if (total !== BigInt(value.total_myr_minor) || count !== value.count) throw invalid();
+  }
   return value;
 }
 function validDate(value) {
@@ -90,9 +120,13 @@ export function makeExpense(snapshot, input) {
   if ([...note].length > 500 || note.includes('\0')) throw new GuestError('Keep the note within 500 characters.');
   return { category: category.id, currency: currency.code, amount, rate: currency.rate, date: validDate(input.date), note: note || null };
 }
-export function formatMyr(minor) {
-  const number = BigInt(minor); return `RM ${(number / 100n).toLocaleString('en-MY')}.${(number % 100n).toString().padStart(2, '0')}`;
+export function formatMinor(minor, code, precision) {
+  const number = BigInt(minor), scale = 10n ** BigInt(precision);
+  const whole = (number / scale).toLocaleString('en-MY');
+  const fraction = precision ? `.${(number % scale).toString().padStart(precision, '0')}` : '';
+  return `${code === 'MYR' ? 'RM' : code} ${whole}${fraction}`;
 }
+export const formatMyr = minor => formatMinor(minor, 'MYR', 2);
 export function formatSnapshotTotal(snapshot) {
   const currency = snapshot.currencies.find(row => row.id === snapshot.default_currency);
   if (!currency || currency.code === 'MYR') return formatMyr(snapshot.total_myr_minor);
@@ -263,11 +297,11 @@ export class RelayClient {
     this.state.read = null;
     await this.persist();
   }
-  sync({ signal, onProgress = () => {} } = {}) {
+  sync({ signal, onProgress = () => {}, refreshSnapshot = false } = {}) {
     if (this.active) return this.active;
-    this.active = this.withStateLock(() => this.performSync(signal, onProgress)).finally(() => { this.active = null; }); return this.active;
+    this.active = this.withStateLock(() => this.performSync(signal, onProgress, refreshSnapshot)).finally(() => { this.active = null; }); return this.active;
   }
-  async performSync(signal, onProgress) {
+  async performSync(signal, onProgress, refreshSnapshot) {
     this.assertActive(); this.lastSentCount = 0;
     onProgress('Loading invitation details from Discord');
     await this.ensureSnapshot(signal);
@@ -282,6 +316,14 @@ export class RelayClient {
       try { await this.persist(); }
       catch (error) { this.state.pending = pending; this.state.sent = sent; throw error; }
       this.lastSentCount++;
+    }
+    if (refreshSnapshot || this.state.read) {
+      onProgress('Requesting the latest summary from the host');
+      this.state.read ??= { request: null };
+      const response = await this.exchange({ action: 'read' }, this.state.read, signal);
+      this.state.snapshot = response.snapshot;
+      this.state.read = null;
+      await this.persist();
     }
     return this.state.snapshot;
   }

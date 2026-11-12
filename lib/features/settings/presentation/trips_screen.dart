@@ -8,7 +8,6 @@ import '../../currencies/presentation/currency_view_model.dart';
 import '../../reports/presentation/report_view_model.dart';
 import '../../reports/presentation/report_widgets.dart';
 import '../../reports/domain/report_period.dart';
-import '../../reports/domain/financial_report.dart';
 
 class TripsScreen extends ConsumerWidget {
   const TripsScreen({super.key});
@@ -140,97 +139,20 @@ class TripSummaryScreen extends ConsumerWidget {
           data: (value) => Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _TripCurrencySummary(report: value),
+              TripCurrencySummary(
+                expenseCount: value.expenseCount,
+                currencyTotals: value.currencyTotals,
+                expenses: value.expenses,
+                currencyRates: value.currencyRates,
+              ),
               const SizedBox(height: 16),
-              SpendingBreakdown(report: value),
+              SpendingBreakdown(categories: value.categories),
             ],
           ),
         ),
       ],
     );
   }
-}
-
-class _TripCurrencySummary extends StatelessWidget {
-  const _TripCurrencySummary({required this.report});
-  final FinancialReport report;
-
-  @override
-  Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.stretch,
-    children: [
-      Text('${report.expenseCount} expenses'),
-      const SizedBox(height: 12),
-      Card(
-        margin: EdgeInsets.zero,
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Spent by currency',
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              const SizedBox(height: 8),
-              const Text('Original expense amounts and saved exchange rates.'),
-              if (report.expenseCount == 0)
-                const Padding(
-                  padding: EdgeInsets.only(top: 12),
-                  child: Text('No expenses in this trip.'),
-                ),
-              for (final total in report.currencyTotals)
-                Padding(
-                  padding: const EdgeInsets.only(top: 12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: Text(
-                          total.format(),
-                          style: Theme.of(context).textTheme.titleLarge,
-                        ),
-                      ),
-                      for (final rate
-                          in report.currencyRates[total.currencyCode] ??
-                              const <String>[])
-                        Text('1 ${total.currencyCode} = $rate MYR'),
-                    ],
-                  ),
-                ),
-            ],
-          ),
-        ),
-      ),
-      const SizedBox(height: 12),
-      Card(
-        margin: EdgeInsets.zero,
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Total in MYR',
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              const SizedBox(height: 8),
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Text(
-                  report.expenses.format(),
-                  style: Theme.of(context).textTheme.headlineSmall,
-                ),
-              ),
-              const SizedBox(height: 8),
-              const Text('Combined using each expense’s saved exchange rate.'),
-            ],
-          ),
-        ),
-      ),
-    ],
-  );
 }
 
 class TripRatesScreen extends ConsumerWidget {

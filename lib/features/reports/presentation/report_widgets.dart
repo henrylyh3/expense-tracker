@@ -65,21 +65,114 @@ class FinancialSummary extends StatelessWidget {
   );
 }
 
+class TripCurrencySummary extends StatelessWidget {
+  const TripCurrencySummary({
+    required this.expenseCount,
+    required this.currencyTotals,
+    required this.expenses,
+    this.currencyRates = const {},
+    super.key,
+  });
+  final int expenseCount;
+  final List<Money> currencyTotals;
+  final Money expenses;
+  final Map<String, List<String>> currencyRates;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      Text('$expenseCount expenses'),
+      const SizedBox(height: 12),
+      Card(
+        margin: EdgeInsets.zero,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Spent by currency',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                currencyRates.isEmpty
+                    ? 'Original expense amounts.'
+                    : 'Original expense amounts and saved exchange rates.',
+              ),
+              if (expenseCount == 0)
+                const Padding(
+                  padding: EdgeInsets.only(top: 12),
+                  child: Text('No expenses in this trip.'),
+                ),
+              for (final total in currencyTotals)
+                Padding(
+                  padding: const EdgeInsets.only(top: 12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Text(
+                          total.format(),
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
+                      ),
+                      for (final rate
+                          in currencyRates[total.currencyCode] ??
+                              const <String>[])
+                        Text('1 ${total.currencyCode} = $rate MYR'),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+      const SizedBox(height: 12),
+      Card(
+        margin: EdgeInsets.zero,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Total in MYR',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 8),
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Text(
+                  expenses.format(),
+                  style: Theme.of(context).textTheme.headlineSmall,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text('Combined using each expense’s saved exchange rate.'),
+            ],
+          ),
+        ),
+      ),
+    ],
+  );
+}
+
 class SpendingBreakdown extends StatelessWidget {
   const SpendingBreakdown({
-    required this.report,
+    required this.categories,
     this.currency = DisplayCurrency.myr,
     this.onCategory,
     super.key,
   });
-  final FinancialReport report;
+  final List<CategorySpending> categories;
   final DisplayCurrency currency;
   final ValueChanged<CategorySpending>? onCategory;
   @override
   Widget build(BuildContext context) {
-    final positive = report.categories
-        .where((item) => item.amountMinor > 0)
-        .toList();
+    final positive = categories.where((item) => item.amountMinor > 0).toList();
     final slices = positive
         .take(5)
         .map(
@@ -159,7 +252,7 @@ class SpendingBreakdown extends StatelessWidget {
                   ),
                 ),
             ],
-            for (final item in report.categories)
+            for (final item in categories)
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 leading: Icon(
